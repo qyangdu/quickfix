@@ -24,7 +24,6 @@
 
 #include <time.h>
 #include <semaphore.h>
-#include <tbb/atomic.h>
 
 #include <queue>
 #include <iostream>
@@ -48,8 +47,8 @@ class Application
   uint64_t*	   spans_;
   uint64_t	   totalNsec_;
   sem_t		   ready_;
-  tbb::atomic<int> logonCount_;
-  tbb::atomic<int> receiveCount_;
+  FIX::AtomicCount logonCount_;
+  FIX::AtomicCount receiveCount_;
 
 public:
   Application(uint64_t NumSpans);
@@ -80,7 +79,7 @@ public:
     totalNsec_ += span;
     sem_post(&ready_);
   } 
-  int  received() const { return receiveCount_; }
+  FIX::AtomicCount::value_type received() const { return receiveCount_; }
   uint64_t elapsed() const { return totalNsec_; }
 
   uint64_t* spans() {

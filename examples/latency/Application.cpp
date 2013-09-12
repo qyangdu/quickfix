@@ -28,8 +28,9 @@
 
 #include "quickfix/fix42/ExecutionReport.h"
 
-Application::Application(uint64_t N) {
-  logonCount_ = 0; receiveCount_ = 0;
+Application::Application(uint64_t N) 
+: logonCount_(0), receiveCount_(0)
+{
   sem_init(&ready_, 0, 1);
   totalNsec_ = 0;
   spans_ = new uint64_t[N];
@@ -44,6 +45,6 @@ void Application::fromApp( const FIX::Message& message,
                            const FIX::SessionID& sessionID )
 throw( FIX::FieldNotFound, FIX::IncorrectDataFormat, FIX::IncorrectTagValue, FIX::UnsupportedMessageType )
 {
-  release(receiveCount_++);
+  release(++receiveCount_ - 1);
 }
 
