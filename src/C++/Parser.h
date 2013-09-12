@@ -40,8 +40,7 @@ public:
   : m_bufferSize( 0 ) {}
   ~Parser() {}
 
-  bool extractLength( int& length, std::string::size_type& pos,
-                      const std::string& buffer )
+  std::size_t extractLength( const char* msg, std::size_t size )
   throw ( MessageParseError );
   bool readFixMessage( std::string& str )
   throw ( MessageParseError );

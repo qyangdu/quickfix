@@ -46,7 +46,7 @@ bool HttpConnection::send( const std::string& msg )
 }
 
 void HttpConnection::disconnect( int error )
-{ 
+{
   if( error > 0 )
     send( HttpMessage::createResponse(error) );
 

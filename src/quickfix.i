@@ -1,5 +1,7 @@
 %module(directors="1") quickfix
 
+#define NOTHROW
+
 %exceptionclass FIX::Exception;
 
 %include typemaps.i
@@ -13,11 +15,13 @@
 %array_class(int, IntArray);
 
 %ignore _REENTRANT;
+%ignore FIX::SynchronizedApplication::m_mutex;
 %rename(SocketInitiatorBase) FIX::SocketInitiator;
 %rename(SocketAcceptorBase) FIX::SocketAcceptor;
 
 %{
 #include <config.h>
+#include "../C++/Utility.h"
 #include "../C++/Exceptions.h"
 #include "../C++/Field.h"
 #include "../C++/Message.h"
@@ -61,6 +65,7 @@ typedef FIX::MessageStore MessageStore;
 typedef FIX::MessageStoreFactory MessageStoreFactory;
 typedef FIX::Mutex Mutex;
 typedef FIX::DOMDocumentPtr DOMDocumentPtr;
+typedef FIX::Sg Sg;
 %}
 
 %typedef DoubleField PriceField;

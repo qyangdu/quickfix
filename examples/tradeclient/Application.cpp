@@ -27,7 +27,57 @@
 
 #include "Application.h"
 #include "quickfix/Session.h"
+#include <sys/time.h>
 #include <iostream>
+
+#include <tbb/atomic.h>
+#include <tbb/spin_mutex.h>
+
+#define NUM_SAMPLES 1000000
+
+timeval last_out, last_in;
+static unsigned long latency;
+static unsigned long min_latency = 100000000000UL;
+static unsigned long max_latency;
+static const unsigned long bucket_step = 2;
+static const int max_bucket = 200;
+static unsigned long latency_buckets[max_bucket + 1];
+tbb::atomic<unsigned long> rq_sent;
+tbb::atomic<unsigned long> rp_matched;
+
+FIX::ClOrdID  last_ClOrdID("1234");
+FIX::Symbol   last_Symbol("EUR/USD");
+FIX::OrderQty last_Qty(1000);
+FIX::Price    last_Price(1.0);
+FIX::Side     last_Side(FIX::Side_BUY);
+
+std::auto_ptr<FIX::Message> last_order;
+
+std::queue<timeval> q_out;
+tbb::spin_mutex     q_lock;
+
+void q_on_send() {
+  gettimeofday(&last_out, NULL);
+  tbb::spin_mutex::scoped_lock l(q_lock);
+  q_out.push(last_out);
+  rq_sent++;
+}
+
+void q_on_receive() {
+  gettimeofday(&last_in, NULL);
+  tbb::spin_mutex::scoped_lock l(q_lock);
+  if (!q_out.empty()) {
+    timeval first_out = q_out.front();
+    unsigned long l = (last_in.tv_sec - first_out.tv_sec) * 1000000 + last_in.tv_usec - first_out.tv_usec;
+    if ( l < min_latency ) min_latency = l;
+    if ( l > max_latency ) max_latency = l;
+    int b = l / bucket_step;
+    latency_buckets[b > max_bucket ? max_bucket : b ]++;
+    latency += l;
+    q_out.pop();
+    rp_matched++;
+  }
+};
 
 void Application::onLogon( const FIX::SessionID& sessionID )
 {
@@ -43,7 +93,7 @@ void Application::fromApp( const FIX::Message& message, const FIX::SessionID& se
 throw( FIX::FieldNotFound, FIX::IncorrectDataFormat, FIX::IncorrectTagValue, FIX::UnsupportedMessageType )
 {
   crack( message, sessionID );
-  std::cout << std::endl << "IN: " << message << std::endl;
+  q_on_receive();
 }
 
 void Application::toApp( FIX::Message& message, const FIX::SessionID& sessionID )
@@ -56,9 +106,6 @@ throw( FIX::DoNotSend )
     if ( possDupFlag ) throw FIX::DoNotSend();
   }
   catch ( FIX::FieldNotFound& ) {}
-
-  std::cout << std::endl
-  << "OUT: " << message << std::endl;
 }
 
 void Application::onMessage
@@ -88,13 +135,54 @@ void Application::onMessage
 
 void Application::run()
 {
+  FIX::TimeInForce::Pack  tIF(FIX::TimeInForce_IMMEDIATE_OR_CANCEL);
+  FIX::SenderCompID::Pack sender("CLIENT1");
+  FIX::TargetCompID::Pack target("EXECUTOR");
   while ( true )
   {
     try
     {
       char action = queryAction();
 
-      if ( action == '1' )
+      if ( action == '0' ) {
+	timeval st, en;
+	rq_sent = 0;
+	rp_matched = 0;
+        latency = 0;
+	max_latency = 0;
+	min_latency = 10000000000UL;
+        memset(latency_buckets, 0, sizeof(latency_buckets));
+        gettimeofday(&st, NULL);
+	for (int i = 0; i < NUM_SAMPLES; i++) {
+	  q_on_send();
+		  FIX42::NewOrderSingle order(last_ClOrdID,
+							 FIX::HandlInst( '1' ),
+							 last_Symbol,
+							 last_Side,
+							 FIX::TransactTime(),
+							 FIX::OrdType(FIX::OrdType_LIMIT));
+		  order.set( last_Qty );
+		  order.set( tIF );
+		  order.set( last_Price );
+
+		  order.getHeader().setField( sender );
+		  order.getHeader().setField( target );
+
+          FIX::Session::sendToTarget( order );
+	  for (volatile int i = 0; i < 250; i++)
+		sched_yield();
+        }
+	std::cout << "Done sending" << std::endl;
+        while (rp_matched < NUM_SAMPLES) sleep(1);
+        gettimeofday(&en, NULL);
+	std::cout << "Duration : " << ((en.tv_sec - st.tv_sec) * 1000000 + en.tv_usec - st.tv_usec) << " usec " << std::endl;
+	std::cout << "Avg Latency : " << latency / NUM_SAMPLES << " usec " << std::endl;
+	std::cout << "Max Latency : " << max_latency << " usec " << std::endl;
+	std::cout << "Min Latency : " << min_latency << " usec " << std::endl;
+        for (int i = 0; i <= max_bucket; i++)
+		std::cout << "  [" << i * bucket_step << " - " << (i + 1) * bucket_step << "] = " << latency_buckets[i] << std::endl;
+      }
+      else if ( action == '1' )
         queryEnterOrder();
       else if ( action == '2' )
         queryCancelOrder();
@@ -142,8 +230,12 @@ void Application::queryEnterOrder()
     break;
   }
 
-  if ( queryConfirm( "Send order" ) )
+  last_order.reset(new FIX::Message(order));
+
+  if ( queryConfirm( "Send order" ) ) {
+    gettimeofday(&last_out, NULL);
     FIX::Session::sendToTarget( order );
+  }
 }
 
 void Application::queryCancelOrder()
@@ -605,6 +697,7 @@ char Application::queryAction()
 {
   char value;
   std::cout << std::endl
+  << "0) Measure latency with the last Order" << std::endl
   << "1) Enter Order" << std::endl
   << "2) Cancel Order" << std::endl
   << "3) Replace Order" << std::endl
@@ -614,7 +707,7 @@ char Application::queryAction()
   std::cin >> value;
   switch ( value )
   {
-    case '1': case '2': case '3': case '4': case '5': break;
+    case '0': case '1': case '2': case '3': case '4': case '5': break;
     default: throw std::exception();
   }
   return value;
@@ -622,7 +715,8 @@ char Application::queryAction()
 
 int Application::queryVersion()
 {
-  char value;
+  static char default_value = '3';
+  char value = default_value;
   std::cout << std::endl
   << "1) FIX.4.0" << std::endl
   << "2) FIX.4.1" << std::endl
@@ -631,7 +725,10 @@ int Application::queryVersion()
   << "5) FIX.4.4" << std::endl
   << "6) FIXT.1.1 (FIX.5.0)" << std::endl
   << "BeginString: ";
-  std::cin >> value;
+  std::string line;
+  std::getline( std::cin, line );
+  if (!line.empty())
+    value = line[0];
   switch ( value )
   {
     case '1': return 40;
@@ -648,23 +745,27 @@ bool Application::queryConfirm( const std::string& query )
 {
   std::string value;
   std::cout << std::endl << query << "?: ";
-  std::cin >> value;
+  std::getline( std::cin, value );
   return toupper( *value.c_str() ) == 'Y';
 }
 
 FIX::SenderCompID Application::querySenderCompID()
 {
+  static const char* default_value = "CLIENT1";
   std::string value;
   std::cout << std::endl << "SenderCompID: ";
-  std::cin >> value;
+  std::getline( std::cin, value);
+  if (value.empty()) value = default_value;
   return FIX::SenderCompID( value );
 }
 
 FIX::TargetCompID Application::queryTargetCompID()
 {
+  static const char* default_value = "EXECUTOR";
   std::string value;
   std::cout << std::endl << "TargetCompID: ";
-  std::cin >> value;
+  std::getline( std::cin, value);
+  if (value.empty()) value = default_value;
   return FIX::TargetCompID( value );
 }
 
@@ -678,9 +779,11 @@ FIX::TargetSubID Application::queryTargetSubID()
 
 FIX::ClOrdID Application::queryClOrdID()
 {
+  static const char* default_value = "12345";
   std::string value;
   std::cout << std::endl << "ClOrdID: ";
-  std::cin >> value;
+  std::getline( std::cin, value );
+  if (value.empty()) value = default_value;
   return FIX::ClOrdID( value );
 }
 
@@ -694,15 +797,18 @@ FIX::OrigClOrdID Application::queryOrigClOrdID()
 
 FIX::Symbol Application::querySymbol()
 {
+  static const char* default_value = "EUR/USD";
   std::string value;
   std::cout << std::endl << "Symbol: ";
-  std::cin >> value;
+  std::getline( std::cin, value );
+  if (value.empty()) value = default_value;
   return FIX::Symbol( value );
 }
 
 FIX::Side Application::querySide()
 {
-  char value;
+  static char default_value = '1';
+  char value = default_value;
   std::cout << std::endl
   << "1) Buy" << std::endl
   << "2) Sell" << std::endl
@@ -712,8 +818,9 @@ FIX::Side Application::querySide()
   << "6) Cross Short" << std::endl
   << "7) Cross Short Exempt" << std::endl
   << "Side: ";
-
-  std::cin >> value;
+  std::string line;
+  std::getline( std::cin, line );
+  if (!line.empty()) value = line[0];
   switch ( value )
   {
     case '1': return FIX::Side( FIX::Side_BUY );
@@ -729,23 +836,28 @@ FIX::Side Application::querySide()
 
 FIX::OrderQty Application::queryOrderQty()
 {
-  long value;
+  static long default_value = 10001;
+  long value = default_value;
   std::cout << std::endl << "OrderQty: ";
-  std::cin >> value;
+  std::string line;
+  std::getline( std::cin, line );
+  if (!line.empty()) value = atoi(line.c_str());
   return FIX::OrderQty( value );
 }
 
 FIX::OrdType Application::queryOrdType()
 {
-  char value;
+  static char default_value = '2';
+  char value = default_value;
   std::cout << std::endl
   << "1) Market" << std::endl
   << "2) Limit" << std::endl
   << "3) Stop" << std::endl
   << "4) Stop Limit" << std::endl
   << "OrdType: ";
-
-  std::cin >> value;
+  std::string line;
+  std::getline( std::cin, line );
+  if (!line.empty()) value = line[0];
   switch ( value )
   {
     case '1': return FIX::OrdType( FIX::OrdType_MARKET );
@@ -758,9 +870,12 @@ FIX::OrdType Application::queryOrdType()
 
 FIX::Price Application::queryPrice()
 {
-  double value;
+  static double default_value = 1.2345;
+  double value = default_value;
   std::cout << std::endl << "Price: ";
-  std::cin >> value;
+  std::string line;
+  std::getline( std::cin, line );
+  if (line.empty()) value = atof(line.c_str());
   return FIX::Price( value );
 }
 
@@ -774,7 +889,8 @@ FIX::StopPx Application::queryStopPx()
 
 FIX::TimeInForce Application::queryTimeInForce()
 {
-  char value;
+  static char default_value = '2';
+  char value = default_value;
   std::cout << std::endl
   << "1) Day" << std::endl
   << "2) IOC" << std::endl
@@ -782,8 +898,9 @@ FIX::TimeInForce Application::queryTimeInForce()
   << "4) GTC" << std::endl
   << "5) GTX" << std::endl
   << "TimeInForce: ";
-
-  std::cin >> value;
+  std::string line;
+  std::getline( std::cin, line );
+  if (!line.empty()) value = line[0];
   switch ( value )
   {
     case '1': return FIX::TimeInForce( FIX::TimeInForce_DAY );

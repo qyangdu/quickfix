@@ -24,10 +24,12 @@
 
 #ifdef _MSC_VER
 #pragma warning( disable : 4503 4355 4786 4290 )
+#else
+#include "Config.h"
 #endif
 
+#include "AtomicCount.h"
 #include "FieldNumbers.h"
-#include "SharedArray.h"
 #include <stdarg.h>
 #include <functional>
 #include <map>
@@ -37,68 +39,41 @@ namespace FIX
 /// Sorts fields in correct header order.
 struct header_order
 {
-  static bool compare( const int& x, const int& y )
+  static inline bool NOTHROW compare( const int x, const int y )
   {
     int orderedX = getOrderedPosition( x );
     int orderedY = getOrderedPosition( y );
 
-    if ( orderedX && orderedY )
-      return orderedX < orderedY;
-    else
-      if ( orderedX )
-        return true;
-      else
-        if ( orderedY )
-          return false;
-        else
-          return x < y;
+    return orderedX < orderedY;
   }
 
-  static int getOrderedPosition( const int& field )
+  static inline int NOTHROW getOrderedPosition( const int field )
   {
-    switch ( field )
-    {
-      case FIELD::BeginString: return 1;
-      case FIELD::BodyLength: return 2;
-      case FIELD::MsgType: return 3;
-      default: return 0;
-    };
+    int s = -3 * (field == FIX::FIELD::BeginString) |
+            -2 * (field == FIX::FIELD::BodyLength) |
+            -1 * (field == FIX::FIELD::MsgType);
+    return (s == 0) ? field : s;
   }
 };
 
 /// Sorts fields in correct trailer order.
 struct trailer_order
 {
-  static bool compare( const int x, const int y )
+  static inline bool NOTHROW compare( const int x, const int y )
   {
-    if ( x == FIELD::CheckSum ) return false;
-    else
-      if ( y == FIELD::CheckSum ) return true;
-      else return x < y;
+    return ((x < y) || (y == FIELD::CheckSum)) && (x != FIELD::CheckSum);
   }
 };
 
 /// Sorts fields in correct group order
 struct group_order
 {
-  static bool compare( const int x, const int y, int* order, int largest )
+  static inline bool NOTHROW compare( const int x, const int y, int* order, int largest )
   {
-    if ( x <= largest && y <= largest )
-    {
-      int iX = order[ x ];
-      int iY = order[ y ];
-      if ( iX == 0 && iY == 0 )
-        return x < y;
-      else if ( iX == 0 )
-        return false;
-      else if ( iY == 0 )
-        return true;
-      else
-        return iX < iY;
-    }
-    else if ( x <= largest ) return true;
-    else if ( y <= largest ) return false;
-    else return x < y;
+    int iX = (x <= largest) ? order[x] : x;
+    int iY = (y <= largest) ? order[y] : y;
+
+    return iX < iY;
   }
 };
 
@@ -112,17 +87,121 @@ typedef std::less < int > normal_order;
  */
 struct message_order
 {
+  class group_order_array
+  {
+    class storage
+    {
+      public:
+
+        static inline
+        int* allocate( std::size_t largest, AtomicCount::value_type v )
+        {
+          std::size_t bufsz = sizeof(storage) + sizeof(int) * (largest + 1);
+          storage* p = new ((storage*) new char[bufsz]) storage( v );
+          return reinterpret_cast<int*>(p + 1);
+        }
+        static inline void deallocate( int* buffer )
+        {
+          storage* p = get(buffer);
+          p->~storage();
+          delete [] reinterpret_cast<char*>(p);
+        }
+  
+        static inline AtomicCount& counter( int* buffer )
+        { return get(buffer)->m_count; }
+
+      private:
+
+        storage( AtomicCount::value_type v = 0 )
+        : m_count(v) {}
+
+        storage( const storage& );
+        storage& operator = ( const storage& );
+
+        static inline storage* get( int* buffer )
+        { return reinterpret_cast<storage*>(buffer) - 1; }
+
+        AtomicCount m_count;
+    };
+
+    public:
+
+      group_order_array() : m_buffer(NULL) {}
+
+      group_order_array(const group_order_array& rhs)
+      : m_buffer( rhs.acquire() )
+      {}
+ 
+      ~group_order_array()
+      { release(); }
+ 
+      group_order_array& operator = (const group_order_array& rhs)
+      {
+        if( &rhs != this )
+        {
+          release();
+          m_buffer = rhs.acquire();
+        }
+        return *this;
+      }
+ 
+      bool empty() const
+      { return m_buffer == NULL; }
+ 
+      operator int * () const
+      { return m_buffer; }
+ 
+      static inline group_order_array create( std::size_t largest )
+      {
+        if( largest )
+        {
+           int* p = storage::allocate( largest, 1 );
+           for( std::size_t i = 0; i < largest; i++ )
+             p[ i ] = i; // >= 0 by default
+           return p;
+        }
+        return NULL;
+      }
+
+    private:
+
+      group_order_array(int* buffer) : m_buffer(buffer)
+      {}
+
+      int* acquire() const
+      {
+        if( !empty() )
+          ++storage::counter(m_buffer);
+        return m_buffer;
+      }
+
+      void release()
+      {
+        if( !empty() && 0 == --storage::counter(m_buffer) )
+        {
+          storage::deallocate(m_buffer);
+          m_buffer = NULL;
+        }
+      }
+
+      int* m_buffer;
+  };
+
 public:
   enum cmp_mode { header, trailer, normal, group };
 
-  message_order( cmp_mode mode = normal ) 
-    : m_mode( mode ), m_delim( 0 ), m_largest( 0 ) {}
+  message_order( cmp_mode mode = normal )
+  : m_mode( mode ), m_delim ( 0 ), m_largest( 0 ) {}
   message_order( int first, ... );
   message_order( const int order[] );
-  message_order( const message_order& copy ) 
-  { *this = copy; }
+  message_order( const message_order& copy )
+  : m_mode( copy.m_mode )
+  , m_delim( copy.m_delim )
+  , m_largest( copy.m_largest )
+  , m_groupOrder( copy.m_groupOrder )
+  {}
 
-  bool operator() ( const int& x, const int& y ) const
+  inline bool NOTHROW operator() ( const int x, const int y ) const
   {
     switch ( m_mode )
     {
@@ -137,18 +216,22 @@ public:
     }
   }
 
-  message_order& operator=( const message_order& rhs );
+  inline message_order& NOTHROW operator=( const message_order& rhs )
+  {
+    m_mode = rhs.m_mode;
+    m_delim = rhs.m_delim;
+    m_largest = rhs.m_largest;
+    m_groupOrder = rhs.m_groupOrder;
+    return *this;
+  }
 
-  operator bool() const
-  { return !m_groupOrder.empty(); }
+  operator bool() const { return !m_groupOrder.empty(); }
 
 private:
-  void setOrder( int size, const int order[] );
-
   cmp_mode m_mode;
   int m_delim;
-  shared_array<int> m_groupOrder;
   int m_largest;
+  group_order_array m_groupOrder;
 };
 }
 

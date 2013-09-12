@@ -17,6 +17,7 @@
 **
 ****************************************************************************/
 
+#include <string.h>
 #ifdef _MSC_VER
 #include "stdafx.h"
 #else
@@ -28,76 +29,106 @@
 #include "FieldConvertors.h"
 #include <algorithm>
 
+#ifdef HAVE_BOOST
+#include <boost/spirit/include/qi_numeric.hpp>
+#endif
+
+static inline const char* memchr2(const char* p, char c1, char c2, int n) {
+        union U {
+                char     c[2];
+                uint16_t u;
+        } u = { { c1, c2 } };
+        for (int i = 0, l = n - 2; i <= l; i++, p++) {
+                if (*(const uint16_t*)p == u.u )
+                        return p;
+        }
+        return NULL;
+}
+
 namespace FIX
 {
-bool Parser::extractLength( int& length, std::string::size_type& pos,
-                            const std::string& buffer )
+std::size_t Parser::extractLength( const char* msg, std::size_t sz )
 throw( MessageParseError )
 {
-  if( !buffer.size() ) return false;
-
-  std::string::size_type startPos = buffer.find( "\0019=", 0 );
-  if( startPos == std::string::npos ) return false;
-  startPos += 3;
-  std::string::size_type endPos = buffer.find( "\001", startPos );
-  if( endPos == std::string::npos ) return false;
-
-  std::string strLength( buffer, startPos, endPos - startPos );
-
-  try
+  if( sz > 3 )
   {
-    length = IntConvertor::convert( strLength );
-    if( length < 0 ) throw MessageParseError();
-  }
-  catch( FieldConvertError& )
-  { throw MessageParseError(); }
+    const char* p = Util::CharBuffer::memmem(msg, sz, "\0019=", 3);
+    if( p )
+    {
+      std::size_t startPos = p - msg + 3;
+      p = (const char*)::memchr( p + 3, '\001', sz - startPos);
+      if( p )
+      {
+        int length = 0;
+        std::size_t endPos = p - msg;
+    
+        if( UnsignedConvertor::parse(msg + startPos, p, length) )
+          return endPos + 1 + length;
 
-  pos = endPos + 1;
-  return true;
+        throw MessageParseError();
+      }
+    }
+  }
+  return 0;
 }
 
 bool Parser::readFixMessage( std::string& str )
 throw( MessageParseError )
 {
-  std::string::size_type pos = 0;
+  std::size_t bufSize = Util::String::length(m_buffer);
 
-  if( m_buffer.length() < 2 ) return false;
-  pos = m_buffer.find( "8=" );
-  if( pos == std::string::npos ) return false;
-  m_buffer.erase( 0, pos );
-
-  int length = 0;
-
-  try
+  if( bufSize > 2 )
   {
-    if( extractLength(length, pos, m_buffer) )
+    const char* buf = Util::String::c_str(m_buffer);
+    const char* p = memchr2(buf, '8', '=', bufSize);
+
+    if( p )
     {
-      pos += length;
-      if( m_buffer.size() < pos )
-        return false;
+      std::size_t length = 0;
+      std::size_t msgPos = p - buf;
 
-      pos = m_buffer.find( "\00110=", pos-1 );
-      if( pos == std::string::npos ) return false;
-      pos += 4;
-      pos = m_buffer.find( "\001", pos );
-      if( pos == std::string::npos ) return false;
-      pos += 1;
-
-      str = m_buffer.substr( 0, pos );
-      m_buffer.erase( 0, pos );
-      return true;
-    }
+      try
+      {
+        if( (length = extractLength( (buf = p), bufSize - msgPos )) )
+        {
+          std::size_t checksumOffset = msgPos + length;
+          if( bufSize >= (checksumOffset + 4) )
+          {
+            p = Util::CharBuffer::memmem( p + length - 1,
+                            bufSize - checksumOffset + 1, "\00110=", 4 );
+            if( p )
+            {
+              p += 4;
+              p = (const char*)::memchr( p, '\001', p - buf);
+              if( p )
+              {
+                length = (p - buf) + 1;
+                if ( length == bufSize ) {
+                  Util::String::swap( str, m_buffer );
+                  m_buffer.clear();
+                } else {
+                  m_buffer.substr( msgPos, length ).swap(str);
+                  m_buffer.erase( 0, msgPos + length );
+                }
+                return true;
+              }
+            }
+          }
+        }
+        if ( msgPos ) m_buffer.erase(0, msgPos);
+      }
+      catch( MessageParseError& e )
+      {
+        if( length > 0 )
+          m_buffer.erase( 0, msgPos + length );
+        else
+          m_buffer.erase();
+    
+        throw e;
+      }
+    } 
   }
-  catch( MessageParseError& e )
-  {
-    if( length > 0 )
-      m_buffer.erase( 0, pos + length );
-    else
-      m_buffer.erase();
-
-    throw e;
-  }
-
   return false;
 }
+
 }

@@ -168,14 +168,14 @@ void MySQLLogFactory::init( const Dictionary& settings,
 
 void MySQLLogFactory::initLog( const Dictionary& settings, MySQLLog& log )
 {
-  try { log.setIncomingTable( settings.getString( MYSQL_LOG_INCOMING_TABLE ) ); }
-  catch( ConfigError& ) {}
+    try { log.setIncomingTable( settings.getString( MYSQL_LOG_INCOMING_TABLE ) ); }
+    catch( ConfigError& ) {}
 
-  try { log.setOutgoingTable( settings.getString( MYSQL_LOG_OUTGOING_TABLE ) ); }
-  catch( ConfigError& ) {}
+    try { log.setOutgoingTable( settings.getString( MYSQL_LOG_OUTGOING_TABLE ) ); }
+    catch( ConfigError& ) {}
 
-  try { log.setEventTable( settings.getString( MYSQL_LOG_EVENT_TABLE ) ); }
-  catch( ConfigError& ) {}
+    try { log.setEventTable( settings.getString( MYSQL_LOG_EVENT_TABLE ) ); }
+    catch( ConfigError& ) {}
 }
 
 void MySQLLogFactory::destroy( Log* pLog )
@@ -238,8 +238,8 @@ void MySQLLog::insert( const std::string& table, const std::string value )
   STRING_SPRINTF( sqlTime, "%d-%02d-%02d %02d:%02d:%02d",
            year, month, day, hour, minute, second );
 
-  char* valueCopy = new char[ (value.size() * 2) + 1 ];
-  mysql_escape_string( valueCopy, value.c_str(), value.size() );
+  Util::scoped_array<char>::type valueCopy( new char[ 2 * value.size() + 1 ] );
+  mysql_escape_string( valueCopy.get(), value.c_str(), value.size() );
 
   std::stringstream queryString;
   queryString << "INSERT INTO " << table << " "
@@ -263,8 +263,7 @@ void MySQLLog::insert( const std::string& table, const std::string value )
     queryString << "NULL, NULL, NULL, NULL, ";
   }
 
-  queryString << "\"" << valueCopy << "\")";
-  delete [] valueCopy;
+  queryString << "\"" << valueCopy.get() << "\")";
 
   MySQLQuery query( queryString.str() );
   m_pConnection->execute( query );

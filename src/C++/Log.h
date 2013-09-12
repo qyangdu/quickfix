@@ -81,13 +81,27 @@ private:
 class Log
 {
 public:
+
+  enum Capabilities {
+	LC_CLEAR	= 0x01,
+	LC_BACKUP	= 0x02,
+	LC_INCOMING	= 0x04,
+	LC_OUTGOING	= 0x08,
+	LC_EVENT	= 0x10
+  };
+
   virtual ~Log() {}
 
   virtual void clear() = 0;
   virtual void backup() = 0;
   virtual void onIncoming( const std::string& ) = 0;
+  virtual void onIncoming( const UtcTimeStamp&, const std::string& msg) { onIncoming(msg); }
   virtual void onOutgoing( const std::string& ) = 0;
+  virtual void onOutgoing( Sg::sg_buf_ptr b, int n ) { onOutgoing( Sg::toString(b, n)); }
   virtual void onEvent( const std::string& ) = 0;
+
+  virtual unsigned queryLogCapabilities() const { return 0; }
+
 };
 /*! @} */
 
@@ -103,7 +117,9 @@ public:
   void clear() {}
   void backup() {}
   void onIncoming( const std::string& ) {}
+  void onIncoming( const UtcTimeStamp&, const std::string& ) {}
   void onOutgoing( const std::string& ) {}
+  void onOutgoing( Sg::sg_buf_ptr, int n ) {}
   void onEvent( const std::string& ) {}
 };
 
@@ -128,11 +144,12 @@ public:
   void backup() {}
 
   void onIncoming( const std::string& value )
+  { onIncoming( UtcTimeStamp(), value ); }
+  void onIncoming( const UtcTimeStamp& when, const std::string& value )
   {
     if ( !m_incoming ) return ;
     Locker l( s_mutex );
-    m_time.setCurrent();
-    std::cout << "<" << UtcTimeStampConvertor::convert(m_time, m_millisecondsInTimeStamp)
+    std::cout << "<" << UtcTimeStampConvertor::convert(when, m_millisecondsInTimeStamp)
               << ", " << m_prefix
               << ", " << "incoming>" << std::endl
               << "  (" << value << ")" << std::endl;
@@ -159,6 +176,8 @@ public:
               << ", " << "event>" << std::endl
               << "  (" << value << ")" << std::endl;
   }
+
+  unsigned queryLogCapabilities() const { return LC_INCOMING | LC_OUTGOING | LC_EVENT; }
 
   bool getMillisecondsInTimeStamp() const
   { return m_millisecondsInTimeStamp; }

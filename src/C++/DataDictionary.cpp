@@ -45,29 +45,28 @@
 namespace FIX
 {
 DataDictionary::DataDictionary()
-: m_hasVersion( false ), m_checkFieldsOutOfOrder( true ),
-  m_checkFieldsHaveValues( true ), m_checkUserDefinedFields( true )
-{}
+: m_hasVersion( false ), m_checks(AllChecks)
+{ init(); }
 
 DataDictionary::DataDictionary( std::istream& stream )
 throw( ConfigError )
-: m_hasVersion( false ), m_checkFieldsOutOfOrder( true ),
-  m_checkFieldsHaveValues( true ), m_checkUserDefinedFields( true )
+: m_hasVersion( false ), m_checks(AllChecks)
 {
+  init();
   readFromStream( stream );
 }
 
 DataDictionary::DataDictionary( const std::string& url )
 throw( ConfigError )
-: m_hasVersion( false ), m_checkFieldsOutOfOrder( true ),
-  m_checkFieldsHaveValues( true ), m_checkUserDefinedFields( true ),
-  m_orderedFieldsArray(0)
+: m_hasVersion( false ), m_checks(AllChecks)
 {
+  init();
   readFromURL( url );
 }
 
 DataDictionary::DataDictionary( const DataDictionary& copy )
 {
+  init();
   *this = copy;
 }
 
@@ -81,9 +80,7 @@ DataDictionary::~DataDictionary()
 DataDictionary& DataDictionary::operator=( const DataDictionary& rhs )
 {
   m_hasVersion = rhs.m_hasVersion;
-  m_checkFieldsOutOfOrder = rhs.m_checkFieldsOutOfOrder;
-  m_checkFieldsHaveValues = rhs.m_checkFieldsHaveValues;
-  m_checkUserDefinedFields = rhs.m_checkUserDefinedFields;
+  m_checks = rhs.m_checks;
   m_beginString = rhs.m_beginString;
   m_messageFields = rhs.m_messageFields;
   m_requiredFields = rhs.m_requiredFields;
@@ -94,6 +91,9 @@ DataDictionary& DataDictionary::operator=( const DataDictionary& rhs )
   m_headerFields = rhs.m_headerFields;
   m_trailerFields = rhs.m_trailerFields;
   m_fieldTypes = rhs.m_fieldTypes;
+  m_fieldTypeData = rhs.m_fieldTypeData;
+  m_fieldTypeHeader = rhs.m_fieldTypeHeader;
+  m_fieldTypeTrailer = rhs.m_fieldTypeTrailer;
   m_fieldValues = rhs.m_fieldValues;
   m_fieldNames = rhs.m_fieldNames;
   m_names = rhs.m_names;
@@ -102,21 +102,25 @@ DataDictionary& DataDictionary::operator=( const DataDictionary& rhs )
   FieldToGroup::const_iterator i = rhs.m_groups.begin();
   for ( ; i != rhs.m_groups.end(); ++i )
   {
-    addGroup( i->first.first, i->first.second,
+    addGroup( i->first.second, i->first.first,
               i->second.first, *i->second.second );
   }
   return *this;
 }
 
-void DataDictionary::validate( const Message& message,
+void DataDictionary::validate( const Message& message, bool bodyOnly ) const
+throw( FIX::Exception )
+{
+  validate( message, FIELD_GET_REF( message.getHeader(), BeginString ),
+            bodyOnly ? (DataDictionary*)NULL : this, this );
+}
+
+void HEAVYUSE DataDictionary::validate( const Message& message,
+			       const BeginString& beginString,
                                const DataDictionary* const pSessionDD,
                                const DataDictionary* const pAppDD )
 throw( FIX::Exception )
-{  
-  const bool bodyOnly = pSessionDD == 0;
-  const Header& header = message.getHeader();
-  const BeginString& beginString = FIELD_GET_REF( header, BeginString );
-  const MsgType& msgType = FIELD_GET_REF( header, MsgType );
+{
   if ( pSessionDD != 0 && pSessionDD->m_hasVersion )
   {
     if( pSessionDD->getVersion() != beginString )
@@ -125,38 +129,49 @@ throw( FIX::Exception )
     }
   }
 
-  int field = 0;
-  if( (pSessionDD !=0 && pSessionDD->m_checkFieldsOutOfOrder) 
-      || (pAppDD != 0 && pAppDD->m_checkFieldsOutOfOrder) )
-  {
-    if ( !message.hasValidStructure(field) )
-      throw TagOutOfOrder(field);
-  }
+  unsigned session_checks = pSessionDD ? pSessionDD->m_checks : 0;
+  unsigned app_checks = pAppDD ? pAppDD->m_checks : 0;
 
-  if ( pAppDD != 0 && pAppDD->m_hasVersion )
+  session_checks |= app_checks;
+  if( session_checks ) 
   {
-    pAppDD->checkMsgType( msgType );
-    pAppDD->checkHasRequired( message.getHeader(), message, message.getTrailer(), msgType );
+    int field = 0;
+    if( isChecked(FieldsOutOfOrder, session_checks) )
+    {
+      if ( !message.hasValidStructure(field) )
+        throw TagOutOfOrder(field);
+    }
+  
+    const MsgType& msgType = FIELD_GET_REF( message.getHeader(), MsgType );
+    if ( pAppDD != 0 && pAppDD->m_hasVersion )
+    {
+      if( isChecked(UnknownMsgType, app_checks) )
+        pAppDD->checkMsgType( msgType );
+      if( isChecked(RequiredFields, app_checks) )
+        pAppDD->checkHasRequired( message.getHeader(), message, message.getTrailer(), msgType );
+    }
+  
+    if( pSessionDD != 0 )
+    {
+      pSessionDD->iterate( message.getHeader(), msgType );
+      pSessionDD->iterate( message.getTrailer(), msgType );
+    }
+  
+    if( pAppDD != 0 )
+      pAppDD->iterate( message, msgType );
   }
-
-  if( !bodyOnly )
-  {
-    pSessionDD->iterate( message.getHeader(), msgType );
-    pSessionDD->iterate( message.getTrailer(), msgType );
-  }
-
-  pAppDD->iterate( message, msgType );
 }
 
-void DataDictionary::iterate( const FieldMap& map, const MsgType& msgType ) const
+void HEAVYUSE DataDictionary::iterate( const FieldMap& map, const MsgType& msgType ) const
 {
+  int hasBegin = m_beginString.getValue().length();
   int lastField = 0;
 
-  FieldMap::iterator i;
-  for ( i = map.begin(); i != map.end(); ++i )
+  FieldMap::iterator i, ibegin = map.begin(), iend = map.end();
+  for ( i = ibegin; i != iend; ++i )
   {
     const FieldBase& field = i->second;
-    if( i != map.begin() && (field.getField() == lastField) )
+    if( i != ibegin && (field.getField() == lastField) )
       throw RepeatedTag( lastField );
     checkHasValue( field );
 
@@ -166,7 +181,7 @@ void DataDictionary::iterate( const FieldMap& map, const MsgType& msgType ) cons
       checkValue( field );
     }
 
-    if ( m_beginString.getValue().length() && shouldCheckTag(field) )
+    if ( hasBegin && shouldCheckTag(field) )
     {
       checkValidTagNumber( field );
       if ( !Message::isHeaderField( field, this )
@@ -428,21 +443,15 @@ throw( ConfigError )
   }
 }
 
-message_order const& DataDictionary::getOrderedFields() const
+message_order const&  DataDictionary::getOrderedFields() const
 {
   if( m_orderedFieldsArray ) return m_orderedFieldsArray;
 
-  int * tmp = new int[m_orderedFields.size() + 1];
-  int * i = tmp;
+  Util::scoped_array<int>::type ordered( new int[m_orderedFields.size() + 1] );
+  std::copy(m_orderedFields.begin(), m_orderedFields.end(), ordered.get());
+  ordered.get()[m_orderedFields.size()] = 0;
 
-  OrderedFields::const_iterator iter;
-  for( iter = m_orderedFields.begin(); iter != m_orderedFields.end(); *(i++) = *(iter++) ) {}
-  *i = 0;
-
-  m_orderedFieldsArray = message_order(tmp);
-  delete [] tmp;
-
-  return m_orderedFieldsArray;
+  return  (m_orderedFieldsArray = message_order(ordered.get()));
 }
 
 int DataDictionary::lookupXMLFieldNumber( DOMDocument* pDoc, DOMNode* pNode ) const

@@ -32,7 +32,7 @@ class SessionID
 public:
   SessionID()
   {
-    toString(m_frozenString);
+        toString(m_frozenString);
   }
 
   SessionID( const std::string& beginString,

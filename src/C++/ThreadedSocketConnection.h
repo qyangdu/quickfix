@@ -61,13 +61,18 @@ public:
 private:
   bool readMessage( std::string& msg ) throw( SocketRecvFailed );
   void processStream();
-  bool send( const std::string& );
   bool setSession( const std::string& msg );
 
-  int m_socket;
-  char m_buffer[BUFSIZ];
+  bool send( const std::string& );
+  bool send( Sg::sg_buf_ptr bufs, int n );
 
+  int m_poll;
+  int m_socket;
+  char m_buffer[4 * BUFSIZ];
+
+  UtcTimeStamp m_ts;
   std::string m_address;
+  std::string m_msg;
   int m_port;
 
   Application& m_application;

@@ -69,6 +69,7 @@ private:
  */
 class FileLog : public Log
 {
+  static const std::size_t BufSize = 1024;
 public:
   FileLog( const std::string& path );
   FileLog( const std::string& path, const SessionID& sessionID );
@@ -79,15 +80,55 @@ public:
   void backup();
 
   void onIncoming( const std::string& value )
-  { m_messages << UtcTimeStampConvertor::convert(UtcTimeStamp(), m_millisecondsInTimeStamp) << " : " << value << std::endl; }
+  { onIncoming( UtcTimeStamp(), value ); }
+  void onIncoming( const UtcTimeStamp& when, const std::string& value )
+  {
+    std::filebuf* b = m_messages.rdbuf();
+    m_timeStamp.clear();
+    UtcTimeStampConvertor::generate(m_timeStamp, when, m_millisecondsInTimeStamp);
+    b->sputn(m_timeStamp.c_str(), m_timeStamp.size());
+    b->sputn(" : ", 3);
+    b->sputn(value.c_str(), value.size());
+    b->sputc('\n');
+    b->pubsync();
+  }
   void onOutgoing( const std::string& value )
-  { m_messages << UtcTimeStampConvertor::convert(UtcTimeStamp(), m_millisecondsInTimeStamp) << " : " << value << std::endl; }
+  {
+    std::filebuf* b = m_messages.rdbuf();
+    m_timeStamp.clear();
+    UtcTimeStampConvertor::generate(m_timeStamp, UtcTimeStamp(), m_millisecondsInTimeStamp);
+    b->sputn(m_timeStamp.c_str(), m_timeStamp.size());
+    b->sputn(" : ", 3);
+    b->sputn(value.c_str(), value.size());
+    b->sputc('\n');
+    b->pubsync();
+  }
+  void onOutgoing( Sg::sg_buf_ptr b, int n )
+  {
+    std::filebuf* p = m_messages.rdbuf();
+    m_timeStamp.clear();
+    UtcTimeStampConvertor::generate(m_timeStamp, UtcTimeStamp(), m_millisecondsInTimeStamp);
+    p->sputn(m_timeStamp.c_str(), m_timeStamp.size());
+    p->sputn(" : ", 3);
+    for (int i = 0; i < n; i++) p->sputn((char*)IOV_BUF(b[i]), IOV_LEN(b[i]));
+    p->sputc('\n');
+    p->pubsync();
+  }
+
   void onEvent( const std::string& value )
   {
-    UtcTimeStamp now;
-    m_event << UtcTimeStampConvertor::convert( now, m_millisecondsInTimeStamp )
-            << " : " << value << std::endl;
+    std::filebuf* b = m_event.rdbuf();
+    m_timeStamp.clear();
+    UtcTimeStampConvertor::generate(m_timeStamp, UtcTimeStamp(), m_millisecondsInTimeStamp);
+    b->sputn(m_timeStamp.c_str(), m_timeStamp.size());
+    b->sputn(" : ", 3);
+    b->sputn(value.c_str(), value.size());
+    b->sputc('\n');
+    b->pubsync();
   }
+
+  unsigned queryLogCapabilities() const { return LC_CLEAR | LC_BACKUP |
+					  LC_INCOMING | LC_OUTGOING | LC_EVENT; }
 
   bool getMillisecondsInTimeStamp() const
   { return m_millisecondsInTimeStamp; }
@@ -104,7 +145,10 @@ private:
   std::string m_eventFileName;
   std::string m_fullPrefix;
   std::string m_fullBackupPrefix;
+  std::string m_timeStamp;
   bool m_millisecondsInTimeStamp;
+  char m_messageBuf[BufSize];
+  char m_eventBuf[BufSize];
 };
 }
 

@@ -21,6 +21,7 @@
 #include "stdafx.h"
 #else
 #include "config.h"
+#include <sys/epoll.h>
 #endif
 
 #include "ThreadedSocketConnection.h"
@@ -33,10 +34,18 @@ namespace FIX
 {
 ThreadedSocketConnection::ThreadedSocketConnection
 ( int s, Sessions sessions, Application& application, Log* pLog )
-: m_socket( s ), m_application( application ), m_pLog( pLog ),
+: m_poll( 0 ), m_socket( s ), m_application( application ), m_pLog( pLog ),
   m_sessions( sessions ), m_pSession( 0 ),
   m_disconnect( false )
 {
+#ifdef XXX
+  struct epoll_event ev;
+  ev.data.ptr = this;
+  ev.events = EPOLLRDHUP | EPOLLIN;
+  m_poll = epoll_create(1);
+  epoll_ctl( m_poll, EPOLL_CTL_ADD, m_socket, &ev );
+#endif
+
   FD_ZERO( &m_fds );
   FD_SET( m_socket, &m_fds );
 }
@@ -45,11 +54,19 @@ ThreadedSocketConnection::ThreadedSocketConnection
 ( const SessionID& sessionID, int s,
   const std::string& address, short port, 
   Application& application, Log* pLog )
-  : m_socket( s ), m_address( address ), m_port( port ),
+  : m_poll ( 0 ), m_socket( s ), m_address( address ), m_port( port ),
     m_application( application ), m_pLog( pLog ),
     m_pSession( Session::lookupSession( sessionID ) ),
     m_disconnect( false )
 {
+#ifdef XXX
+  struct epoll_event ev;
+  ev.data.ptr = this;
+  ev.events = EPOLLRDHUP | EPOLLIN;
+  m_poll = epoll_create(1);
+  epoll_ctl( m_poll, EPOLL_CTL_ADD, m_socket, &ev );
+#endif
+
   FD_ZERO( &m_fds );
   FD_SET( m_socket, &m_fds );
   if ( m_pSession ) m_pSession->setResponder( this );
@@ -66,37 +83,45 @@ ThreadedSocketConnection::~ThreadedSocketConnection()
 
 bool ThreadedSocketConnection::send( const std::string& msg )
 {
-  unsigned totalSent = 0;
-  while(totalSent < msg.length())
-  {
-    unsigned sent = socket_send( m_socket, msg.c_str() + totalSent, msg.length() );
-    if(sent < 0) return false;
-    totalSent += sent;
-  }
+  return socket_send( m_socket, Util::String::c_str(msg), Util::String::length(msg) ) >= 0;
+}
 
-  return true;
+bool ThreadedSocketConnection::send( Sg::sg_buf_ptr bufs, int n )
+{
+  return Sg::send(m_socket, bufs, n);
 }
 
 bool ThreadedSocketConnection::connect()
 {
-  return socket_connect(getSocket(), m_address.c_str(), m_port) >= 0;
+  return socket_connect(getSocket(), Util::String::c_str(m_address), m_port) >= 0;
 }
 
 void ThreadedSocketConnection::disconnect()
-{  
+{
   m_disconnect = true;
+#ifdef XXX
+  epoll_ctl( m_poll, EPOLL_CTL_DEL, m_socket, NULL );
+#endif
   socket_close( m_socket );
 }
 
-bool ThreadedSocketConnection::read()
+bool HEAVYUSE ThreadedSocketConnection::read()
 {
+#ifdef XXX
+  epoll_event ev;
+#else
   struct timeval timeout = { 1, 0 };
   fd_set readset = m_fds;
+#endif
 
   try
   {
     // Wait for input (1 second timeout)
+#ifdef XXX
+    int result = epoll_wait( m_poll, &ev, 1, 1000 );
+#else
     int result = select( 1 + m_socket, &readset, 0, 0, &timeout );
+#endif
 
     if( result > 0 ) // Something to read
     {
@@ -136,7 +161,7 @@ bool ThreadedSocketConnection::read()
   }
 }
 
-bool ThreadedSocketConnection::readMessage( std::string& msg )
+bool HEAVYUSE ThreadedSocketConnection::readMessage( std::string& msg )
 throw( SocketRecvFailed )
 {
   try
@@ -147,19 +172,19 @@ throw( SocketRecvFailed )
   return true;
 }
 
-void ThreadedSocketConnection::processStream()
+void HEAVYUSE ThreadedSocketConnection::processStream()
 {
-  std::string msg;
-  while( readMessage(msg) )
+  while( readMessage( m_msg ) )
   {
     if ( !m_pSession )
     {
-      if ( !setSession( msg ) )
+      if ( !setSession( m_msg ) )
       { disconnect(); continue; }
     }
     try
     {
-      m_pSession->next( msg, UtcTimeStamp() );
+      m_ts.setCurrent();
+      m_pSession->next( m_msg, m_ts );
     }
     catch( InvalidMessage& )
     {

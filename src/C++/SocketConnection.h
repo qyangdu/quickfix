@@ -30,7 +30,6 @@
 #include "Responder.h"
 #include "SessionID.h"
 #include "SocketMonitor.h"
-#include "Utility.h"
 #include "Mutex.h"
 #include <set>
 
@@ -83,11 +82,14 @@ private:
   void readFromSocket() throw( SocketRecvFailed );
   bool readMessage( std::string& msg );
   void readMessages( SocketMonitor& s );
+
   bool send( const std::string& );
+  bool send( Sg::sg_buf_ptr bufs, int n );
+
   void disconnect();
 
   int m_socket;
-  char m_buffer[BUFSIZ];
+  char m_buffer[4 * BUFSIZ];
 
   Parser m_parser;
   Queue m_sendQueue;

@@ -36,6 +36,7 @@ namespace FIX
   public:
     virtual ~Responder() {}
     virtual bool send( const std::string& ) = 0;
+    virtual bool send( Sg::sg_buf_ptr bufs, int n ) = 0;
     virtual void disconnect() = 0;
   };
 }

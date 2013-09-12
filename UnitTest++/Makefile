@@ -89,6 +89,8 @@ clean:
 	@$(call make-depend,$<,$@,$(subst .o,.d,$@))
 	@$(CXX) $(CXXFLAGS) -c $< -o $(patsubst %.cpp, %.o, $<)
 
+distclean:
+
 install:
 
 uninstall:

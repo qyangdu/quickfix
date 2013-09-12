@@ -30,9 +30,23 @@
 #include "FieldMap.h"
 #include "DOMDocument.h"
 #include "Exceptions.h"
+#include <bitset>
 #include <set>
 #include <map>
 #include <string.h>
+
+#ifdef HAVE_BOOST
+#include <boost/pool/pool_alloc.hpp>
+#include <boost/unordered_map.hpp>
+#include <boost/unordered_set.hpp>
+#include <boost/container/flat_map.hpp>
+#include <boost/container/flat_set.hpp>
+#endif
+
+#ifdef HAVE_SPARSEHASH
+#include <google/dense_hash_map>
+#include <google/dense_hash_set>
+#endif
 
 namespace FIX
 {
@@ -48,24 +62,212 @@ class Message;
 
 class DataDictionary
 {
+  static const int HeaderTypeBits = 8192;
+  static const int TrailerTypeBits = 8192;
+  static const int DataTypeBits = 8192;
+
+  enum Check { 
+    FieldsOutOfOrder,
+    FieldsHaveValues,
+    UserDefinedFields,
+    RequiredFields,
+    UnknownFields,
+    UnknownMsgType
+  };
+
+  static const unsigned AllChecks =
+	(1 << FieldsOutOfOrder)  | (1 << FieldsHaveValues) |
+	(1 << UserDefinedFields) | (1 << RequiredFields)   |
+	(1 << UnknownFields)     | (1 << UnknownMsgType);
+
+  inline void checkFor(Check c, bool value) {
+    unsigned mask = 1 << c;
+    if (value)
+      m_checks |= mask;
+    else
+      m_checks &= ~mask;
+  }
+
+  inline bool isChecked(Check c) const {
+    unsigned mask = 1 << c;
+    return (m_checks & mask) != 0;
+  }
+
+  static inline bool isChecked(Check c, const unsigned checks) {
+    unsigned mask = 1 << c;
+    return (checks & mask) != 0;
+  }
+
+public:
+
+#if defined(HAVE_BOOST)
+  typedef boost::container::flat_set <
+    int,
+    std::less<int>,
+    boost::pool_allocator<int>
+  > MsgFields;
+
+  typedef boost::unordered_map <
+    std::string,
+    MsgFields,
+    ItemHash,
+    Util::String::equal_to,
+    boost::fast_pool_allocator< std::pair<std::string, MsgFields> >
+  > MsgTypeToField;
+
+  typedef boost::container::flat_map <
+    int,
+    bool,
+    std::less<int>,
+    boost::pool_allocator< std::pair<int, bool> >
+  > NonBodyFields;
+
+  typedef std::vector<
+    int,
+    boost::pool_allocator<int>
+  > OrderedFields;
+
+  typedef message_order OrderedFieldsArray;
+
+  typedef boost::unordered_set <
+    std::string,
+    ItemHash,
+    Util::String::equal_to,
+    boost::fast_pool_allocator<std::string>
+  > Values;
+
+#ifdef HAVE_SPARSEHASH
+  typedef google::dense_hash_set <
+    std::string,
+    ItemHash,
+    Util::String::equal_to,
+    boost::pool_allocator<std::string>
+  > MsgTypes;
+
+  typedef google::dense_hash_set <
+    int,
+    boost::hash<int>,
+    std::equal_to<int>,
+    boost::pool_allocator<int>
+  > Fields;
+
+  typedef google::dense_hash_map <
+    int,
+    TYPE::Type,
+    boost::hash<int>,
+    std::equal_to<int>,
+    boost::pool_allocator< std::pair<int, TYPE::Type> >
+  > FieldTypes;
+
+  typedef google::dense_hash_map <
+    int,
+    Values,
+    boost::hash<int>,
+    std::equal_to<int>,
+    boost::pool_allocator< std::pair<int, Values> >
+  > FieldToValue;
+#else
+  typedef boost::unordered_set <
+    std::string,
+    ItemHash,
+    Util::String::equal_to,
+    boost::fast_pool_allocator<std::string>
+  > MsgTypes;
+
+  typedef boost::unordered_set <
+    int,
+    boost::hash<int>,
+    std::equal_to<int>,
+    boost::fast_pool_allocator<int>
+  > Fields;
+
+  typedef boost::unordered_map <
+    int,
+    TYPE::Type,
+    boost::hash<int>,
+    std::equal_to<int>,
+    boost::fast_pool_allocator< std::pair<int, TYPE::Type> >
+  > FieldTypes;
+
+  typedef boost::unordered_map <
+    int,
+    Values,
+    boost::hash<int>,
+    std::equal_to<int>,
+    boost::fast_pool_allocator< std::pair<int, Values> >
+  > FieldToValue;
+#endif
+  typedef boost::unordered_map <
+    int,
+    std::string,
+    boost::hash<int>,
+    std::equal_to<int>,
+    boost::fast_pool_allocator< std::pair<int, std::string> >
+  > FieldToName;
+
+  typedef boost::unordered_map <
+    std::string,
+    int,
+    ItemHash,
+    Util::String::equal_to,
+    boost::fast_pool_allocator< std::pair<std::string, int> >
+  > NameToField;
+
+  typedef boost::unordered_map <
+    std::pair < int, std::string >,
+    std::string,
+    ItemHash,
+    std::equal_to<std::pair< int, std::string> >,
+    boost::fast_pool_allocator<
+      std::pair<std::pair<int, std::string>,
+      std::string>
+    >
+  > ValueToName;
+
+  typedef boost::unordered_map <
+    std::pair < int, std::string >,
+    std::pair < int, DataDictionary* >,
+    ItemHash,
+    std::equal_to<std::pair< int, std::string> >,
+    boost::fast_pool_allocator< std::pair<std::pair<int, std::string>,
+    std::pair<int, DataDictionary*> > >
+  > FieldToGroup;
+
+#else /* !HAVE_BOOST */
   typedef std::set < int > MsgFields;
   typedef std::map < std::string, MsgFields > MsgTypeToField;
-  typedef std::set < std::string > MsgTypes;
-  typedef std::set < int > Fields;
   typedef std::map < int, bool > NonBodyFields;
   typedef std::vector< int > OrderedFields;
   typedef message_order OrderedFieldsArray;
-  typedef std::map < int, TYPE::Type > FieldTypes;
   typedef std::set < std::string > Values;
+#ifdef HAVE_SPARSEHASH
+  typedef google::dense_hash_set <
+    std::string,
+    ItemHash,
+    Util::String::equal_to
+  > MsgTypes;
+
+  typedef google::dense_hash_set < int > Fields;
+  typedef google::dense_hash_map < int, TYPE::Type > FieldTypes;
+  typedef google::dense_hash_map < int, Values > FieldToValue;
+#else
+  typedef std::set < std::string > MsgTypes;
+  typedef std::set < int > Fields;
+  typedef std::map < int, TYPE::Type > FieldTypes;
   typedef std::map < int, Values > FieldToValue;
+#endif
   typedef std::map < int, std::string > FieldToName;
   typedef std::map < std::string, int > NameToField;
   typedef std::map < std::pair < int, std::string > ,
   std::string  > ValueToName;
-  typedef std::map < std::pair < std::string, int > ,
+  typedef std::map < std::pair < int, std::string > ,
   std::pair < int, DataDictionary* > > FieldToGroup;
+#endif /* !HAVE_BOOST */
 
-public:
+  typedef Util::BitSet<DataTypeBits> FieldTypeDataBits;
+  typedef Util::BitSet<HeaderTypeBits> FieldTypeHeaderBits;
+  typedef Util::BitSet<TrailerTypeBits> FieldTypeTrailerBits;
+
   DataDictionary();
   DataDictionary( const DataDictionary& copy );
   DataDictionary( std::istream& stream ) throw( ConfigError );
@@ -161,26 +363,32 @@ public:
   void addHeaderField( int field, bool required )
   {
     m_headerFields[ field ] = required;
+    if ( field < HeaderTypeBits )
+	m_fieldTypeHeader.set(field);
   }
 
   bool isHeaderField( int field ) const
   {
-    return m_headerFields.find( field ) != m_headerFields.end();
+    return (field < HeaderTypeBits) ? m_fieldTypeHeader[ field ] : (m_headerFields.find( field ) != m_headerFields.end());
   }
 
   void addTrailerField( int field, bool required )
   {
     m_trailerFields[ field ] = required;
+    if ( field < TrailerTypeBits )
+	m_fieldTypeTrailer.set(field);
   }
 
   bool isTrailerField( int field ) const
   {
-    return m_trailerFields.find( field ) != m_trailerFields.end();
+    return (field < TrailerTypeBits) ? m_fieldTypeTrailer[ field ] : (m_trailerFields.find( field ) != m_trailerFields.end());
   }
 
   void addFieldType( int field, FIX::TYPE::Type type )
   {
     m_fieldTypes[ field ] = type;
+    if (field < DataTypeBits && type == TYPE::Data)
+	m_fieldTypeData.set(field);
   }
 
   bool getFieldType( int field, FIX::TYPE::Type& type ) const
@@ -214,12 +422,214 @@ public:
     return i != m_fieldValues.end();
   }
 
-  bool isFieldValue( int field, const std::string& value ) const
+  bool isFieldValue( int field, const std::string& value) const 
   {
     FieldToValue::const_iterator i = m_fieldValues.find( field );
-    if ( i == m_fieldValues.end() )
+    return ( i == m_fieldValues.end() ) ? false : isFieldValue( i, value );
+  }
+
+  void addGroup( const std::string& msg, int field, int delim,
+                 const DataDictionary& dataDictionary )
+  {
+    DataDictionary * pDD = new DataDictionary;
+    *pDD = dataDictionary;
+    pDD->setVersion( getVersion() );
+    m_groups[ std::make_pair( field, msg ) ] = std::make_pair( delim, pDD );
+  }
+
+  bool isGroup( const std::string& msg, int field ) const
+  {
+    return m_groups.find( std::make_pair( field, msg ) ) != m_groups.end();
+  }
+
+  bool isGroup( const FieldToGroup::key_type& key ) const
+  {
+    return m_groups.find( key ) != m_groups.end();
+  }
+
+  bool getGroup( const std::string& msg, int field, int& delim,
+                 const DataDictionary*& pDataDictionary ) const
+  {
+    return getGroup( std::make_pair( field, msg ), delim, pDataDictionary );
+  }
+
+  bool getGroup( const FieldToGroup::key_type& key, int& delim,
+                 const DataDictionary*& pDataDictionary ) const
+  {
+    FieldToGroup::const_iterator i = m_groups.find( key );
+    if ( i != m_groups.end() )
+    {
+      FieldToGroup::mapped_type pair = i->second;
+      delim = pair.first;
+      pDataDictionary = pair.second;
+      return true;
+    }
+    return false;
+  }
+
+  bool isDataField( int field ) const
+  {
+    if (field < DataTypeBits)
+	return m_fieldTypeData[ field ];
+    FieldTypes::const_iterator i = m_fieldTypes.find( field );
+    return i != m_fieldTypes.end() && i->second == TYPE::Data;
+  }
+
+  bool isMultipleValueField( int field ) const
+  {
+    FieldTypes::const_iterator i = m_fieldTypes.find( field );
+    return i != m_fieldTypes.end() 
+      && (i->second == TYPE::MultipleValueString 
+          || i->second == TYPE::MultipleCharValue 
+          || i->second == TYPE::MultipleStringValue );
+  }
+
+  void checkFieldsOutOfOrder( bool value )
+  { checkFor(FieldsOutOfOrder, value); }
+  void checkFieldsHaveValues( bool value )
+  { checkFor(FieldsHaveValues, value); }
+  void checkUserDefinedFields( bool value )
+  { checkFor(UserDefinedFields, value); }
+  void checkRequiredFields( bool value )
+  { checkFor(RequiredFields, value); }
+  void checkUnknownFields( bool value )
+  { checkFor(UnknownFields, value); }
+  void checkUnknownMsgType( bool value )
+  { checkFor(UnknownMsgType, value); }
+
+  /// Validate a message.
+  static void validate( const Message& message,
+			const BeginString& beginString,
+                        const DataDictionary* const pSessionDD,
+                        const DataDictionary* const pAppID )
+  throw( FIX::Exception );
+
+  void validate( const Message& message, bool bodyOnly ) const
+  throw( FIX::Exception );
+  void validate( const Message& message ) const
+  throw( FIX::Exception )
+  { validate( message, false ); }
+
+  DataDictionary& operator=( const DataDictionary& rhs );
+
+private:
+  void init()
+  {
+#ifdef HAVE_SPARSEHASH
+    m_fieldTypes.set_empty_key(-1);
+    m_messages.set_empty_key(std::string());
+    m_fieldValues.set_empty_key(-1);
+    m_fields.set_empty_key(-1);
+#endif
+  }
+
+  /// Iterate through fields while applying checks.
+  void iterate( const FieldMap& map, const MsgType& msgType ) const;
+
+  /// Check if message type is defined in spec.
+  void checkMsgType( const MsgType& msgType ) const
+  {
+    if ( !isMsgType( msgType.getValue() ) )
+      throw InvalidMessageType();
+  }
+
+  /// If we need to check for the tag in the dictionary
+  bool shouldCheckTag( const FieldBase& field ) const
+  {
+    if( !isChecked(UserDefinedFields) && field.getField() >= FIELD::UserMin )
       return false;
-    if( !isMultipleValueField( field ) )
+    else
+      return isChecked(UnknownFields);
+  }
+
+  /// Check if field tag number is defined in spec.
+  void checkValidTagNumber( const FieldBase& field ) const
+  throw( InvalidTagNumber )
+  {
+    if( m_fields.find( field.getField() ) == m_fields.end() )
+      throw InvalidTagNumber( field.getField() );
+  }
+
+  void checkValidFormat( const FieldBase& field ) const
+  throw( IncorrectDataFormat )
+  {
+    bool valid = true;
+    TYPE::Type type = TYPE::Unknown;
+    getFieldType( field.getField(), type );
+    switch ( type )
+    {
+      case TYPE::Unknown:
+        break;
+      case TYPE::String:
+        valid = STRING_CONVERTOR::validate( field.getString() ); break;
+      case TYPE::Char:
+        valid = CHAR_CONVERTOR::validate( field.getString() ); break;
+      case TYPE::Price:
+        valid = PRICE_CONVERTOR::validate( field.getString() ); break;
+      case TYPE::Int:
+        valid = INT_CONVERTOR::validate( field.getString() ); break;
+      case TYPE::Amt:
+        valid = AMT_CONVERTOR::validate( field.getString() ); break;
+      case TYPE::Qty:
+        valid = QTY_CONVERTOR::validate( field.getString() ); break;
+      case TYPE::Currency:
+        valid = CURRENCY_CONVERTOR::validate( field.getString() ); break;
+      case TYPE::MultipleValueString:
+        valid = MULTIPLEVALUESTRING_CONVERTOR::validate( field.getString() ); break;
+      case TYPE::MultipleStringValue:
+        valid = MULTIPLESTRINGVALUE_CONVERTOR::validate( field.getString() ); break;
+      case TYPE::MultipleCharValue:
+        valid = MULTIPLECHARVALUE_CONVERTOR::validate( field.getString() ); break;
+      case TYPE::Exchange:
+        valid = EXCHANGE_CONVERTOR::validate( field.getString() ); break;
+      case TYPE::UtcTimeStamp:
+        valid = UTCTIMESTAMP_CONVERTOR::validate( field.getString() ); break;
+      case TYPE::Boolean:
+        valid = BOOLEAN_CONVERTOR::validate( field.getString() ); break;
+      case TYPE::LocalMktDate:
+        valid = LOCALMKTDATE_CONVERTOR::validate( field.getString() ); break;
+      case TYPE::Data:
+        valid = DATA_CONVERTOR::validate( field.getString() ); break;
+      case TYPE::Float:
+        valid = FLOAT_CONVERTOR::validate( field.getString() ); break;
+      case TYPE::PriceOffset:
+        valid = PRICEOFFSET_CONVERTOR::validate( field.getString() ); break;
+      case TYPE::MonthYear:
+        valid = MONTHYEAR_CONVERTOR::validate( field.getString() ); break;
+      case TYPE::DayOfMonth:
+        valid = DAYOFMONTH_CONVERTOR::validate( field.getString() ); break;
+      case TYPE::UtcDate:
+        valid = UTCDATE_CONVERTOR::validate( field.getString() ); break;
+      case TYPE::UtcTimeOnly:
+        valid = UTCTIMEONLY_CONVERTOR::validate( field.getString() ); break;
+      case TYPE::NumInGroup:
+        valid = NUMINGROUP_CONVERTOR::validate( field.getString() ); break;
+      case TYPE::Percentage:
+        valid = PERCENTAGE_CONVERTOR::validate( field.getString() ); break;
+      case TYPE::SeqNum:
+        valid = SEQNUM_CONVERTOR::validate( field.getString() ); break;
+      case TYPE::Length:
+        valid = LENGTH_CONVERTOR::validate( field.getString() ); break;
+      case TYPE::Country:
+        valid = COUNTRY_CONVERTOR::validate( field.getString() ); break;
+      case TYPE::TzTimeOnly:
+        valid = TZTIMEONLY_CONVERTOR::validate( field.getString() ); break;
+      case TYPE::TzTimeStamp:
+        valid = TZTIMESTAMP_CONVERTOR::validate( field.getString() ); break;
+      case TYPE::XmlData:
+        valid = XMLDATA_CONVERTOR::validate( field.getString() ); break;
+      case TYPE::Language:
+        valid = LANGUAGE_CONVERTOR::validate( field.getString() ); break;
+    }
+
+    if ( valid ) return;
+
+    throw IncorrectDataFormat( field.getField(), field.getString() );
+  }
+
+  bool isFieldValue( const FieldToValue::const_iterator& i, const std::string& value ) const
+  {
+    if( !isMultipleValueField( i->first ) )
       return i->second.find( value ) != i->second.end();
 
     // MultipleValue
@@ -237,185 +647,24 @@ public:
     return true;
   }
 
-  void addGroup( const std::string& msg, int field, int delim,
-                 const DataDictionary& dataDictionary )
-  {
-    DataDictionary * pDD = new DataDictionary;
-    *pDD = dataDictionary;
-    pDD->setVersion( getVersion() );
-    m_groups[ std::make_pair( msg, field ) ] = std::make_pair( delim, pDD );
-  }
-
-  bool isGroup( const std::string& msg, int field ) const
-  {
-    return m_groups.find( std::make_pair( msg, field ) ) != m_groups.end();
-  }
-
-  bool getGroup( const std::string& msg, int field, int& delim,
-                 const DataDictionary*& pDataDictionary ) const
-  {
-    FieldToGroup::const_iterator i =
-      m_groups.find( std::make_pair( msg, field ) );
-    if ( i == m_groups.end() ) return false;
-    std::pair < int, DataDictionary* > pair = i->second;
-    delim = pair.first;
-    pDataDictionary = pair.second;
-    return true;
-  }
-
-  bool isDataField( int field ) const
-  {
-    FieldTypes::const_iterator i = m_fieldTypes.find( field );
-    return i != m_fieldTypes.end() && i->second == TYPE::Data;
-  }
-
-  bool isMultipleValueField( int field ) const
-  {
-    FieldTypes::const_iterator i = m_fieldTypes.find( field );
-    return i != m_fieldTypes.end() 
-      && (i->second == TYPE::MultipleValueString 
-          || i->second == TYPE::MultipleCharValue 
-          || i->second == TYPE::MultipleStringValue );
-  }
-
-  void checkFieldsOutOfOrder( bool value )
-  { m_checkFieldsOutOfOrder = value; }
-  void checkFieldsHaveValues( bool value )
-  { m_checkFieldsHaveValues = value; }
-  void checkUserDefinedFields( bool value )
-  { m_checkUserDefinedFields = value; }
-
-  /// Validate a message.
-  static void validate( const Message& message,
-                        const DataDictionary* const pSessionDD,
-                        const DataDictionary* const pAppID ) throw( FIX::Exception );
-
-  void validate( const Message& message ) const throw ( FIX::Exception )
-  { validate( message, false ); }
-  void validate( const Message& message, bool bodyOnly ) const throw( FIX::Exception )
-  { validate( message, bodyOnly ? (DataDictionary*)0 : this, this ); }
-
-  DataDictionary& operator=( const DataDictionary& rhs );
-
-private:
-  /// Iterate through fields while applying checks.
-  void iterate( const FieldMap& map, const MsgType& msgType ) const;
-
-  /// Check if message type is defined in spec.
-  void checkMsgType( const MsgType& msgType ) const
-  {
-    if ( !isMsgType( msgType.getValue() ) )
-      throw InvalidMessageType();
-  }
-
-  /// If we need to check for the tag in the dictionary
-  bool shouldCheckTag( const FieldBase& field ) const
-  {
-    if( !m_checkUserDefinedFields && field.getField() >= FIELD::UserMin )
-      return false;
-    else
-      return true;
-  }
-
-  /// Check if field tag number is defined in spec.
-  void checkValidTagNumber( const FieldBase& field ) const
-  throw( InvalidTagNumber )
-  {
-    if( m_fields.find( field.getField() ) == m_fields.end() )
-      throw InvalidTagNumber( field.getField() );
-  }
-
-  void checkValidFormat( const FieldBase& field ) const
-  throw( IncorrectDataFormat )
-  {
-    try
-    {
-      TYPE::Type type = TYPE::Unknown;
-      getFieldType( field.getField(), type );
-      switch ( type )
-      {
-      case TYPE::String:
-        STRING_CONVERTOR::convert( field.getString() ); break;
-      case TYPE::Char:
-        CHAR_CONVERTOR::convert( field.getString() ); break;
-      case TYPE::Price:
-        PRICE_CONVERTOR::convert( field.getString() ); break;
-      case TYPE::Int:
-        INT_CONVERTOR::convert( field.getString() ); break;
-      case TYPE::Amt:
-        AMT_CONVERTOR::convert( field.getString() ); break;
-      case TYPE::Qty:
-        QTY_CONVERTOR::convert( field.getString() ); break;
-      case TYPE::Currency:
-        CURRENCY_CONVERTOR::convert( field.getString() ); break;
-      case TYPE::MultipleValueString:
-        MULTIPLEVALUESTRING_CONVERTOR::convert( field.getString() ); break;
-      case TYPE::MultipleStringValue:
-        MULTIPLESTRINGVALUE_CONVERTOR::convert( field.getString() ); break;
-      case TYPE::MultipleCharValue:
-        MULTIPLECHARVALUE_CONVERTOR::convert( field.getString() ); break;
-      case TYPE::Exchange:
-        EXCHANGE_CONVERTOR::convert( field.getString() ); break;
-      case TYPE::UtcTimeStamp:
-        UTCTIMESTAMP_CONVERTOR::convert( field.getString() ); break;
-      case TYPE::Boolean:
-        BOOLEAN_CONVERTOR::convert( field.getString() ); break;
-      case TYPE::LocalMktDate:
-        LOCALMKTDATE_CONVERTOR::convert( field.getString() ); break;
-      case TYPE::Data:
-        DATA_CONVERTOR::convert( field.getString() ); break;
-      case TYPE::Float:
-        FLOAT_CONVERTOR::convert( field.getString() ); break;
-      case TYPE::PriceOffset:
-        PRICEOFFSET_CONVERTOR::convert( field.getString() ); break;
-      case TYPE::MonthYear:
-        MONTHYEAR_CONVERTOR::convert( field.getString() ); break;
-      case TYPE::DayOfMonth:
-        DAYOFMONTH_CONVERTOR::convert( field.getString() ); break;
-      case TYPE::UtcDate:
-        UTCDATE_CONVERTOR::convert( field.getString() ); break;
-      case TYPE::UtcTimeOnly:
-        UTCTIMEONLY_CONVERTOR::convert( field.getString() ); break;
-      case TYPE::NumInGroup:
-        NUMINGROUP_CONVERTOR::convert( field.getString() ); break;
-      case TYPE::Percentage:
-        PERCENTAGE_CONVERTOR::convert( field.getString() ); break;
-      case TYPE::SeqNum:
-        SEQNUM_CONVERTOR::convert( field.getString() ); break;
-      case TYPE::Length:
-        LENGTH_CONVERTOR::convert( field.getString() ); break;
-      case TYPE::Country:
-        COUNTRY_CONVERTOR::convert( field.getString() ); break;
-      case TYPE::TzTimeOnly:
-        TZTIMEONLY_CONVERTOR::convert( field.getString() ); break;
-      case TYPE::TzTimeStamp:
-        TZTIMESTAMP_CONVERTOR::convert( field.getString() ); break;
-      case TYPE::XmlData:
-        XMLDATA_CONVERTOR::convert( field.getString() ); break;
-      case TYPE::Language:
-        LANGUAGE_CONVERTOR::convert( field.getString() ); break;
-      case TYPE::Unknown: break;
-      }
-    }
-    catch ( FieldConvertError& )
-    { throw IncorrectDataFormat( field.getField(), field.getString() ); }
-  }
-
   void checkValue( const FieldBase& field ) const
   throw( IncorrectTagValue )
   {
-    if ( !hasFieldValue( field.getField() ) ) return ;
-
-    const std::string& value = field.getString();
-    if ( !isFieldValue( field.getField(), value ) )
-      throw IncorrectTagValue( field.getField() );
+    int f = field.getField();
+    FieldToValue::const_iterator i = m_fieldValues.find( f );
+    if ( i != m_fieldValues.end() )
+    {
+      const std::string& value = field.getString();
+      if ( !isFieldValue( i, value ) )
+        throw IncorrectTagValue( f );
+    }
   }
 
   /// Check if a field has a value.
   void checkHasValue( const FieldBase& field ) const
   throw( NoTagValue )
   {
-    if ( m_checkFieldsHaveValues && !field.getString().length() )
+    if ( isChecked(FieldsHaveValues) && !field.getString().length() )
       throw NoTagValue( field.getField() );
   }
 
@@ -448,14 +697,15 @@ private:
     const MsgType& msgType ) const
   throw( RequiredTagMissing )
   {
-    NonBodyFields::const_iterator iNBF;
-    for( iNBF = m_headerFields.begin(); iNBF != m_headerFields.end(); ++iNBF )
+    NonBodyFields::const_iterator iNBF, iNBFend = m_headerFields.end();
+    for( iNBF = m_headerFields.begin(); iNBF != iNBFend; ++iNBF )
     {
       if( iNBF->second == true && !header.isSetField(iNBF->first) )
         throw RequiredTagMissing( iNBF->first );
     }
 
-    for( iNBF = m_trailerFields.begin(); iNBF != m_trailerFields.end(); ++iNBF )
+    iNBFend = m_trailerFields.end();
+    for( iNBF = m_trailerFields.begin(); iNBF != iNBFend; ++iNBF )
     {
       if( iNBF->second == true && !trailer.isSetField(iNBF->first) )
         throw RequiredTagMissing( iNBF->first );
@@ -466,23 +716,25 @@ private:
     if ( iM == m_requiredFields.end() ) return ;
 
     const MsgFields& fields = iM->second;
-    MsgFields::const_iterator iF;
-    for( iF = fields.begin(); iF != fields.end(); ++iF )
+    MsgFields::const_iterator iF, iFend = fields.end();
+    for( iF = fields.begin(); iF != iFend; ++iF )
     {
       if( !body.isSetField(*iF) )
         throw RequiredTagMissing( *iF );
     }
 
-    FieldMap::g_iterator groups;
-    for( groups = body.g_begin(); groups != body.g_end(); ++groups )
+    int delim;
+    const DataDictionary* DD = 0;
+    FieldToGroup::key_type group_key;
+    FieldMap::g_iterator groups, groups_end = body.g_end();
+    for( groups = body.g_begin(); groups != groups_end; ++groups )
     {
-      int delim;
-      const DataDictionary* DD = 0;
-      int field = groups->first;
-      if( getGroup( msgType.getValue(), field, delim, DD ) )
+      group_key.first = groups->first;
+      group_key.second = msgType.getValue();
+      if( getGroup( group_key, delim, DD ) )
       {
-        std::vector<FieldMap*>::const_iterator group;
-        for( group = groups->second.begin(); group != groups->second.end(); ++group )
+        FieldMap::g_item_const_iterator group, group_end = groups->second.end();
+        for( group = groups->second.begin(); group != group_end; ++group )
           DD->checkHasRequired( **group, **group, **group, msgType );
       }
     }
@@ -501,9 +753,7 @@ private:
   TYPE::Type XMLTypeToType( const std::string& xmlType ) const;
 
   bool m_hasVersion;
-  bool m_checkFieldsOutOfOrder;
-  bool m_checkFieldsHaveValues;
-  bool m_checkUserDefinedFields;
+  unsigned m_checks;
   BeginString m_beginString;
   MsgTypeToField m_messageFields;
   MsgTypeToField m_requiredFields;
@@ -512,7 +762,10 @@ private:
   OrderedFields m_orderedFields;
   mutable OrderedFieldsArray m_orderedFieldsArray;
   NonBodyFields m_headerFields;
+  FieldTypeHeaderBits m_fieldTypeHeader;
+  FieldTypeTrailerBits m_fieldTypeTrailer;
   NonBodyFields m_trailerFields;
+  FieldTypeDataBits m_fieldTypeData;
   FieldTypes m_fieldTypes;
   FieldToValue m_fieldValues;
   FieldToName m_fieldNames;

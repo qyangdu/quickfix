@@ -91,13 +91,14 @@ void MySQLStore::populateCache()
     struct tm time;
     std::string sqlTime = query.getValue( 0, 0 );
     strptime( sqlTime.c_str(), "%Y-%m-%d %H:%M:%S", &time );
-    m_cache.setCreationTime (UtcTimeStamp (&time));
+    UtcTimeStamp utc = UtcTimeStamp (&time);
+    setCreationTime( m_cache.setCreationTime ( uts ) );
     m_cache.setNextTargetMsgSeqNum( atol( query.getValue( 0, 1 ) ) );
     m_cache.setNextSenderMsgSeqNum( atol( query.getValue( 0, 2 ) ) );
   }
   else
   {
-    UtcTimeStamp time = m_cache.getCreationTime();
+    UtcTimeStamp time = setCreationTime( m_cache.getCreationTime() );
     char sqlTime[ 20 ];
     int year, month, day, hour, minute, second, millis;
     time.getYMD (year, month, day);
@@ -169,8 +170,8 @@ void MySQLStoreFactory::destroy( MessageStore* pStore )
 bool MySQLStore::set( int msgSeqNum, const std::string& msg )
 throw ( IOException )
 {
-  char* msgCopy = new char[ (msg.size() * 2) + 1 ];
-  mysql_escape_string( msgCopy, msg.c_str(), msg.size() );
+  Util::scoped_array<char>::type msgCopy( new char[ 2 * msg.size()  + 1 ] );
+  mysql_escape_string( msgCopy.get(), msg.c_str(), msg.size() );
 
   std::stringstream queryString;
   queryString << "INSERT INTO messages "
@@ -181,9 +182,7 @@ throw ( IOException )
   << "\"" << m_sessionID.getTargetCompID().getValue() << "\","
   << "\"" << m_sessionID.getSessionQualifier() << "\","
   << msgSeqNum << ","
-  << "\"" << msgCopy << "\")";
-
-  delete [] msgCopy;
+  << "\"" << msgCopy.get() << "\")";
 
   MySQLQuery query( queryString.str() );
   if( !m_pConnection->execute(query) )
@@ -277,11 +276,6 @@ void MySQLStore::incrNextTargetMsgSeqNum() throw ( IOException )
   setNextTargetMsgSeqNum( m_cache.getNextTargetMsgSeqNum() );
 }
 
-UtcTimeStamp MySQLStore::getCreationTime() const throw ( IOException )
-{
-  return m_cache.getCreationTime();
-}
-
 void MySQLStore::reset() throw ( IOException )
 {
   std::stringstream queryString;
@@ -296,7 +290,7 @@ void MySQLStore::reset() throw ( IOException )
     query.throwException();
 
   m_cache.reset();
-  UtcTimeStamp time = m_cache.getCreationTime();
+  UtcTimeStamp time = setCreationTime( m_cache.getCreationTime() );
 
   int year, month, day, hour, minute, second, millis;
   time.getYMD( year, month, day );

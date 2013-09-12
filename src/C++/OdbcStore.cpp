@@ -96,7 +96,7 @@ void OdbcStore::populateCache()
     UtcTimeStamp time;
     time.setYMD( creationTime.year, creationTime.month, creationTime.day );
     time.setHMS( creationTime.hour, creationTime.minute, creationTime.second, creationTime.fraction );
-    m_cache.setCreationTime( time );
+    setCreationTime( m_cache.setCreationTime( time ) );
     m_cache.setNextTargetMsgSeqNum( incomingSeqNum );
     m_cache.setNextSenderMsgSeqNum( outgoingSeqNum );
   }
@@ -104,7 +104,7 @@ void OdbcStore::populateCache()
 
   if( rows == 0 )
   {
-    UtcTimeStamp time = m_cache.getCreationTime();
+    UtcTimeStamp time = setCreationTime( m_cache.getCreationTime() );
     char sqlTime[ 20 ];
     int year, month, day, hour, minute, second, millis;
     time.getYMD (year, month, day);
@@ -283,11 +283,6 @@ void OdbcStore::incrNextTargetMsgSeqNum() throw ( IOException )
   setNextTargetMsgSeqNum( m_cache.getNextTargetMsgSeqNum() );
 }
 
-UtcTimeStamp OdbcStore::getCreationTime() const throw ( IOException )
-{
-  return m_cache.getCreationTime();
-}
-
 void OdbcStore::reset() throw ( IOException )
 {
   std::stringstream queryString;
@@ -303,7 +298,7 @@ void OdbcStore::reset() throw ( IOException )
   query.close();
 
   m_cache.reset();
-  UtcTimeStamp time = m_cache.getCreationTime();
+  UtcTimeStamp time = setCreationTime( m_cache.getCreationTime() );
 
   int year, month, day, hour, minute, second, millis;
   time.getYMD( year, month, day );

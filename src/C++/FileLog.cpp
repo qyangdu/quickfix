@@ -120,7 +120,12 @@ std::string FileLog::generatePrefix( const SessionID& s )
 }
 
 void FileLog::init( std::string path, std::string backupPath, const std::string& prefix )
-{	
+{
+  m_timeStamp.reserve(32);
+	
+  m_messages.rdbuf()->pubsetbuf(m_messageBuf, BufSize);
+  m_event.rdbuf()->pubsetbuf(m_eventBuf, BufSize);
+
   file_mkdir( path.c_str() );
   file_mkdir( backupPath.c_str() );
 
@@ -169,8 +174,8 @@ void FileLog::backup()
  
     messagesFileName << m_fullBackupPrefix << "messages.backup." << ++i << ".log";
     eventFileName << m_fullBackupPrefix << "event.backup." << i << ".log";
-    FILE* messagesLogFile = file_fopen( messagesFileName.str().c_str(), "r" );
-    FILE* eventLogFile = file_fopen( eventFileName.str().c_str(), "r" );
+    std::FILE* messagesLogFile = file_fopen( messagesFileName.str().c_str(), "r" );
+    std::FILE* eventLogFile = file_fopen( eventFileName.str().c_str(), "r" );
 
     if( messagesLogFile == NULL && eventLogFile == NULL )
     {

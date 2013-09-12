@@ -29,7 +29,6 @@
 #include <stropts.h>
 #include <sys/conf.h>
 #endif
-#include <string.h>
 #include <math.h>
 #include <stdio.h>
 #include <algorithm>
@@ -37,6 +36,115 @@
 
 namespace FIX
 {
+
+#if defined(__GNUC__) && (defined(__x86_64__) || defined(__i386__))
+Util::IntBase::Log2 Util::IntBase::m_digits[32] = 
+{
+  { 9, 1 },
+  { 9, 1 },
+  { 9, 1 },
+  { 9, 1 },
+  { 99, 2 },
+  { 99, 2 },
+  { 99, 2 },
+  { 999, 3 },
+  { 999, 3 },
+  { 999, 3 },
+  { 9999, 4 },
+  { 9999, 4 },
+  { 9999, 4 },
+  { 9999, 4 },
+  { 99999, 5 },
+  { 99999, 5 },
+  { 99999, 5 },
+  { 999999, 6 },
+  { 999999, 6 },
+  { 999999, 6 },
+  { 9999999, 7 },
+  { 9999999, 7 },
+  { 9999999, 7 },
+  { 9999999, 7 },
+  { 99999999, 8 },
+  { 99999999, 8 },
+  { 99999999, 8 },
+  { 999999999, 9 },
+  { 999999999, 9 },
+  { 999999999, 9 },
+  { std::numeric_limits<int32_t>::max(), 10 },
+  { std::numeric_limits<int32_t>::max(), 10 }
+};
+
+Util::Long::Log2 Util::Long::m_digits[64] =
+{
+  { 9, 1 },
+  { 9, 1 },
+  { 9, 1 },
+  { 9, 1 },
+  { 99, 2 },
+  { 99, 2 },
+  { 99, 2 },
+  { 999, 3 },
+  { 999, 3 },
+  { 999, 3 },
+  { 9999, 4 },
+  { 9999, 4 },
+  { 9999, 4 },
+  { 9999, 4 },
+  { 99999, 5 },
+  { 99999, 5 },
+  { 99999, 5 },
+  { 999999, 6 },
+  { 999999, 6 },
+  { 999999, 6 },
+  { 9999999, 7 },
+  { 9999999, 7 },
+  { 9999999, 7 },
+  { 9999999, 7 },
+  { 99999999, 8 },
+  { 99999999, 8 },
+  { 99999999, 8 },
+  { 999999999, 9 },
+  { 999999999, 9 },
+  { 999999999, 9 },
+  { 9999999999LL, 10 },
+  { 9999999999LL, 10 },
+  { 9999999999LL, 10 },
+  { 9999999999LL, 10 },
+  { 99999999999LL, 11 },
+  { 99999999999LL, 11 },
+  { 99999999999LL, 11 },
+  { 999999999999LL, 12 },
+  { 999999999999LL, 12 },
+  { 999999999999LL, 12 },
+  { 9999999999999LL, 13 },
+  { 9999999999999LL, 13 },
+  { 9999999999999LL, 13 },
+  { 9999999999999LL, 13 },
+  { 99999999999999LL, 14 },
+  { 99999999999999LL, 14 },
+  { 99999999999999LL, 14 },
+  { 999999999999999LL, 15 },
+  { 999999999999999LL, 15 },
+  { 999999999999999LL, 15 },
+  { 9999999999999999LL, 16 },
+  { 9999999999999999LL, 16 },
+  { 9999999999999999LL, 16 },
+  { 9999999999999999LL, 16 },
+  { 99999999999999999LL, 17 },
+  { 99999999999999999LL, 17 },
+  { 99999999999999999LL, 17 },
+  { 999999999999999999LL, 18 },
+  { 999999999999999999LL, 18 },
+  { 999999999999999999LL, 18 },
+  { std::numeric_limits<int64_t>::max(), 19 },
+  { std::numeric_limits<int64_t>::max(), 19 },
+  { std::numeric_limits<int64_t>::max(), 19 },
+  { std::numeric_limits<int64_t>::max(), 19 },
+};
+
+
+#endif
+
 void string_replace( const std::string& oldValue,
 		             const std::string& newValue,
 		             std::string& value )
@@ -53,14 +161,14 @@ void string_replace( const std::string& oldValue,
 std::string string_toUpper( const std::string& value )
 {
   std::string copy = value;
-  std::transform( copy.begin(), copy.end(), copy.begin(), toupper );
+  std::transform( copy.begin(), copy.end(), copy.begin(), ::toupper );
   return copy;
 }
 
 std::string string_toLower( const std::string& value )
 {
   std::string copy = value;
-  std::transform( copy.begin(), copy.end(), copy.begin(), tolower );
+  std::transform( copy.begin(), copy.end(), copy.begin(), ::tolower );
   return copy;
 }
 
@@ -118,6 +226,11 @@ int socket_createAcceptor(int port, bool reuse)
   int result = bind( socket, reinterpret_cast < sockaddr* > ( &address ),
                      socklen );
   if ( result < 0 ) return -1;
+#ifdef TCP_QUICKACK
+  int optval = 1;
+  ::setsockopt( socket, IPPROTO_TCP, TCP_QUICKACK,
+                       &optval, sizeof( optval ) );
+#endif
   result = listen( socket, SOMAXCONN );
   if ( result < 0 ) return -1;
   return socket;
@@ -203,6 +316,22 @@ int socket_setsockopt( int s, int opt, int optval )
   return ::setsockopt( s, level, opt,
                        ( char* ) & optval, sizeof( optval ) );
 #else
+#ifdef IPTOS_LOWDELAY
+  if (opt == TCP_NODELAY)
+  {
+    int tos = IPTOS_LOWDELAY;
+    ::setsockopt( s, IPPROTO_IP, IP_TOS,
+                       &tos, sizeof(tos) );
+  }
+#endif
+#ifdef SO_PRIORITY
+  if (opt == TCP_NODELAY)
+  {
+    int prio = 6;
+    ::setsockopt( s, SOL_SOCKET, SO_PRIORITY,
+                       &prio, sizeof(prio) );
+  }
+#endif
   return ::setsockopt( s, level, opt,
                        &optval, sizeof( optval ) );
 #endif
@@ -252,6 +381,7 @@ void socket_setnonblock( int socket )
   socket_setfcntlflag( socket, O_NONBLOCK );
 #endif
 }
+
 bool socket_isValid( int socket )
 {
 #ifdef _MSC_VER
@@ -518,6 +648,7 @@ void file_unlink( const char* path )
 #else
   unlink( path );
 #endif
+
 }
 
 int file_rename( const char* oldpath, const char* newpath )
@@ -533,4 +664,59 @@ std::string file_appendpath( const std::string& path, const std::string& file )
   else
     return std::string(path) + file_separator() + file;
 }
+
+FILE_HANDLE_TYPE file_handle_open( const char* path )
+{
+#ifdef _MSC_VER
+    return ::CreateFile( path, GENERIC_READ | GENERIC_WRITE,
+                         FILE_SHARE_READ, NULL, OPEN_EXISTING,
+                         FILE_ATTRIBUTE_NORMAL, NULL);
+#else
+    return ::open64( path, O_CREAT | O_RDWR,
+                           S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH);
+#endif
 }
+
+void file_handle_close( FILE_HANDLE_TYPE handle )
+{
+#ifdef _MSC_VER
+    ::CloseHandle( handle );
+#else
+    ::close( handle );
+#endif
+}
+
+long file_handle_read( FILE_HANDLE_TYPE handle, char* buf,
+                       std::size_t size, FILE_OFFSET_TYPE offset )
+{
+#ifdef _MSC_VER
+    DWORD numRead;
+    ::OVERLAPPED overlapped;
+    overlapped.Offset = offset.LowPart;
+    overlapped.OffsetHigh = offset.HighPart;
+    overlapped.hEvent = 0;
+    if( ::ReadFile( handle, buf, size, &numRead, &overlapped ) )
+      return (long)numRead;
+    return -1;
+#else
+    return ::pread64( handle, buf, size, offset );
+#endif
+}
+
+FILE_OFFSET_TYPE file_handle_seek( FILE_HANDLE_TYPE handle,
+                                   FILE_OFFSET_TYPE offset, int whence )
+{
+#ifdef _MSC_VER
+    offset.LowPart = ::SetFilePointer( handle,
+                                offset.LowPart, &offset.HighPart, whence )
+    if( offset.LowPart == INVALID_SET_FILE_POINTER &&
+      ::GetLastError() != NO_ERROR )
+      offset.QuadPart = -1;
+    return offset;
+#else
+    return ::lseek64( handle, offset, whence );
+#endif
+}
+
+} // namespace FIX
+

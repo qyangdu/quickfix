@@ -169,14 +169,14 @@ void PostgreSQLLogFactory::init( const Dictionary& settings,
 
 void PostgreSQLLogFactory::initLog( const Dictionary& settings, PostgreSQLLog& log )
 {
-  try { log.setIncomingTable( settings.getString( POSTGRESQL_LOG_INCOMING_TABLE ) ); }
-  catch( ConfigError& ) {}
+    try { log.setIncomingTable( settings.getString( POSTGRESQL_LOG_INCOMING_TABLE ) ); }
+    catch( ConfigError& ) {}
 
-  try { log.setOutgoingTable( settings.getString( POSTGRESQL_LOG_OUTGOING_TABLE ) ); }
-  catch( ConfigError& ) {}
+    try { log.setOutgoingTable( settings.getString( POSTGRESQL_LOG_OUTGOING_TABLE ) ); }
+    catch( ConfigError& ) {}
 
-  try { log.setEventTable( settings.getString( POSTGRESQL_LOG_EVENT_TABLE ) ); }
-  catch( ConfigError& ) {}
+    try { log.setEventTable( settings.getString( POSTGRESQL_LOG_EVENT_TABLE ) ); }
+    catch( ConfigError& ) {}
 }
 
 void PostgreSQLLogFactory::destroy( Log* pLog )
@@ -224,9 +224,7 @@ void PostgreSQLLog::clear()
   m_pConnection->execute( event );
 }
 
-void PostgreSQLLog::backup()
-{
-}
+void PostgreSQLLog::backup() {}
 
 void PostgreSQLLog::insert( const std::string& table, const std::string value )
 {
@@ -239,8 +237,8 @@ void PostgreSQLLog::insert( const std::string& table, const std::string value )
   STRING_SPRINTF( sqlTime, "%d-%02d-%02d %02d:%02d:%02d.%003d",
            year, month, day, hour, minute, second, millis );
   
-  char* valueCopy = new char[ (value.size() * 2) + 1 ];
-  PQescapeString( valueCopy, value.c_str(), value.size() );
+  Util::scoped_array<char>::type valueCopy( new char[ 2 * value.size() + 1 ] );
+  PQescapeString( valueCopy.get(), value.c_str(), value.size() );
 
   std::stringstream queryString;
   queryString << "INSERT INTO " << table << " "
@@ -264,8 +262,7 @@ void PostgreSQLLog::insert( const std::string& table, const std::string value )
     queryString << "NULL, NULL, NULL, NULL, ";
   }
 
-  queryString << "'" << valueCopy << "')";
-  delete [] valueCopy;
+  queryString << "'" << valueCopy.get() << "')";
 
   PostgreSQLQuery query( queryString.str() );
   m_pConnection->execute( query );

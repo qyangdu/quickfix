@@ -195,7 +195,7 @@ Session* SessionFactory::create( const SessionID& sessionID,
     pSession->setPersistMessages( settings.getBool( PERSIST_MESSAGES ) );
   if ( settings.has( VALIDATE_LENGTH_AND_CHECKSUM ) )
     pSession->setValidateLengthAndChecksum( settings.getBool( VALIDATE_LENGTH_AND_CHECKSUM ) );
-   
+
   return pSession;
 }
 
@@ -203,7 +203,7 @@ const DataDictionary * SessionFactory::createDataDictionary(const SessionID& ses
                                                     const Dictionary& settings, 
                                                     const std::string& settingsKey) throw(ConfigError)
 {
-  DataDictionary * pDD = 0;
+  DataDictionary * pDD = NULL;
   std::string path = settings.getString( settingsKey );
   Dictionaries::iterator i = m_dictionaries.find( path );
   if ( i != m_dictionaries.end() )
@@ -216,16 +216,39 @@ const DataDictionary * SessionFactory::createDataDictionary(const SessionID& ses
     m_dictionaries[ path ] = pDD;
   }
 
-  DataDictionary * pCopyOfDD = new DataDictionary(*pDD);
-
+  DataDictionary * pDataDictionary = new DataDictionary(*pDD);
   if( settings.has( VALIDATE_FIELDS_OUT_OF_ORDER ) )
-    pCopyOfDD->checkFieldsOutOfOrder( settings.getBool( VALIDATE_FIELDS_OUT_OF_ORDER ) );
+  {
+    pDataDictionary->checkFieldsOutOfOrder
+    ( settings.getBool( VALIDATE_FIELDS_OUT_OF_ORDER ) );
+  }
   if( settings.has( VALIDATE_FIELDS_HAVE_VALUES ) )
-    pCopyOfDD->checkFieldsHaveValues( settings.getBool( VALIDATE_FIELDS_HAVE_VALUES ) );
+  {
+    pDataDictionary->checkFieldsHaveValues
+    ( settings.getBool( VALIDATE_FIELDS_HAVE_VALUES ) );
+  }
   if( settings.has( VALIDATE_USER_DEFINED_FIELDS ) )
-    pCopyOfDD->checkUserDefinedFields( settings.getBool( VALIDATE_USER_DEFINED_FIELDS ) );
+  {
+    pDataDictionary->checkUserDefinedFields
+    ( settings.getBool( VALIDATE_USER_DEFINED_FIELDS ) );
+  }
+  if( settings.has( VALIDATE_REQUIRED_FIELDS ) )
+  {
+    pDataDictionary->checkRequiredFields
+    ( settings.getBool( VALIDATE_REQUIRED_FIELDS ) );
+  }
+  if( settings.has( VALIDATE_UNKNOWN_FIELDS ) )
+  {
+    pDataDictionary->checkUnknownFields
+    ( settings.getBool( VALIDATE_UNKNOWN_FIELDS ) );
+  }
+  if( settings.has( VALIDATE_UNKNOWN_MSGTYPE ) )
+  {
+    pDataDictionary->checkUnknownMsgType
+    ( settings.getBool( VALIDATE_UNKNOWN_MSGTYPE ) );
+  }
 
-  return pCopyOfDD;
+  return pDataDictionary;    
 }
 
 void SessionFactory::processFixtDataDictionaries(const SessionID& sessionID, 
@@ -252,7 +275,7 @@ void SessionFactory::processFixtDataDictionaries(const SessionID& sessionID,
         if( offset == std::string::npos )
           throw ConfigError(std::string("Malformed ") + APP_DATA_DICTIONARY + ": " + key);
         std::string beginStringQualifier = key.substr(offset+1);
-        provider.addApplicationDataDictionary(Message::toApplVerID(beginStringQualifier), 
+        provider.addApplicationDataDictionary(Message::toApplVerID(beginStringQualifier),
             createDataDictionary(sessionID, settings, key));
       }
     }
@@ -267,4 +290,5 @@ void SessionFactory::processFixDataDictionary(const SessionID& sessionID,
   provider.addTransportDataDictionary(sessionID.getBeginString(), pDataDictionary);
   provider.addApplicationDataDictionary(Message::toApplVerID(sessionID.getBeginString()), pDataDictionary);
 }
+
 }

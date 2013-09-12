@@ -69,6 +69,22 @@ bool SocketConnection::send( const std::string& msg )
   return true;
 }
 
+bool SocketConnection::send( Sg::sg_buf_ptr bufs, int n )
+{
+  {
+    Locker l( m_mutex );
+
+    if( !m_sendQueue.size() )
+    {
+      struct timeval timeout = { 0, 0 };
+      fd_set writeset = m_fds;
+      if( select( 1 + m_socket, 0, &writeset, 0, &timeout ) > 0 )
+        return Sg::send(m_socket, bufs, n);
+    }
+  } 
+  return send( Sg::toString( bufs, n ) );
+}
+
 bool SocketConnection::processQueue()
 {
   Locker l( m_mutex );
@@ -83,12 +99,12 @@ bool SocketConnection::processQueue()
   const std::string& msg = m_sendQueue.front();
 
   int result = socket_send
-    ( m_socket, msg.c_str() + m_sendLength, msg.length() - m_sendLength );
+    ( m_socket, Util::String::c_str(msg) + m_sendLength, Util::String::length(msg) - m_sendLength );
 
   if( result > 0 )
     m_sendLength += result;
 
-  if( m_sendLength == msg.length() )
+  if( m_sendLength == Util::String::length(msg) )
   {
     m_sendLength = 0;
     m_sendQueue.pop_front();
@@ -125,22 +141,11 @@ bool SocketConnection::read( SocketAcceptor& a, SocketServer& s )
   std::string msg;
   try
   {
+    readFromSocket();
+
     if ( !m_pSession )
     {
-      struct timeval timeout = { 1, 0 };
-      fd_set readset = m_fds;
-
-      while( !readMessage( msg ) )
-      {
-        int result = select( 1 + m_socket, &readset, 0, 0, &timeout );
-        if( result > 0 )
-          readFromSocket();
-        else if( result == 0 )
-          return false;
-        else if( result < 0 )
-          return false;
-      }
-
+      if ( !readMessage( msg ) ) return false;
       m_pSession = Session::lookupSession( msg, true );
       if( !isValidSession() )
       {
@@ -162,14 +167,10 @@ bool SocketConnection::read( SocketAcceptor& a, SocketServer& s )
       }
 
       Session::registerSession( m_pSession->getSessionID() );
-      return true;
     }
-    else
-    {
-      readFromSocket();
-      readMessages( s.getMonitor() );
-      return true;
-    }
+
+    readMessages( s.getMonitor() );
+    return true;
   }
   catch ( SocketRecvFailed& e )
   {

@@ -143,6 +143,7 @@ namespace FIX
     xmlXPathFreeObject(xpathObject);
     return result;
   }
+
 }
 
 #endif

@@ -60,7 +60,7 @@ public:
   int connect, write, data, disconnect;
   int connectSocket, writeSocket;
   int dataSocket, disconnectSocket;
-  char buf[ 1 ]; size_t bufLen;
+  char buf[ 1 ]; std::size_t bufLen;
 };
 
 SUITE(SocketServerTests)
@@ -121,7 +121,7 @@ TEST_FIXTURE(socketServerFixture, block)
   object.block( *this );
   object.block( *this );
   CHECK_EQUAL( 1, data );
-  CHECK_EQUAL( 1, bufLen );
+  CHECK_EQUAL( (std::size_t)1, bufLen );
   CHECK_EQUAL( '1', *buf );
   CHECK( dataSocket > 0 );
 

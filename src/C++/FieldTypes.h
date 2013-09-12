@@ -49,8 +49,13 @@ namespace FIX
 /// \author Caleb Epstein <caleb.epstein at gmail dot com>
 struct DateTime 
 {
-  int m_date;
-  int m_time;
+  union {
+    struct {
+      int32_t m_date;
+      int32_t m_time;
+    };
+    uint64_t  m_value;
+  };
 
   /// Magic numbers
   enum 
@@ -82,8 +87,6 @@ struct DateTime
     m_date = julianDate( year, month, day );
     m_time = makeHMS( hour, minute, second, millis );
   }
-
-  virtual ~DateTime() {}
 
   /// Return the year portion of the date
   inline int getYear() const 

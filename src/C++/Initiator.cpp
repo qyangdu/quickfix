@@ -286,4 +286,5 @@ THREAD_PROC Initiator::startThread( void* p )
   pInitiator->onStart();
   return 0;
 }
+
 }

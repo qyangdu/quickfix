@@ -27,7 +27,7 @@
 #endif
 
 #include "FieldMap.h"
-#include "Fields.h"
+#include "FixFields.h"
 #include "Group.h"
 #include "SessionID.h"
 #include "DataDictionary.h"
@@ -37,26 +37,15 @@
 
 namespace FIX
 {
+typedef FieldMap Header;
+typedef FieldMap Trailer;
+
 static int const headerOrder[] =
   {
     FIELD::BeginString,
     FIELD::BodyLength,
     FIELD::MsgType
   };
-
-class Header : public FieldMap 
-{
-public:
-  Header() : FieldMap(message_order( message_order::header ) )
-  {}
-};
-
-class Trailer : public FieldMap 
-{
-public:
-  Trailer() : FieldMap(message_order( message_order::trailer ) )
-  {}
-};
 
 /**
  * Base class for all %FIX messages.
@@ -69,10 +58,150 @@ class Message : public FieldMap
   friend class DataDictionary;
   friend class Session;
 
+  enum status_type { invalid_field, hint_no_reuse };
+
   enum field_type { header, body, trailer };
+
+  class HeaderFieldSet : public Util::BitSet<1280>
+  {
+    static const int   m_fields[];
+
+  public:
+
+    HeaderFieldSet()
+    {
+      for(const int* p = m_fields; *p; p++)
+      {
+        if ((unsigned)*p < size()) set(*p);
+      }
+    }
+  };
+
+  static HeaderFieldSet headerFieldSet;
+
+  class FieldReader {
+
+    static const char* ErrDelimiter;
+    static const char* ErrTag;
+    static const char* ErrSOH;
+
+    int  m_field, m_pos;
+    int  m_length, m_csum;
+    const char* m_start;
+    const char* const m_end;
+
+  public:
+
+    FieldReader ( const std::string& s )
+    : m_field(0), m_pos(0), m_length(0), m_csum(0),
+      m_start(Util::String::c_str(s)),
+      m_end(m_start + Util::String::size(s)) {}
+
+    FieldReader ( const std::string& s, std::string::size_type pos )
+    : m_field(0), m_pos(0), m_length(0), m_csum(0),
+      m_start(Util::String::c_str(s) + pos),
+      m_end(Util::String::c_str(s) + Util::String::size(s)) {}
+
+    char getTagLength() const
+    { return m_length + 1; }
+
+    short getTagChecksum() const
+    { return m_csum + (int)'='; }
+
+    operator bool () const
+    { return m_start + m_pos < m_end; }
+
+    int scan ();
+
+    const char* pos () const
+    { return m_start + m_pos; }
+
+    void pos(int pos)
+    { m_pos = pos; }
+
+    void rewind ( const char* p )
+    { m_start = p; m_pos = 0; }
+
+    const FieldBase& operator >> (FieldMap& map)
+    {
+      const FieldBase& r = map.addField( *this )->second;
+      m_start += m_pos + 1;
+      m_pos = 0;
+      return r;
+    }
+
+    int getField() const { return static_cast<int>(m_field); }
+
+    void assign_to(std::string& s) const
+    {
+      s.assign(m_start, m_pos);
+    }
+    operator std::string () const
+    {
+      return std::string(m_start, m_pos);
+    }
+  };
+
+  class FieldCounter
+  {
+    int m_length, m_prefix;
+    const int bodyLengthTag;
+    const int checkSumTag;
+
+    int countGroups(FieldMap::g_const_iterator git,
+                          const FieldMap::g_const_iterator& gend);
+    void countHeader(const FieldMap& fields);
+    void countHeader(int beginStringTag, const FieldMap& fields);
+    int countBody(const FieldMap& fields);
+    void countTrailer(const FieldMap& fields);
+
+  public:
+
+    FieldCounter(const Message& msg)
+    : m_length(0), m_prefix(0),
+      bodyLengthTag(FIELD::BodyLength), checkSumTag(FIELD::CheckSum)
+    {
+      countHeader(msg.m_header);
+      m_length += countBody(msg);
+      countTrailer(msg.m_trailer);
+    }
+    FieldCounter(const Message& msg,
+      int beginStringField,
+      int bodyLengthField = FIELD::BodyLength,
+      int checkSumField = FIELD::CheckSum )
+    : m_length(0), m_prefix(0),
+      bodyLengthTag(bodyLengthField), checkSumTag(checkSumField)
+    {
+      countHeader(beginStringField, msg.m_header);
+      m_length += countBody(msg);
+      countTrailer(msg.m_trailer);
+    }
+
+    int getBodyLength() const
+    { return m_length; }
+
+    int getBeginStringLength() const
+    { return m_prefix; }
+
+  };
+
+protected:
+  /// Constructor for derived classes
+  Message( const BeginString& beginString, const MsgType& msgType )
+  : FieldMap( FieldMap::create_allocator() ),
+    m_header( get_allocator(), message_order( message_order::header ) ),
+    m_trailer( get_allocator(), message_order( message_order::trailer ) ),
+    m_status( 0 )
+  {
+    m_header.setField( beginString );
+    m_header.setField( msgType );
+  }
 
 public:
   Message();
+
+  /// Construct a message with a hint whether it will be reused
+  Message( bool hintSerializeOnce );
 
   /// Construct a message from a string
   Message( const std::string& string, bool validate = true )
@@ -82,18 +211,27 @@ public:
   Message( const std::string& string, const FIX::DataDictionary& dataDictionary,
            bool validate = true )
   throw( InvalidMessage );
+  Message( const std::string& string, const FIX::DataDictionary& dataDictionary,
+           FieldMap::allocator_type& allocator, bool validate = true )
+  throw( InvalidMessage );
 
   /// Construct a message from a string using a session and application data dictionary
   Message( const std::string& string, const FIX::DataDictionary& sessionDataDictionary,
            const FIX::DataDictionary& applicationDataDictionary, bool validate = true )
   throw( InvalidMessage );
+  Message( const std::string& string, const FIX::DataDictionary& sessionDataDictionary,
+           const FIX::DataDictionary& applicationDataDictionary,
+           FieldMap::allocator_type& allocator, bool validate = true )
+  throw( InvalidMessage );
 
   Message( const Message& copy )
-  : FieldMap( copy )
+  : FieldMap( FieldMap::create_allocator(), copy ),
+    m_header( get_allocator(), message_order( message_order::header ) ),
+    m_trailer( get_allocator(), message_order( message_order::trailer ) )
   {
     m_header = copy.m_header;
     m_trailer = copy.m_trailer;
-    m_validStructure = copy.m_validStructure;
+    m_status = copy.m_status;
     m_field = copy.m_field;
   }
 
@@ -122,25 +260,35 @@ public:
   bool hasGroup( unsigned num, FIX::Group& group ) const
   { return FieldMap::hasGroup( num, group.field() ); }
 
-protected:
-  // Constructor for derived classes
-  Message( const BeginString& beginString, const MsgType& msgType )
-  : m_validStructure( true )
-  {
-    m_header.setField( beginString );
-    m_header.setField( msgType );
-  }
-
-public:
-  /// Get a string representation of the message
-  std::string toString( int beginStringField = FIELD::BeginString,
-                        int bodyLengthField = FIELD::BodyLength,
-                        int checkSumField = FIELD::CheckSum ) const;
   /// Get a string representation without making a copy
   std::string& toString( std::string&,
                          int beginStringField = FIELD::BeginString,
                          int bodyLengthField = FIELD::BodyLength, 
                          int checkSumField = FIELD::CheckSum ) const;
+
+  /// Get a string representation of the message
+  std::string toString( int beginStringField = FIELD::BeginString,
+                        int bodyLengthField = FIELD::BodyLength,
+                        int checkSumField = FIELD::CheckSum ) const
+  {
+    std::string str;
+    toString( str, beginStringField, bodyLengthField, checkSumField );
+    return str;
+  }
+
+  /// Serialize to a buffer in wire format
+  template <typename S> typename S::buffer_type& toBuffer( S& s ) const
+  {
+    FieldCounter c( *this );
+    return m_trailer.serializeTo(
+             FieldMap::serializeTo(
+               m_header.serializeTo(
+                 s.buffer(c.getBodyLength() + c.getBeginStringLength() +
+                   m_header.setField(BodyLength::Pack(c.getBodyLength())).getLength() +
+                     m_trailer.setField(CheckSum::Pack(checkSum())).getLength()
+                 ) ) ) );
+  }
+
   /// Get a XML representation of the message
   std::string toXML() const;
   /// Get a XML representation without making a copy
@@ -160,10 +308,8 @@ public:
    * on failure.
    */
   void setString( const std::string& string )
-  throw( InvalidMessage )
   { setString(string, true); }
   void setString( const std::string& string, bool validate )
-  throw( InvalidMessage )
   { setString(string, validate, 0); }
   void setString( const std::string& string,
                   bool validate,
@@ -193,21 +339,22 @@ public:
   /// Mutable getter for the message header
   Header& getHeader() { return m_header; }
   /// Getter for the message trailer
-  const Trailer& getTrailer() const { return m_trailer; }
+  const Header& getTrailer() const { return m_trailer; }
   /// Mutable getter for the message trailer
   Trailer& getTrailer() { return m_trailer; }
 
   bool hasValidStructure(int& field) const
   { field = m_field;
-    return m_validStructure;
+    return !getStatusBit(invalid_field);
   }
 
   int bodyLength( int beginStringField = FIELD::BeginString, 
-                  int bodyLengthField = FIELD::BodyLength, 
-                  int checkSumField = FIELD::CheckSum ) const
-  { return m_header.calculateLength(beginStringField, bodyLengthField, checkSumField)
-           + calculateLength(beginStringField, bodyLengthField, checkSumField)
-           + m_trailer.calculateLength(beginStringField, bodyLengthField, checkSumField);
+              int bodyLengthField = FIELD::BodyLength, 
+              int checkSumField = FIELD::CheckSum ) const
+  {
+    return FieldCounter( *this, beginStringField,
+                                bodyLengthField,
+                                checkSumField ).getBodyLength();
   }
 
   int checkSum( int checkSumField = FIELD::CheckSum ) const
@@ -216,7 +363,7 @@ public:
              + m_trailer.calculateTotal(checkSumField) ) % 256;
   }
 
-  bool isAdmin() const
+  inline bool NOTHROW isAdmin() const
   { 
     if( m_header.isSetField(FIELD::MsgType) )
     {
@@ -226,7 +373,7 @@ public:
     return false;
   }
 
-  bool isApp() const
+  inline bool NOTHROW isApp() const
   { 
     if( m_header.isSetField(FIELD::MsgType) )
     {
@@ -247,11 +394,43 @@ public:
     m_trailer.clear();
   }
 
-  static bool isAdminMsgType( const MsgType& msgType )
-  { if ( msgType.getValue().length() != 1 ) return false;
-    return strchr
-           ( "0A12345",
-             msgType.getValue().c_str() [ 0 ] ) != 0;
+  static inline bool NOTHROW isAdminMsgType( const MsgType& msgType )
+  {
+    return isAdminMsgTypeValue( Util::String::c_str( msgType.getValue()) );
+  }
+
+  static inline bool NOTHROW isAdminMsgTypeValue( const char* value )
+  {
+    char sym = value[0];
+    return sym && value[1] == '\0' && ::strchr( "0A12345", sym ) != 0;
+  }
+
+  static inline bool isAdminMsg( const std::string& msg )
+  {
+    std::string::size_type size = Util::String::size(msg);
+    if ( size > 5 )
+    {
+      union {
+         const char* pc;
+	 const uint32_t* pu;
+      } u = { Util::String::c_str( msg ) };
+      union {
+	 char c[4];
+         uint32_t u;
+      } const v = { { '\001', '3', '5', '=' } };
+      do
+      {
+        if (LIKELY(*u.pu != v.u))
+        {
+          size--;
+          u.pc++;
+          continue;
+        }
+        return u.pc[5] == '\001' && ::strchr( "0A12345", u.pc[4] ) != 0;
+      }
+      while ( size > 5 );
+    }
+    throw MessageParseError();
   }
 
   static ApplVerID toApplVerID(const BeginString& value)
@@ -297,13 +476,35 @@ public:
       return BeginString("");
   }
 
-  static bool isHeaderField( int field );
-  static bool isHeaderField( const FieldBase& field,
-                             const DataDictionary* pD = 0 );
 
-  static bool isTrailerField( int field );
-  static bool isTrailerField( const FieldBase& field,
-                              const DataDictionary* pD = 0 );
+  static inline bool isHeaderField( int field,
+				    const DataDictionary* pD = 0 )
+  {
+    return ( LIKELY((unsigned)field < headerFieldSet.size()) &&
+	     headerFieldSet[field] ) || 
+	   ( pD && pD->isHeaderField( field ) );
+  }
+  
+  static inline bool isHeaderField( const FieldBase& field,
+				    const DataDictionary* pD = 0 )
+  {
+    return isHeaderField( field.getField(), pD );
+  }
+  
+  static inline bool isTrailerField( int field,
+                                     const DataDictionary* pD = 0 )
+  {
+    return (field == FIELD::SignatureLength) ||
+	   (field == FIELD::Signature) ||
+	   (field == FIELD::CheckSum) ||
+	   (pD && pD->isTrailerField( field ));
+  }
+  
+  static inline bool isTrailerField( const FieldBase& field,
+                                     const DataDictionary* pD = 0 )
+  {
+    return isTrailerField( field.getField(), pD );
+  }
 
   /// Returns the session ID of the intended recipient
   SessionID getSessionID( const std::string& qualifier = "" ) const
@@ -312,61 +513,137 @@ public:
   void setSessionID( const SessionID& sessionID );
 
 private:
-  FieldBase extractField
-  ( const std::string& string, std::string::size_type& pos,
-    const DataDictionary* pSessionDD = 0, const DataDictionary* pAppDD = 0,
-    const Group* pGroup = 0)
-  {
-    std::string::size_type equalSign
-      = string.find_first_of( '=', pos );
-    if( equalSign == std::string::npos )
-      throw InvalidMessage("Equal sign not found in field");
 
-    char* pEnd = 0;
-    int field = strtol( string.c_str() + pos, &pEnd, 0 );
+  void extractField ( FieldReader& f,
+		      const DataDictionary* pSessionDD = 0,
+		      const DataDictionary* pAppDD = 0,
+		      const Group* pGroup = 0);
 
-    std::string::size_type soh =
-      string.find_first_of( '\001', equalSign + 1 );
-    if ( soh == std::string::npos )
-      throw InvalidMessage("SOH not found at end of field");
+  void setGroup ( FieldReader& f, DataDictionary::FieldToGroup::key_type& key,
+		  FieldMap& map, const DataDictionary& dataDictionary );
 
-    if ( (pSessionDD && pSessionDD->isDataField(field)) || 
-		 (pAppDD && pAppDD != pSessionDD && pAppDD->isDataField(field)) )
-    {
-      // Assume length field is 1 less.
-      int lenField = field - 1;
-      // Special case for Signature which violates above assumption.
-      if ( field == 89 ) lenField = 93;
-
-      if ( pGroup && pGroup->isSetField( lenField ) )
-      {
-        const std::string& fieldLength = pGroup->getField( lenField );
-        soh = equalSign + 1 + atol( fieldLength.c_str() );
-      }
-      else if ( isSetField( lenField ) )
-      {
-        const std::string& fieldLength = getField( lenField );
-        soh = equalSign + 1 + atol( fieldLength.c_str() );
-      }
-    }
-
-    pos = soh + 1;
-    return FieldBase (
-      field,
-      string.substr( equalSign + 1, soh - ( equalSign + 1 ) ) );
-  }
-
-  void validate();
+  void validate(const BodyLength* pBodyLength);
   std::string toXMLFields(const FieldMap& fields, int space) const;
 
+  static inline int createStatus(status_type bit, bool v)
+  {
+    return (int)v << bit;
+  }
+
+  inline void setStatusBit(status_type bit)
+  {
+    m_status |= 1 << bit;
+  }
+
+  inline void clearStatusBit(status_type bit)
+  {
+    m_status &= ~(1 << bit);
+  }
+
+  inline bool getStatusBit(status_type bit) const
+  {
+    return m_status & (1 << bit);
+  }
+
 protected:
-  mutable Header m_header;
-  mutable Trailer m_trailer;
-  bool m_validStructure;
+  mutable FieldMap m_header;
+  mutable FieldMap m_trailer;
+  int m_status;
   int m_field;
   static std::auto_ptr<DataDictionary> s_dataDictionary;
 };
 /*! @} */
+
+inline int Message::FieldReader::scan()
+{
+  const char* b = m_start + m_pos;
+  const char* p = Util::Tag::delimit(b, m_end - b);
+  if ( LIKELY(p != NULL) )
+  {
+    m_length = p - b;
+    if ( LIKELY(Util::Tag::parse(b, p, m_field, m_csum)) )
+    {
+      p++;
+      b = (char*)::memchr( p, '\001', m_end - p );
+      if ( LIKELY(b != NULL) )
+      {
+        m_start = p;
+        m_pos = b - p;
+        return m_field;
+      }
+      else
+        b = ErrSOH;
+    }
+    else
+      b = ErrTag;
+  }
+  else
+    b = ErrDelimiter;
+  m_field = 0;
+  throw InvalidMessage(b);
+}
+
+inline void Message::FieldCounter::countHeader( const FieldMap& fields )
+{
+  FieldMap::const_iterator it = fields.begin();
+  const FieldMap::const_iterator end = fields.end();
+
+  if( it != end )
+  {
+    if( LIKELY(it->first == FIELD::BeginString) )
+      m_prefix = it->second.getLength();
+    else
+      m_length = it->second.getLength();
+    ++it;
+    for( ; it != end; ++it )
+    {
+      if ( LIKELY(it->first != bodyLengthTag) )
+        m_length += it->second.getLength();
+    }
+  }
+  m_length += countGroups(fields.g_begin(), fields.g_end());
+}
+
+inline void Message::FieldCounter::countHeader( int beginStringTag,
+                                                const FieldMap& fields )
+{
+  const FieldMap::const_iterator end = fields.end();
+  for( FieldMap::const_iterator it = fields.begin(); it != end; ++it )
+  {
+    if ( LIKELY(it->first != bodyLengthTag) )
+    {
+      if( LIKELY(it->first != beginStringTag) )
+        m_length += it->second.getLength();
+      else
+        m_prefix += it->second.getLength();
+    }
+  }
+  m_length += countGroups(fields.g_begin(), fields.g_end());
+}
+
+inline int Message::FieldCounter::countBody(const FieldMap& fields)
+{
+  int result = 0;
+  const FieldMap::const_iterator end = fields.end();
+  for( FieldMap::const_iterator it = fields.begin();
+       it != end; ++it )
+  {
+    result += it->second.getLength();
+  }
+  return result + countGroups(fields.g_begin(), fields.g_end());
+}
+
+inline void Message::FieldCounter::countTrailer(const FieldMap& fields)
+{
+  const FieldMap::const_iterator end = fields.end();
+  for ( FieldMap::const_iterator it = fields.begin();
+        it != end; ++it )
+  {
+    if ( it->first != checkSumTag )
+      m_length += it->second.getLength();
+  }
+  m_length += countGroups(fields.g_begin(), fields.g_end());
+}
 
 inline std::ostream& operator <<
 ( std::ostream& stream, const Message& message )

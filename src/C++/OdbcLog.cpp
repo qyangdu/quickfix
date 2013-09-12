@@ -75,18 +75,14 @@ OdbcLogFactory::OdbcLogFactory( const std::string& user, const std::string& pass
                                 const std::string& connectionString )
 : m_user( user ), m_password( password ), m_connectionString( connectionString ),
   m_useSettings( false )
-{
-}
+{}
 
 OdbcLogFactory::OdbcLogFactory()
 : m_user( DEFAULT_USER ), m_password( DEFAULT_PASSWORD ),
   m_connectionString( DEFAULT_CONNECTION_STRING ), m_useSettings( false )
-{
-}
+{}
 
-OdbcLogFactory::~OdbcLogFactory()
-{
-}
+OdbcLogFactory::~OdbcLogFactory() {}
 
 Log* OdbcLogFactory::create()
 {
@@ -146,14 +142,14 @@ void OdbcLogFactory::init( const Dictionary& settings,
 
 void OdbcLogFactory::initLog( const Dictionary& settings, OdbcLog& log )
 {
-  try { log.setIncomingTable( settings.getString( ODBC_LOG_INCOMING_TABLE ) ); }
-  catch( ConfigError& ) {}
+    try { log.setIncomingTable( settings.getString( ODBC_LOG_INCOMING_TABLE ) ); }
+    catch( ConfigError& ) {}
 
-  try { log.setOutgoingTable( settings.getString( ODBC_LOG_OUTGOING_TABLE ) ); }
-  catch( ConfigError& ) {}
+    try { log.setOutgoingTable( settings.getString( ODBC_LOG_OUTGOING_TABLE ) ); }
+    catch( ConfigError& ) {}
 
-  try { log.setEventTable( settings.getString( ODBC_LOG_EVENT_TABLE ) ); }
-  catch( ConfigError& ) {}
+    try { log.setEventTable( settings.getString( ODBC_LOG_EVENT_TABLE ) ); }
+    catch( ConfigError& ) {}
 }
 
 void OdbcLogFactory::destroy( Log* pLog )
@@ -201,9 +197,7 @@ void OdbcLog::clear()
   m_pConnection->execute( event );
 }
 
-void OdbcLog::backup()
-{
-}
+void OdbcLog::backup() {}
 
 void OdbcLog::insert( const std::string& table, const std::string value )
 {

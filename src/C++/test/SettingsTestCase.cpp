@@ -53,16 +53,16 @@ TEST(readFromIstream)
   input >> object;
 
   Settings::Sections none = object.get( "NONE" );
-  CHECK_EQUAL( 0, none.size() );
+  CHECK_EQUAL( (std::size_t)0, none.size() );
 
   Settings::Sections foo = object.get( "FOO" );
-  CHECK_EQUAL( 1, foo.size() );
+  CHECK_EQUAL( (std::size_t)1, foo.size() );
   CHECK_EQUAL( 24, foo[ 0 ].getLong( "bar" ) );
   CHECK_EQUAL( "moo", foo[ 0 ].getString( "baz" ) );
   CHECK_EQUAL( 2, foo[ 0 ].size() );
 
   Settings::Sections oren = object.get( "OREN" );
-  CHECK_EQUAL( 2, oren.size() );
+  CHECK_EQUAL( (std::size_t)2, oren.size() );
   CHECK_EQUAL( 1, oren[ 0 ].size() );
   CHECK_EQUAL( "TW", oren[ 0 ].getString( "Nero" ) );
   CHECK_EQUAL( 2, oren[ 1 ].size() );
@@ -70,7 +70,7 @@ TEST(readFromIstream)
   CHECK_EQUAL( "./\\:", oren[ 1 ].getString( "STUFF" ) );
 
   Settings::Sections nero = object.get( "NERO" );
-  CHECK_EQUAL( 1, nero.size() );
+  CHECK_EQUAL( (std::size_t)1, nero.size() );
   CHECK_EQUAL( 4, nero[ 0 ].size() );
   CHECK_EQUAL( "D:\\This Is\\A-Directory\\ok\\", nero[ 0 ].getString( "WINDIR" ) );
   CHECK_EQUAL( "/This Is/A Directory/ok/", nero[ 0 ].getString( "UNIXDIR" ) );
