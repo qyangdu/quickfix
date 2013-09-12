@@ -26,12 +26,11 @@
 #endif
 
 #include "Application.h"
+#include "quickfix/Mutex.h"
+#include "quickfix/AtomicCount.h"
 #include "quickfix/Session.h"
 #include <sys/time.h>
 #include <iostream>
-
-#include <tbb/atomic.h>
-#include <tbb/spin_mutex.h>
 
 #define NUM_SAMPLES 1000000
 
@@ -42,8 +41,8 @@ static unsigned long max_latency;
 static const unsigned long bucket_step = 2;
 static const int max_bucket = 200;
 static unsigned long latency_buckets[max_bucket + 1];
-tbb::atomic<unsigned long> rq_sent;
-tbb::atomic<unsigned long> rp_matched;
+FIX::AtomicCount rq_sent(0);
+FIX::AtomicCount rp_matched(0);
 
 FIX::ClOrdID  last_ClOrdID("1234");
 FIX::Symbol   last_Symbol("EUR/USD");
@@ -54,18 +53,18 @@ FIX::Side     last_Side(FIX::Side_BUY);
 std::auto_ptr<FIX::Message> last_order;
 
 std::queue<timeval> q_out;
-tbb::spin_mutex     q_lock;
+FIX::Spinlock       q_lock;
 
 void q_on_send() {
   gettimeofday(&last_out, NULL);
-  tbb::spin_mutex::scoped_lock l(q_lock);
+  FIX::SpinLocker l(q_lock);
   q_out.push(last_out);
-  rq_sent++;
+  ++rq_sent;
 }
 
 void q_on_receive() {
   gettimeofday(&last_in, NULL);
-  tbb::spin_mutex::scoped_lock l(q_lock);
+  FIX::SpinLocker l(q_lock);
   if (!q_out.empty()) {
     timeval first_out = q_out.front();
     unsigned long l = (last_in.tv_sec - first_out.tv_sec) * 1000000 + last_in.tv_usec - first_out.tv_usec;
@@ -75,7 +74,7 @@ void q_on_receive() {
     latency_buckets[b > max_bucket ? max_bucket : b ]++;
     latency += l;
     q_out.pop();
-    rp_matched++;
+    ++rp_matched;
   }
 };
 
@@ -145,9 +144,8 @@ void Application::run()
       char action = queryAction();
 
       if ( action == '0' ) {
+	FIX::AtomicCount::value_type rp_prev = rp_matched;
 	timeval st, en;
-	rq_sent = 0;
-	rp_matched = 0;
         latency = 0;
 	max_latency = 0;
 	min_latency = 10000000000UL;
@@ -173,7 +171,11 @@ void Application::run()
 		sched_yield();
         }
 	std::cout << "Done sending" << std::endl;
-        while (rp_matched < NUM_SAMPLES) sleep(1);
+
+        while ( rp_matched < (NUM_SAMPLES + rp_prev) )
+	  sleep(1);
+
+
         gettimeofday(&en, NULL);
 	std::cout << "Duration : " << ((en.tv_sec - st.tv_sec) * 1000000 + en.tv_usec - st.tv_usec) << " usec " << std::endl;
 	std::cout << "Avg Latency : " << latency / NUM_SAMPLES << " usec " << std::endl;
