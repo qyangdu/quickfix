@@ -22,3 +22,18 @@ SYSTEM REQUIREMENTS
         Required: sudo apt-get install g++ automake libtool libxml2 libxml2-dev
         Optional: sudo apt-get install ruby ruby-dev libmysqlclient-dev libpq-dev mysql-server postgresql xsltproc
 
+OPTIONAL DEPENDENCIES FOR EXTRA PERFORMANCE
+
+        Boost (www.boost.org)
+        Google Sparse Hash (code.google.com/p/sparsehash/)
+        Intel Threading Building Blocks (www.threadingbuildingblocks.org)
+
+        ./configure --with-boost=<path> --with-sparsehash=<path> --with-tbb=<path> --with-tbb-arch=<library subdir>
+
+        Example:
+
+            Boost installed in /usr/local/boost
+            Sparsehash installed in /usr/local/include
+            TBB installed in /opt/intel/tbb
+
+            ./configure --with-boost=/usr/local/boost --with-sparsehash=/usr/local --with-tbb=/opt/intel/tbb --with-tbb-arch=intel64/gcc4.4
