@@ -92,6 +92,8 @@ class Message : public FieldMap
 
   public:
 
+    typedef StringField result_type;
+
     FieldReader ( const std::string& s )
     : m_field(0), m_pos(0), m_length(0), m_csum(0),
       m_start(Util::String::c_str(s)),
@@ -542,7 +544,7 @@ private:
 
   inline bool getStatusBit(status_type bit) const
   {
-    return m_status & (1 << bit);
+    return (m_status & (1 << bit)) != 0;
   }
 
 protected:

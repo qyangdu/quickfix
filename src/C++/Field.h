@@ -49,6 +49,7 @@ class FieldTag
   };
 
 public:
+
   template <int N> struct Traits
   {
     enum
@@ -117,7 +118,8 @@ public:
     , m_calculated(C_NONE)
   {}
 
-  template <typename Pack> explicit FieldBase(const Pack& p)
+  template <typename Pack> 
+  explicit FieldBase(const Pack& p, typename Pack::result_type* = NULL)
     : m_tag(p.getField()), m_tagChecksum(p.getTagChecksum())
     , m_tagLength(p.getTagLength()), m_calculated(C_NONE), m_string(p)
     {}
@@ -129,7 +131,13 @@ public:
     , m_calculated( C_NONE )
     , m_string(string)
     {}
-
+/*
+    FieldBase(const FieldBase& f)
+	: m_tag(f.m_tag), m_tagChecksum(f.m_tagChecksum)
+    , m_tagLength(f.m_tagLength), m_calculated(f.m_calculated), m_string(f.m_string)
+	, m_data(f.m_data_), m_total(f.m_total)
+    {}
+*/
   virtual inline ~FieldBase()
     {}
 
@@ -310,6 +318,8 @@ protected:
 
   template <int Tag> struct Packed : public Data 
   {
+	typedef StringField result_type;
+
     explicit Packed(const std::string& data)
     : Data(data) {}
 
@@ -341,6 +351,8 @@ public:
 
   struct Pack : public FieldTag, public Data
   {
+	typedef StringField result_type;
+
     explicit Pack(int field, const std::string& data)
     : FieldTag(field), Data(data) {}
 
@@ -480,6 +492,8 @@ protected:
 
   template <int Tag> struct Packed : public Data
   {
+    typedef CharField result_type;
+
     explicit Packed(char data )
     : Data( data ) {}
 
@@ -505,6 +519,8 @@ public:
 
   struct Pack : public FieldTag, public Data
   {
+    typedef CharField result_type;
+
     explicit Pack(int field, char data )
     : FieldTag(field), Data( data ) {}
 
@@ -558,6 +574,8 @@ protected:
 
   template <int Tag> struct Packed : public Data
   {
+    typedef DoubleField result_type;
+
     explicit Packed( double data, int padding = 0, bool rounded = false )
     : Data(data, padding, rounded) {}
 
@@ -584,6 +602,8 @@ public:
 
   struct Pack : public FieldTag, public Data
   {
+    typedef DoubleField result_type;
+
     explicit Pack( int field,
                    double data, int padding = 0, bool rounded = false )
     : FieldTag(field), Data(data, padding, rounded) {}
@@ -637,6 +657,8 @@ protected:
 
   template <int Tag> struct Packed : public Data
   {
+	typedef IntField result_type;
+
     explicit Packed( int data )
     : Data( data ) {}
 
@@ -660,7 +682,9 @@ protected:
 
 public:
 
-  struct Pack : public FieldTag, public Data {
+  struct Pack : public FieldTag, public Data
+  {
+	typedef IntField result_type;
 
     explicit Pack( int field, int data )
     : FieldTag(field), Data( data ) {}
@@ -690,8 +714,8 @@ public:
 /// Field that contains a boolean value
 class BoolField : public FieldBase
 {
-  struct Data {
-
+  struct Data
+  {
     typedef BoolConvertor Convertor;
 
     bool m_data;
@@ -712,6 +736,8 @@ protected:
 
   template <int Tag> struct Packed : public Data
   {
+    typedef BoolField result_type;
+
     explicit Packed( bool data )
     : Data( data ) {}
 
@@ -730,13 +756,15 @@ protected:
   : FieldBase( t ) {}
 
   template <int Field>
-  explicit BoolField( FieldTag::Traits<Field>, int data)
+  explicit BoolField( FieldTag::Traits<Field>, bool data)
   : FieldBase( Packed<Field>(data) ) {}
 
 public:
 
   struct Pack : public FieldTag, public Data
   {
+    typedef BoolField result_type;
+
     explicit Pack( int field, bool data )
     : FieldTag(field), Data( data ) {}
 
@@ -788,7 +816,9 @@ protected:
 
   template <int Tag> struct Packed : public Data
   {
-    explicit Packed( const UtcTimeStamp& data, bool showMilliseconds = false )
+    typedef UtcTimeStampField result_type;
+
+	explicit Packed( const UtcTimeStamp& data, bool showMilliseconds = false )
     : Data( data, showMilliseconds) {}
 
     static inline int getField() { return Tag; }
@@ -814,6 +844,8 @@ public:
 
   struct Pack : public FieldTag, public Data
   {
+    typedef UtcTimeStampField result_type;
+
     explicit Pack( int field,
                const UtcTimeStamp& data, bool showMilliseconds = false )
     : FieldTag(field), Data(data, showMilliseconds) {}
@@ -873,6 +905,8 @@ protected:
 
   template <int Tag> struct Packed : public Data
   {
+    typedef UtcDateField result_type;
+
     explicit Packed( const UtcDate& data )
     : Data( data ) {}
 
@@ -898,6 +932,8 @@ public:
 
   struct Pack : public FieldTag, public Data
   {
+    typedef UtcDateField result_type;
+
     explicit Pack( int field, const UtcDate& data )
     : FieldTag(field), Data( data ) {}
 
@@ -956,6 +992,8 @@ protected:
 
   template <int Tag> struct Packed : public Data
   {
+    typedef UtcTimeOnlyField result_type;
+
     explicit Packed( const UtcTimeOnly& data, bool showMilliseconds = false )
     : Data( data, showMilliseconds) {}
 
@@ -982,6 +1020,8 @@ public:
 
   struct Pack : public FieldTag, public Data
   {
+    typedef UtcTimeOnlyField result_type;
+
     explicit Pack( int field,
                      const UtcTimeOnly& data, bool showMilliseconds = false )
     : FieldTag(field), Data( data, showMilliseconds) {}
@@ -1042,7 +1082,9 @@ protected:
 
   template <int Tag> struct Packed : public Data
   {
-    explicit Packed( int data )
+    typedef CheckSumField result_type;
+
+	explicit Packed( int data )
     : Data( data ) {}
 
     static inline int getField() { return Tag; }
@@ -1067,6 +1109,8 @@ public:
 
   struct Pack : public FieldTag, public Data
   {
+    typedef CheckSumField result_type;
+
     explicit Pack( int field, int data )
     : FieldTag(field), Data( data ) {}
 

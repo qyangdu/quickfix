@@ -97,7 +97,9 @@ public:
   FieldMap& operator=( const FieldMap& rhs );
 
   /// Adds a field without type checking by constructing in place
-  template <typename Packed> iterator addField( const Packed& packed )
+  template <typename Packed> 
+  iterator addField( const Packed& packed, 
+	                 typename Packed::result_type* = NULL )
   {
 #ifdef HAVE_BOOST
     Fields::iterator i = m_fields.emplace_hint( m_fields.end(),
@@ -120,7 +122,9 @@ public:
 #endif
   }
 
-  template <typename Packed> iterator addField( FieldMap::iterator i, const Packed& packed )
+  template <typename Packed>
+  iterator addField( FieldMap::iterator i, 
+	                 const Packed& packed, typename Packed::result_type* = NULL )
   {
 #ifdef HAVE_BOOST
     return m_fields.emplace_hint( i, packed.getField(), packed );
@@ -143,8 +147,9 @@ public:
   }
 
   /// Overwrite a field without type checking by constructing in place
-  template <typename Packed> FieldBase& setField( const Packed& packed,
-                                typename Packed::Convertor* unused = NULL)
+  template <typename Packed>
+  FieldBase& setField( const Packed& packed, 
+	                   typename Packed::result_type* = NULL)
   {
     int tag = packed.getField();
     Fields::iterator i =  m_fields.lower_bound( tag );

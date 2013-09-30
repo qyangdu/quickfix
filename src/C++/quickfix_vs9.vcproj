@@ -44,8 +44,8 @@
 				Name="VCCLCompilerTool"
 				Optimization="0"
 				FavorSizeOrSpeed="0"
-				AdditionalIncludeDirectories="$(SolutionDir)\src,$(SolutionDir)\UnitTest++\src"
-				PreprocessorDefinitions="WIN32,_DEBUG,_LIB"
+				AdditionalIncludeDirectories="&quot;$(SolutionDir)\src&quot;;&quot;$(SolutionDir)\UnitTest++\src&quot;;D:\Dev\boost_1_54_0;&quot;D:\Dev\sparsehash-2.0.2\src&quot;;&quot;D:\Dev\sparsehash-2.0.2\src\windows&quot;;D:\Dev\tbb42_20130725oss\include"
+				PreprocessorDefinitions="WIN32;_DEBUG;_LIB;HAVE_BOOST=1;HAVE_SPARSEHASH=1;HAVE_TBB=1"
 				BasicRuntimeChecks="3"
 				RuntimeLibrary="3"
 				RuntimeTypeInfo="true"
@@ -74,6 +74,7 @@
 			<Tool
 				Name="VCLibrarianTool"
 				OutputFile="$(OutDir)\quickfix.lib"
+				AdditionalLibraryDirectories=""
 				SuppressStartupBanner="true"
 			/>
 			<Tool
@@ -121,12 +122,14 @@
 			<Tool
 				Name="VCCLCompilerTool"
 				InlineFunctionExpansion="1"
-				FavorSizeOrSpeed="0"
+				EnableIntrinsicFunctions="true"
+				FavorSizeOrSpeed="1"
 				AdditionalIncludeDirectories="$(SolutionDir)\src,$(SolutionDir)\UnitTest++\src"
 				PreprocessorDefinitions="WIN32,NDEBUG,_LIB"
 				StringPooling="true"
 				RuntimeLibrary="2"
 				EnableFunctionLevelLinking="true"
+				EnableEnhancedInstructionSet="2"
 				RuntimeTypeInfo="true"
 				UsePrecompiledHeader="0"
 				PrecompiledHeaderThrough="stdafx.h"
@@ -152,6 +155,167 @@
 				Name="VCLibrarianTool"
 				OutputFile="$(OutDir)\quickfix.lib"
 				AdditionalLibraryDirectories=""
+				SuppressStartupBanner="true"
+			/>
+			<Tool
+				Name="VCALinkTool"
+			/>
+			<Tool
+				Name="VCXDCMakeTool"
+			/>
+			<Tool
+				Name="VCBscMakeTool"
+			/>
+			<Tool
+				Name="VCFxCopTool"
+			/>
+			<Tool
+				Name="VCPostBuildEventTool"
+				CommandLine="echo test\ &gt; EXCLUDE&#x0D;&#x0A;echo stdafx.h &gt;&gt; EXCLUDE&#x0D;&#x0A;echo release\ &gt;&gt; EXCLUDE&#x0D;&#x0A;echo debug\ &gt;&gt; EXCLUDE&#x0D;&#x0A;xcopy *.h /S/Y/E/I /EXCLUDE:EXCLUDE ..\..\include\quickfix&#x0D;&#x0A;del /F EXCLUDE&#x0D;&#x0A;"
+			/>
+		</Configuration>
+		<Configuration
+			Name="DebugBoost|Win32"
+			OutputDirectory="$(SolutionDir)$(ConfigurationName)"
+			IntermediateDirectory="$(ConfigurationName)"
+			ConfigurationType="4"
+			InheritedPropertySheets="$(VCInstallDir)VCProjectDefaults\UpgradeFromVC71.vsprops"
+			UseOfMFC="0"
+			ATLMinimizesCRunTimeLibraryUsage="false"
+			CharacterSet="2"
+			>
+			<Tool
+				Name="VCPreBuildEventTool"
+			/>
+			<Tool
+				Name="VCCustomBuildTool"
+			/>
+			<Tool
+				Name="VCXMLDataGeneratorTool"
+			/>
+			<Tool
+				Name="VCWebServiceProxyGeneratorTool"
+			/>
+			<Tool
+				Name="VCMIDLTool"
+			/>
+			<Tool
+				Name="VCCLCompilerTool"
+				Optimization="0"
+				FavorSizeOrSpeed="0"
+				AdditionalIncludeDirectories="&quot;$(SolutionDir)\src&quot;;&quot;$(SolutionDir)\UnitTest++\src&quot;;D:\Dev\boost_1_54_0;&quot;D:\Dev\sparsehash-2.0.2\src&quot;;&quot;D:\Dev\sparsehash-2.0.2\src\windows&quot;;D:\Dev\tbb42_20130725oss\include"
+				PreprocessorDefinitions="WIN32;_DEBUG;_LIB;HAVE_BOOST=1;HAVE_SPARSEHASH=1;HAVE_TBB=1"
+				BasicRuntimeChecks="3"
+				RuntimeLibrary="3"
+				RuntimeTypeInfo="true"
+				UsePrecompiledHeader="0"
+				PrecompiledHeaderThrough="stdafx.h"
+				PrecompiledHeaderFile=".\Debug/quickfix.pch"
+				AssemblerListingLocation=".\Debug/"
+				ObjectFile=".\Debug/"
+				ProgramDataBaseFileName=".\Debug/"
+				WarningLevel="3"
+				SuppressStartupBanner="true"
+				DebugInformationFormat="3"
+				CompileAs="0"
+			/>
+			<Tool
+				Name="VCManagedResourceCompilerTool"
+			/>
+			<Tool
+				Name="VCResourceCompilerTool"
+				PreprocessorDefinitions="_DEBUG"
+				Culture="1033"
+			/>
+			<Tool
+				Name="VCPreLinkEventTool"
+			/>
+			<Tool
+				Name="VCLibrarianTool"
+				AdditionalDependencies="tbb.lib tbbmalloc.lib"
+				OutputFile="$(OutDir)\quickfix.lib"
+				AdditionalLibraryDirectories="D:\Dev\tbb42_20130725oss\lib\ia32\vc9"
+				SuppressStartupBanner="true"
+			/>
+			<Tool
+				Name="VCALinkTool"
+			/>
+			<Tool
+				Name="VCXDCMakeTool"
+			/>
+			<Tool
+				Name="VCBscMakeTool"
+			/>
+			<Tool
+				Name="VCFxCopTool"
+			/>
+			<Tool
+				Name="VCPostBuildEventTool"
+				CommandLine="echo test\ &gt; EXCLUDE&#x0D;&#x0A;echo stdafx.h &gt;&gt; EXCLUDE&#x0D;&#x0A;echo release\ &gt;&gt; EXCLUDE&#x0D;&#x0A;echo debug\ &gt;&gt; EXCLUDE&#x0D;&#x0A;xcopy *.h /S/Y/E/I /EXCLUDE:EXCLUDE ..\..\include\quickfix&#x0D;&#x0A;del /F EXCLUDE&#x0D;&#x0A;"
+			/>
+		</Configuration>
+		<Configuration
+			Name="ReleaseBoost|Win32"
+			OutputDirectory="$(SolutionDir)$(ConfigurationName)"
+			IntermediateDirectory="$(ConfigurationName)"
+			ConfigurationType="4"
+			InheritedPropertySheets="$(VCInstallDir)VCProjectDefaults\UpgradeFromVC71.vsprops"
+			UseOfMFC="0"
+			ATLMinimizesCRunTimeLibraryUsage="false"
+			CharacterSet="2"
+			>
+			<Tool
+				Name="VCPreBuildEventTool"
+			/>
+			<Tool
+				Name="VCCustomBuildTool"
+			/>
+			<Tool
+				Name="VCXMLDataGeneratorTool"
+			/>
+			<Tool
+				Name="VCWebServiceProxyGeneratorTool"
+			/>
+			<Tool
+				Name="VCMIDLTool"
+			/>
+			<Tool
+				Name="VCCLCompilerTool"
+				InlineFunctionExpansion="1"
+				EnableIntrinsicFunctions="true"
+				FavorSizeOrSpeed="1"
+				AdditionalIncludeDirectories="$(SolutionDir)\src,$(SolutionDir)\UnitTest++\src;D:\Dev\boost_1_54_0;&quot;D:\Dev\sparsehash-2.0.2\src&quot;;&quot;D:\Dev\sparsehash-2.0.2\src\windows&quot;;D:\Dev\tbb42_20130725oss\include"
+				PreprocessorDefinitions="WIN32,NDEBUG,_LIB;HAVE_BOOST=1;HAVE_SPARSEHASH=1;HAVE_TBB=1"
+				StringPooling="true"
+				RuntimeLibrary="2"
+				EnableFunctionLevelLinking="true"
+				EnableEnhancedInstructionSet="2"
+				RuntimeTypeInfo="true"
+				UsePrecompiledHeader="0"
+				PrecompiledHeaderThrough="stdafx.h"
+				PrecompiledHeaderFile=".\Release/quickfix.pch"
+				AssemblerListingLocation=".\Release/"
+				ObjectFile=".\Release/"
+				ProgramDataBaseFileName=".\Release/"
+				WarningLevel="3"
+				SuppressStartupBanner="true"
+			/>
+			<Tool
+				Name="VCManagedResourceCompilerTool"
+			/>
+			<Tool
+				Name="VCResourceCompilerTool"
+				PreprocessorDefinitions="NDEBUG"
+				Culture="1033"
+			/>
+			<Tool
+				Name="VCPreLinkEventTool"
+			/>
+			<Tool
+				Name="VCLibrarianTool"
+				AdditionalDependencies="tbb.lib tbbmalloc.lib"
+				OutputFile="$(OutDir)\quickfix.lib"
+				AdditionalLibraryDirectories="D:\Dev\tbb42_20130725oss\lib\ia32\vc9"
 				SuppressStartupBanner="true"
 			/>
 			<Tool
@@ -257,6 +421,24 @@
 						Outputs=""
 					/>
 				</FileConfiguration>
+				<FileConfiguration
+					Name="DebugBoost|Win32"
+					>
+					<Tool
+						Name="VCCustomBuildTool"
+						CommandLine=""
+						Outputs=""
+					/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="ReleaseBoost|Win32"
+					>
+					<Tool
+						Name="VCCustomBuildTool"
+						CommandLine=""
+						Outputs=""
+					/>
+				</FileConfiguration>
 			</File>
 			<File
 				RelativePath=".\Application.h"
@@ -272,6 +454,64 @@
 				</FileConfiguration>
 				<FileConfiguration
 					Name="Release|Win32"
+					>
+					<Tool
+						Name="VCCustomBuildTool"
+						CommandLine=""
+						Outputs=""
+					/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="DebugBoost|Win32"
+					>
+					<Tool
+						Name="VCCustomBuildTool"
+						CommandLine=""
+						Outputs=""
+					/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="ReleaseBoost|Win32"
+					>
+					<Tool
+						Name="VCCustomBuildTool"
+						CommandLine=""
+						Outputs=""
+					/>
+				</FileConfiguration>
+			</File>
+			<File
+				RelativePath=".\AtomicCount.h"
+				>
+				<FileConfiguration
+					Name="Debug|Win32"
+					>
+					<Tool
+						Name="VCCustomBuildTool"
+						CommandLine=""
+						Outputs=""
+					/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="Release|Win32"
+					>
+					<Tool
+						Name="VCCustomBuildTool"
+						CommandLine=""
+						Outputs=""
+					/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="DebugBoost|Win32"
+					>
+					<Tool
+						Name="VCCustomBuildTool"
+						CommandLine=""
+						Outputs=""
+					/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="ReleaseBoost|Win32"
 					>
 					<Tool
 						Name="VCCustomBuildTool"
@@ -301,6 +541,24 @@
 						Outputs=""
 					/>
 				</FileConfiguration>
+				<FileConfiguration
+					Name="DebugBoost|Win32"
+					>
+					<Tool
+						Name="VCCustomBuildTool"
+						CommandLine=""
+						Outputs=""
+					/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="ReleaseBoost|Win32"
+					>
+					<Tool
+						Name="VCCustomBuildTool"
+						CommandLine=""
+						Outputs=""
+					/>
+				</FileConfiguration>
 			</File>
 			<File
 				RelativePath="DOMDocument.h"
@@ -316,6 +574,24 @@
 				</FileConfiguration>
 				<FileConfiguration
 					Name="Release|Win32"
+					>
+					<Tool
+						Name="VCCustomBuildTool"
+						CommandLine=""
+						Outputs=""
+					/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="DebugBoost|Win32"
+					>
+					<Tool
+						Name="VCCustomBuildTool"
+						CommandLine=""
+						Outputs=""
+					/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="ReleaseBoost|Win32"
 					>
 					<Tool
 						Name="VCCustomBuildTool"
@@ -345,6 +621,24 @@
 						Outputs=""
 					/>
 				</FileConfiguration>
+				<FileConfiguration
+					Name="DebugBoost|Win32"
+					>
+					<Tool
+						Name="VCCustomBuildTool"
+						CommandLine=""
+						Outputs=""
+					/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="ReleaseBoost|Win32"
+					>
+					<Tool
+						Name="VCCustomBuildTool"
+						CommandLine=""
+						Outputs=""
+					/>
+				</FileConfiguration>
 			</File>
 			<File
 				RelativePath=".\Exceptions.h"
@@ -360,6 +654,24 @@
 				</FileConfiguration>
 				<FileConfiguration
 					Name="Release|Win32"
+					>
+					<Tool
+						Name="VCCustomBuildTool"
+						CommandLine=""
+						Outputs=""
+					/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="DebugBoost|Win32"
+					>
+					<Tool
+						Name="VCCustomBuildTool"
+						CommandLine=""
+						Outputs=""
+					/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="ReleaseBoost|Win32"
 					>
 					<Tool
 						Name="VCCustomBuildTool"
@@ -389,6 +701,24 @@
 						Outputs=""
 					/>
 				</FileConfiguration>
+				<FileConfiguration
+					Name="DebugBoost|Win32"
+					>
+					<Tool
+						Name="VCCustomBuildTool"
+						CommandLine=""
+						Outputs=""
+					/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="ReleaseBoost|Win32"
+					>
+					<Tool
+						Name="VCCustomBuildTool"
+						CommandLine=""
+						Outputs=""
+					/>
+				</FileConfiguration>
 			</File>
 			<File
 				RelativePath=".\index.h"
@@ -411,6 +741,24 @@
 						Outputs=""
 					/>
 				</FileConfiguration>
+				<FileConfiguration
+					Name="DebugBoost|Win32"
+					>
+					<Tool
+						Name="VCCustomBuildTool"
+						CommandLine=""
+						Outputs=""
+					/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="ReleaseBoost|Win32"
+					>
+					<Tool
+						Name="VCCustomBuildTool"
+						CommandLine=""
+						Outputs=""
+					/>
+				</FileConfiguration>
 			</File>
 			<File
 				RelativePath=".\Initiator.h"
@@ -426,6 +774,64 @@
 				</FileConfiguration>
 				<FileConfiguration
 					Name="Release|Win32"
+					>
+					<Tool
+						Name="VCCustomBuildTool"
+						CommandLine=""
+						Outputs=""
+					/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="DebugBoost|Win32"
+					>
+					<Tool
+						Name="VCCustomBuildTool"
+						CommandLine=""
+						Outputs=""
+					/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="ReleaseBoost|Win32"
+					>
+					<Tool
+						Name="VCCustomBuildTool"
+						CommandLine=""
+						Outputs=""
+					/>
+				</FileConfiguration>
+			</File>
+			<File
+				RelativePath=".\ItemAllocator.h"
+				>
+				<FileConfiguration
+					Name="Debug|Win32"
+					>
+					<Tool
+						Name="VCCustomBuildTool"
+						CommandLine=""
+						Outputs=""
+					/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="Release|Win32"
+					>
+					<Tool
+						Name="VCCustomBuildTool"
+						CommandLine=""
+						Outputs=""
+					/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="DebugBoost|Win32"
+					>
+					<Tool
+						Name="VCCustomBuildTool"
+						CommandLine=""
+						Outputs=""
+					/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="ReleaseBoost|Win32"
 					>
 					<Tool
 						Name="VCCustomBuildTool"
@@ -459,6 +865,24 @@
 						Outputs=""
 					/>
 				</FileConfiguration>
+				<FileConfiguration
+					Name="DebugBoost|Win32"
+					>
+					<Tool
+						Name="VCCustomBuildTool"
+						CommandLine=""
+						Outputs=""
+					/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="ReleaseBoost|Win32"
+					>
+					<Tool
+						Name="VCCustomBuildTool"
+						CommandLine=""
+						Outputs=""
+					/>
+				</FileConfiguration>
 			</File>
 			<File
 				RelativePath=".\Mutex.h"
@@ -474,6 +898,24 @@
 				</FileConfiguration>
 				<FileConfiguration
 					Name="Release|Win32"
+					>
+					<Tool
+						Name="VCCustomBuildTool"
+						CommandLine=""
+						Outputs=""
+					/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="DebugBoost|Win32"
+					>
+					<Tool
+						Name="VCCustomBuildTool"
+						CommandLine=""
+						Outputs=""
+					/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="ReleaseBoost|Win32"
 					>
 					<Tool
 						Name="VCCustomBuildTool"
@@ -503,6 +945,24 @@
 						Outputs=""
 					/>
 				</FileConfiguration>
+				<FileConfiguration
+					Name="DebugBoost|Win32"
+					>
+					<Tool
+						Name="VCCustomBuildTool"
+						CommandLine=""
+						Outputs=""
+					/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="ReleaseBoost|Win32"
+					>
+					<Tool
+						Name="VCCustomBuildTool"
+						CommandLine=""
+						Outputs=""
+					/>
+				</FileConfiguration>
 			</File>
 			<File
 				RelativePath=".\Queue.h"
@@ -518,6 +978,24 @@
 				</FileConfiguration>
 				<FileConfiguration
 					Name="Release|Win32"
+					>
+					<Tool
+						Name="VCCustomBuildTool"
+						CommandLine=""
+						Outputs=""
+					/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="DebugBoost|Win32"
+					>
+					<Tool
+						Name="VCCustomBuildTool"
+						CommandLine=""
+						Outputs=""
+					/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="ReleaseBoost|Win32"
 					>
 					<Tool
 						Name="VCCustomBuildTool"
@@ -547,6 +1025,24 @@
 						Outputs=""
 					/>
 				</FileConfiguration>
+				<FileConfiguration
+					Name="DebugBoost|Win32"
+					>
+					<Tool
+						Name="VCCustomBuildTool"
+						CommandLine=""
+						Outputs=""
+					/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="ReleaseBoost|Win32"
+					>
+					<Tool
+						Name="VCCustomBuildTool"
+						CommandLine=""
+						Outputs=""
+					/>
+				</FileConfiguration>
 			</File>
 			<File
 				RelativePath=".\Session.h"
@@ -562,6 +1058,24 @@
 				</FileConfiguration>
 				<FileConfiguration
 					Name="Release|Win32"
+					>
+					<Tool
+						Name="VCCustomBuildTool"
+						CommandLine=""
+						Outputs=""
+					/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="DebugBoost|Win32"
+					>
+					<Tool
+						Name="VCCustomBuildTool"
+						CommandLine=""
+						Outputs=""
+					/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="ReleaseBoost|Win32"
 					>
 					<Tool
 						Name="VCCustomBuildTool"
@@ -591,6 +1105,24 @@
 						Outputs=""
 					/>
 				</FileConfiguration>
+				<FileConfiguration
+					Name="DebugBoost|Win32"
+					>
+					<Tool
+						Name="VCCustomBuildTool"
+						CommandLine=""
+						Outputs=""
+					/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="ReleaseBoost|Win32"
+					>
+					<Tool
+						Name="VCCustomBuildTool"
+						CommandLine=""
+						Outputs=""
+					/>
+				</FileConfiguration>
 			</File>
 			<File
 				RelativePath=".\SessionID.h"
@@ -606,6 +1138,24 @@
 				</FileConfiguration>
 				<FileConfiguration
 					Name="Release|Win32"
+					>
+					<Tool
+						Name="VCCustomBuildTool"
+						CommandLine=""
+						Outputs=""
+					/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="DebugBoost|Win32"
+					>
+					<Tool
+						Name="VCCustomBuildTool"
+						CommandLine=""
+						Outputs=""
+					/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="ReleaseBoost|Win32"
 					>
 					<Tool
 						Name="VCCustomBuildTool"
@@ -635,6 +1185,24 @@
 						Outputs=""
 					/>
 				</FileConfiguration>
+				<FileConfiguration
+					Name="DebugBoost|Win32"
+					>
+					<Tool
+						Name="VCCustomBuildTool"
+						CommandLine=""
+						Outputs=""
+					/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="ReleaseBoost|Win32"
+					>
+					<Tool
+						Name="VCCustomBuildTool"
+						CommandLine=""
+						Outputs=""
+					/>
+				</FileConfiguration>
 			</File>
 			<File
 				RelativePath="SessionState.h"
@@ -650,6 +1218,24 @@
 				</FileConfiguration>
 				<FileConfiguration
 					Name="Release|Win32"
+					>
+					<Tool
+						Name="VCCustomBuildTool"
+						CommandLine=""
+						Outputs=""
+					/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="DebugBoost|Win32"
+					>
+					<Tool
+						Name="VCCustomBuildTool"
+						CommandLine=""
+						Outputs=""
+					/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="ReleaseBoost|Win32"
 					>
 					<Tool
 						Name="VCCustomBuildTool"
@@ -679,12 +1265,8 @@
 						Outputs=""
 					/>
 				</FileConfiguration>
-			</File>
-			<File
-				RelativePath=".\SharedArray.h"
-				>
 				<FileConfiguration
-					Name="Debug|Win32"
+					Name="DebugBoost|Win32"
 					>
 					<Tool
 						Name="VCCustomBuildTool"
@@ -693,30 +1275,7 @@
 					/>
 				</FileConfiguration>
 				<FileConfiguration
-					Name="Release|Win32"
-					>
-					<Tool
-						Name="VCCustomBuildTool"
-						CommandLine=""
-						Outputs=""
-					/>
-				</FileConfiguration>
-			</File>
-			<File
-			<File
-				RelativePath=".\AtomicCount.h"
-				>
-				<FileConfiguration
-					Name="Debug|Win32"
-					>
-					<Tool
-						Name="VCCustomBuildTool"
-						CommandLine=""
-						Outputs=""
-					/>
-				</FileConfiguration>
-				<FileConfiguration
-					Name="Release|Win32"
+					Name="ReleaseBoost|Win32"
 					>
 					<Tool
 						Name="VCCustomBuildTool"
@@ -739,6 +1298,24 @@
 				</FileConfiguration>
 				<FileConfiguration
 					Name="Release|Win32"
+					>
+					<Tool
+						Name="VCCustomBuildTool"
+						CommandLine=""
+						Outputs=""
+					/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="DebugBoost|Win32"
+					>
+					<Tool
+						Name="VCCustomBuildTool"
+						CommandLine=""
+						Outputs=""
+					/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="ReleaseBoost|Win32"
 					>
 					<Tool
 						Name="VCCustomBuildTool"
@@ -772,6 +1349,24 @@
 						Outputs=""
 					/>
 				</FileConfiguration>
+				<FileConfiguration
+					Name="DebugBoost|Win32"
+					>
+					<Tool
+						Name="VCCustomBuildTool"
+						CommandLine=""
+						Outputs=""
+					/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="ReleaseBoost|Win32"
+					>
+					<Tool
+						Name="VCCustomBuildTool"
+						CommandLine=""
+						Outputs=""
+					/>
+				</FileConfiguration>
 			</File>
 		</Filter>
 		<Filter
@@ -781,6 +1376,10 @@
 				Name="Field Source Files"
 				Filter="*.cpp"
 				>
+				<File
+					RelativePath=".\FieldConvertors.cpp"
+					>
+				</File>
 				<File
 					RelativePath="FieldMap.cpp"
 					>
@@ -815,6 +1414,24 @@
 							Outputs=""
 						/>
 					</FileConfiguration>
+					<FileConfiguration
+						Name="DebugBoost|Win32"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+							CommandLine=""
+							Outputs=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="ReleaseBoost|Win32"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+							CommandLine=""
+							Outputs=""
+						/>
+					</FileConfiguration>
 				</File>
 				<File
 					RelativePath=".\FieldConvertors.h"
@@ -830,6 +1447,24 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Release|Win32"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+							CommandLine=""
+							Outputs=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="DebugBoost|Win32"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+							CommandLine=""
+							Outputs=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="ReleaseBoost|Win32"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -859,6 +1494,24 @@
 							Outputs=""
 						/>
 					</FileConfiguration>
+					<FileConfiguration
+						Name="DebugBoost|Win32"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+							CommandLine=""
+							Outputs=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="ReleaseBoost|Win32"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+							CommandLine=""
+							Outputs=""
+						/>
+					</FileConfiguration>
 				</File>
 				<File
 					RelativePath=".\FieldNumbers.h"
@@ -874,6 +1527,24 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Release|Win32"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+							CommandLine=""
+							Outputs=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="DebugBoost|Win32"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+							CommandLine=""
+							Outputs=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="ReleaseBoost|Win32"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -903,6 +1574,24 @@
 							Outputs=""
 						/>
 					</FileConfiguration>
+					<FileConfiguration
+						Name="DebugBoost|Win32"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+							CommandLine=""
+							Outputs=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="ReleaseBoost|Win32"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+							CommandLine=""
+							Outputs=""
+						/>
+					</FileConfiguration>
 				</File>
 				<File
 					RelativePath=".\FieldTypes.h"
@@ -918,6 +1607,24 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Release|Win32"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+							CommandLine=""
+							Outputs=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="DebugBoost|Win32"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+							CommandLine=""
+							Outputs=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="ReleaseBoost|Win32"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -959,6 +1666,24 @@
 							Outputs=""
 						/>
 					</FileConfiguration>
+					<FileConfiguration
+						Name="DebugBoost|Win32"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+							CommandLine=""
+							Outputs=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="ReleaseBoost|Win32"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+							CommandLine=""
+							Outputs=""
+						/>
+					</FileConfiguration>
 				</File>
 			</Filter>
 		</Filter>
@@ -982,6 +1707,24 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Release|Win32"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+							CommandLine=""
+							Outputs=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="DebugBoost|Win32"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+							CommandLine=""
+							Outputs=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="ReleaseBoost|Win32"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -1015,6 +1758,24 @@
 							Outputs=""
 						/>
 					</FileConfiguration>
+					<FileConfiguration
+						Name="DebugBoost|Win32"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+							CommandLine=""
+							Outputs=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="ReleaseBoost|Win32"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+							CommandLine=""
+							Outputs=""
+						/>
+					</FileConfiguration>
 				</File>
 				<File
 					RelativePath=".\Message.h"
@@ -1030,6 +1791,24 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Release|Win32"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+							CommandLine=""
+							Outputs=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="DebugBoost|Win32"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+							CommandLine=""
+							Outputs=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="ReleaseBoost|Win32"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -1059,6 +1838,24 @@
 							Outputs=""
 						/>
 					</FileConfiguration>
+					<FileConfiguration
+						Name="DebugBoost|Win32"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+							CommandLine=""
+							Outputs=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="ReleaseBoost|Win32"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+							CommandLine=""
+							Outputs=""
+						/>
+					</FileConfiguration>
 				</File>
 				<File
 					RelativePath=".\Messages.h"
@@ -1081,6 +1878,24 @@
 							Outputs=""
 						/>
 					</FileConfiguration>
+					<FileConfiguration
+						Name="DebugBoost|Win32"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+							CommandLine=""
+							Outputs=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="ReleaseBoost|Win32"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+							CommandLine=""
+							Outputs=""
+						/>
+					</FileConfiguration>
 				</File>
 				<File
 					RelativePath=".\MessageSorters.h"
@@ -1096,6 +1911,24 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Release|Win32"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+							CommandLine=""
+							Outputs=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="DebugBoost|Win32"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+							CommandLine=""
+							Outputs=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="ReleaseBoost|Win32"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -3639,6 +4472,24 @@
 							Outputs=""
 						/>
 					</FileConfiguration>
+					<FileConfiguration
+						Name="DebugBoost|Win32"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+							CommandLine=""
+							Outputs=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="ReleaseBoost|Win32"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+							CommandLine=""
+							Outputs=""
+						/>
+					</FileConfiguration>
 				</File>
 				<File
 					RelativePath=".\SocketConnection.h"
@@ -3654,6 +4505,24 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Release|Win32"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+							CommandLine=""
+							Outputs=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="DebugBoost|Win32"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+							CommandLine=""
+							Outputs=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="ReleaseBoost|Win32"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -3683,6 +4552,24 @@
 							Outputs=""
 						/>
 					</FileConfiguration>
+					<FileConfiguration
+						Name="DebugBoost|Win32"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+							CommandLine=""
+							Outputs=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="ReleaseBoost|Win32"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+							CommandLine=""
+							Outputs=""
+						/>
+					</FileConfiguration>
 				</File>
 				<File
 					RelativePath=".\SocketInitiator.h"
@@ -3698,6 +4585,24 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Release|Win32"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+							CommandLine=""
+							Outputs=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="DebugBoost|Win32"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+							CommandLine=""
+							Outputs=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="ReleaseBoost|Win32"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -3727,6 +4632,24 @@
 							Outputs=""
 						/>
 					</FileConfiguration>
+					<FileConfiguration
+						Name="DebugBoost|Win32"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+							CommandLine=""
+							Outputs=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="ReleaseBoost|Win32"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+							CommandLine=""
+							Outputs=""
+						/>
+					</FileConfiguration>
 				</File>
 				<File
 					RelativePath=".\SocketServer.h"
@@ -3742,6 +4665,24 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Release|Win32"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+							CommandLine=""
+							Outputs=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="DebugBoost|Win32"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+							CommandLine=""
+							Outputs=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="ReleaseBoost|Win32"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -3771,6 +4712,24 @@
 							Outputs=""
 						/>
 					</FileConfiguration>
+					<FileConfiguration
+						Name="DebugBoost|Win32"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+							CommandLine=""
+							Outputs=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="ReleaseBoost|Win32"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+							CommandLine=""
+							Outputs=""
+						/>
+					</FileConfiguration>
 				</File>
 				<File
 					RelativePath=".\ThreadedSocketConnection.h"
@@ -3793,6 +4752,24 @@
 							Outputs=""
 						/>
 					</FileConfiguration>
+					<FileConfiguration
+						Name="DebugBoost|Win32"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+							CommandLine=""
+							Outputs=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="ReleaseBoost|Win32"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+							CommandLine=""
+							Outputs=""
+						/>
+					</FileConfiguration>
 				</File>
 				<File
 					RelativePath=".\ThreadedSocketInitiator.h"
@@ -3808,6 +4785,24 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Release|Win32"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+							CommandLine=""
+							Outputs=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="DebugBoost|Win32"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+							CommandLine=""
+							Outputs=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="ReleaseBoost|Win32"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -3907,6 +4902,25 @@
 							Outputs=""
 						/>
 					</FileConfiguration>
+					<FileConfiguration
+						Name="DebugBoost|Win32"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+							CommandLine=""
+							Outputs=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="ReleaseBoost|Win32"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+							CommandLine=""
+							AdditionalDependencies=""
+							Outputs=""
+						/>
+					</FileConfiguration>
 				</File>
 				<File
 					RelativePath=".\FileStore.h"
@@ -3922,6 +4936,24 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Release|Win32"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+							CommandLine=""
+							Outputs=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="DebugBoost|Win32"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+							CommandLine=""
+							Outputs=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="ReleaseBoost|Win32"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -3951,6 +4983,24 @@
 							Outputs=""
 						/>
 					</FileConfiguration>
+					<FileConfiguration
+						Name="DebugBoost|Win32"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+							CommandLine=""
+							Outputs=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="ReleaseBoost|Win32"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+							CommandLine=""
+							Outputs=""
+						/>
+					</FileConfiguration>
 				</File>
 				<File
 					RelativePath=".\MessageStore.h"
@@ -3966,6 +5016,24 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Release|Win32"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+							CommandLine=""
+							Outputs=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="DebugBoost|Win32"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+							CommandLine=""
+							Outputs=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="ReleaseBoost|Win32"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -3999,6 +5067,24 @@
 							Outputs=""
 						/>
 					</FileConfiguration>
+					<FileConfiguration
+						Name="DebugBoost|Win32"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+							CommandLine=""
+							Outputs=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="ReleaseBoost|Win32"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+							CommandLine=""
+							Outputs=""
+						/>
+					</FileConfiguration>
 				</File>
 				<File
 					RelativePath="MySQLStore.h"
@@ -4014,6 +5100,25 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Release|Win32"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+							CommandLine=""
+							AdditionalDependencies=""
+							Outputs=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="DebugBoost|Win32"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+							CommandLine=""
+							Outputs=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="ReleaseBoost|Win32"
 						>
 						<Tool
 							Name="VCCustomBuildTool"

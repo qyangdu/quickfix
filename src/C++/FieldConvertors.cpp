@@ -63,7 +63,7 @@ int HEAVYUSE DoubleConvertor::Proxy::generate(char* buf) const
     100000000000000LL, 1000000000000000LL, 10000000000000000LL
   };
 
-  PREFETCH(pwr10, 0, 0);
+  PREFETCH((const char*)pwr10, 0, 0);
 
   char* wstr = buf;
   double value = m_value;

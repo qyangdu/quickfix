@@ -438,7 +438,7 @@ private:
 					}
 				} else {
 					char* p = (char*)IOV_BUF(*e);
-					IOV_BUF(sg_[++n_]) = (void*)s;
+					IOV_BUF(sg_[++n_]) = (Sg::sg_ptr)s;
 					IOV_LEN(sg_[n_++]) = l;
 					p += IOV_LEN(*e);
 					IOV_BUF(sg_[n_]) = p;

@@ -166,7 +166,8 @@ struct IntConvertor
 #endif
   }
 
-  /// Returns converted length (no trailing zero)
+  /// Returns converted length (no trailing zero),
+  /// buffer must be at least 12 characters long.
   static size_t generate(char* result, int value)
   {
 #ifdef HAVE_BOOST
@@ -174,7 +175,7 @@ struct IntConvertor
     karma::generate(p, value);
     return p - result;
 #else
-    return STRING_SPRINTF( result, "%d", value );
+    return STRING_SNPRINTF( result, 12, "%d", value );
 #endif
   }
 
@@ -290,7 +291,7 @@ struct CheckSumConvertor
   template <typename S> static void generate(S& result, long value)
   throw( FieldConvertError )
   {
-    unsigned char n, v = value;
+    unsigned char n, v = (unsigned char)value;
     if ( (value - v) == 0 )
     { 
       n = v / 100;
@@ -330,7 +331,7 @@ struct CheckSumConvertor
   static std::string convert( long value )
   throw( FieldConvertError )
   {
-    unsigned char n, v = value;
+    unsigned char n, v = (unsigned char)value;
     if ( (value - v) == 0 )
     {
       char buf[3];
@@ -380,7 +381,7 @@ struct DoubleConvertor
 
     public:
 	Proxy(value_type value, int padded, bool rounded)
-        : m_value(value), m_padded(std::max(0, std::min(padded, (int)MaxPrecision))),
+        : m_value(value), m_padded((std::max)(0, (std::min)(padded, (int)MaxPrecision))),
           m_round(rounded)
         {}
 

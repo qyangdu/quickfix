@@ -44,8 +44,8 @@
 #endif
 
 #ifdef HAVE_SPARSEHASH
-#include <google/dense_hash_map>
-#include <google/dense_hash_set>
+#include <sparsehash/dense_hash_map>
+#include <sparsehash/dense_hash_set>
 #endif
 
 namespace FIX

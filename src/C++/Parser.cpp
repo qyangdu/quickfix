@@ -33,8 +33,10 @@
 #include <boost/spirit/include/qi_numeric.hpp>
 #endif
 
+namespace FIX
+{
 static inline const char* memchr2(const char* p, char c1, char c2, int n) {
-        union U {
+        union {
                 char     c[2];
                 uint16_t u;
         } u = { { c1, c2 } };
@@ -45,8 +47,6 @@ static inline const char* memchr2(const char* p, char c1, char c2, int n) {
         return NULL;
 }
 
-namespace FIX
-{
 std::size_t Parser::extractLength( const char* msg, std::size_t sz )
 throw( MessageParseError )
 {

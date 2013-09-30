@@ -229,14 +229,14 @@ void FieldMap::addGroupPtr( int field, FieldMap * group, bool setCount )
 }
 
 #ifndef HAVE_BOOST
-static std::size_t field_map_allocation_unit()
+std::size_t FieldMap::init_allocation_unit()
 {
   FieldMap::Fields f;
   f.insert(std::make_pair(1, FIX::FieldBase()));
   return f.get_allocator().item_size();
 }
 
-const std::size_t FieldMap::AllocationUnit = field_map_allocation_unit();
+const std::size_t FieldMap::AllocationUnit = FieldMap::init_allocation_unit();
 #endif
 
 }

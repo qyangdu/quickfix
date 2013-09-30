@@ -48,7 +48,7 @@ namespace FIX
       value_type operator++() { return ::InterlockedIncrement( &m_value ); }
       value_type operator--() { return ::InterlockedDecrement( &m_value ); }
       operator value_type () const
-      { return static_cast<value_type volatile &>( m_value ); }
+      { return (value_type volatile &)m_value; }
 
     private:
       typedef value_type counter_type;

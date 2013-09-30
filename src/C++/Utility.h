@@ -68,11 +68,25 @@
 
 #ifdef _MSC_VER
 /////////////////////////////////////////////
+#include <stddef.h>
 #include <Winsock2.h>
 #include <process.h>
 #include <malloc.h>
 #include <direct.h>
 #include <time.h>
+#include <xmmintrin.h>
+#if _MSC_VER < 1600
+    typedef signed __int8     int8_t;
+    typedef signed __int16    int16_t;
+    typedef signed __int32    int32_t;
+    typedef unsigned __int8   uint8_t;
+    typedef unsigned __int16  uint16_t;
+    typedef unsigned __int32  uint32_t;
+    typedef signed __int64    int64_t;
+    typedef unsigned __int64  uint64_t;
+#else
+#include <stdint.h>
+#endif
 typedef int socklen_t;
 /////////////////////////////////////////////
 #else
@@ -116,32 +130,37 @@ typedef int socklen_t;
   #include <tbb/atomic.h>
 #endif
 
-#if( _MSC_VER >= 1400 )
-#define HAVE_FSCANF_S 1
+#if defined(_MSC_VER)
+#define HAVE_FSCANF_S
 #define FILE_FSCANF fscanf_s
 #else
 #define FILE_FSCANF fscanf
 #endif
 
-#if( _MSC_VER >= 1400 )
-#define HAVE_SPRINTF_S 1
-#define STRING_SPRINTF sprintf_s
+#if defined(_MSC_VER)
+#define STRING_SNPRINTF sprintf_s
 #else
-#define STRING_SPRINTF sprintf
+#define STRING_SNPRINTF snprintf
 #endif
 
 #if defined(_MSC_VER)
 #define NOTHROW __declspec(nothrow)
+#define NOTHROW_PRE __declspec(nothrow)
+#define NOTHROW_POST
 #define HEAVYUSE
-#define PREFETCH(addr, rw, longevity) while(false)
+#define PREFETCH(addr, rw, longevity) _mm_prefetch(addr, longevity)
 #define LIKELY(x) (x)
 #elif defined(__GNUC__)
 #define NOTHROW __attribute__ ((nothrow))
+#define NOTHROW_PRE
+#define NOTHROW_POST  __attribute__ ((nothrow))
 #define HEAVYUSE __attribute__((hot))
 #define PREFETCH(addr, rw, longevity) __builtin_prefetch(addr, rw, longevity)
 #define LIKELY(x) __builtin_expect((x),1)
 #else
 #define NOTHROW
+#define NOTHROW_PRE
+#define NOTHROW_POST
 #define HEAVYUSE
 #define PREFETCH(addr, rw, longevity) while(false)
 #define LIKELY(x) (x)
@@ -192,7 +211,7 @@ namespace FIX
 
 #ifdef _MSC_VER
 
-#define ALIGNED_ALLOC(p, sz, alignment) (p = _aligned_malloc(sz, alignment))
+#define ALIGNED_ALLOC(p, sz, alignment) (p = (char*)_aligned_malloc(sz, alignment))
 #define ALIGNED_FREE(p) _aligned_free(p)
 
   typedef unsigned int (_stdcall THREAD_START_ROUTINE)(void *);
@@ -200,12 +219,13 @@ namespace FIX
   typedef unsigned thread_id;
 
   typedef HANDLE   FILE_HANDLE_TYPE;
-#define INVALID_FILE_HANDLE_VALUE (INVALID_HANLDE_VALUE)
+#define INVALID_FILE_HANDLE_VALUE (INVALID_HANDLE_VALUE)
 #define FILE_POSITION_SET (FILE_BEGIN)
 #define FILE_POSITION_END (FILE_CURRENT)
 #define FILE_POSITION_CUR (FILE_END)
   typedef LARGE_INTEGER FILE_OFFSET_TYPE;
 #define FILE_OFFSET_TYPE_MOD	      "I64"
+#define FILE_OFFSET_TYPE_SET(offt, value) ((offt).QuadPart = (value))
 #define FILE_OFFSET_TYPE_VALUE(offt) ((offt).QuadPart)
 #define FILE_OFFSET_TYPE_ADDR(offt) (&(offt).QuadPart)
 
@@ -225,14 +245,16 @@ namespace FIX
 #define FILE_POSITION_CUR (SEEK_END)
   typedef off64_t   FILE_OFFSET_TYPE;
 #define FILE_OFFSET_TYPE_MOD		"L"
+#define FILE_OFFSET_TYPE_SET(offt, value) ((offt) = (value))
 #define FILE_OFFSET_TYPE_VALUE(offt) ((long long)offt)
 #define FILE_OFFSET_TYPE_ADDR(offt) ((long long*)&(offt))
 #endif /* _MSC_VER */
 
   FILE_HANDLE_TYPE file_handle_open( const char* path );
   void file_handle_close( FILE_HANDLE_TYPE );
-  long file_handle_read( FILE_HANDLE_TYPE, char*, std::size_t size,
-                         FILE_OFFSET_TYPE offset );
+  long file_handle_write( FILE_HANDLE_TYPE, const char* , std::size_t size );
+  long file_handle_read_at( FILE_HANDLE_TYPE, char*, std::size_t size,
+                            FILE_OFFSET_TYPE offset );
   FILE_OFFSET_TYPE file_handle_seek( FILE_HANDLE_TYPE,
                                      FILE_OFFSET_TYPE offset, int whence );
 
@@ -537,13 +559,12 @@ namespace FIX
 	return (const char*)::memmem(buf, bsz, str, ssz);
 #else
         const char* end = buf + bsz;
-        for ( buf = ::memchr (buf, str[0], bsz) ; buf && bsz >= ssz;
-              buf = ::memchr (buf, str[0], bsz) )
+        for ( buf = (const char*)::memchr (buf, str[0], bsz) ; buf && bsz >= ssz;
+              buf = (const char*)::memchr (buf, str[0], bsz) )
         {
             if( 0 == ::memcmp (buf, str, ssz) ) 
               return buf; 
             bsz = end - ++buf;
-          }
         }
         return 0; 
 #endif
@@ -622,7 +643,7 @@ namespace FIX
             n--;
         }
 #else
-        for (; size > 0; p++, n--)
+        for (; size > 0; p++, size--)
           x += *(unsigned char*)p;
 #endif
         return x;
@@ -636,22 +657,22 @@ namespace FIX
          a.swap(b);
        }
   
-       static inline std::size_t NOTHROW size(const std::string& r)
+       static inline std::size_t size(const std::string& r)
        {
          return r.size();
        }
 
-       static inline std::size_t NOTHROW length(const std::string& r)
+       static inline std::size_t length(const std::string& r)
        {
          return r.length();
        }
 
-       static inline const char* NOTHROW data(const std::string& r)
+       static inline const char* data(const std::string& r)
        {
          return r.data();
        }
 
-       static inline const char* NOTHROW c_str(const std::string& r)
+       static inline const char* c_str(const std::string& r)
        {
          return r.c_str();
        }
@@ -670,7 +691,7 @@ namespace FIX
 
       /* NOTE: Current tag value range is 1-39999, may not contain leading zeroes */
 
-      static inline const char* NOTHROW delimit(const char* p, unsigned len)
+      static inline const char NOTHROW_PRE * NOTHROW_POST delimit(const char* p, unsigned len)
       {
         uintptr_t b = ~(uintptr_t)p + 1;
         switch (len)
@@ -740,12 +761,12 @@ namespace FIX
       BitSet() { this->reset(); }
       BitSet( bool v ) { if ( v ) this->set(); else this->reset(); }
 
-      BitSet& reset()
+      BitSet NOTHROW_PRE & NOTHROW_POST reset()
       {
         ::memset( m_bits, 0, sizeof(m_bits) );
         return *this;
       }
-      BitSet& reset( int bit )
+      BitSet NOTHROW_PRE & NOTHROW_POST reset( int bit )
       {
 #if defined(__GNUC__) && (defined(__x86_64__) || defined(__i386__))
  	__asm__ __volatile__ (
@@ -761,7 +782,7 @@ namespace FIX
         return *this;
       }
 
-      inline BitSet& NOTHROW set()
+      inline BitSet NOTHROW_PRE & NOTHROW_POST set()
       {
         ::memset( m_bits, 255, sizeof(m_bits) );
         if ( N%word_size )
@@ -771,7 +792,7 @@ namespace FIX
         }
         return *this;
       }
-      inline BitSet& NOTHROW set( int bit )
+      inline BitSet NOTHROW_PRE & NOTHROW_POST set( int bit )
       {
 #if defined(__GNUC__) && (defined(__x86_64__) || defined(__i386__))
  	__asm__ __volatile__ (
@@ -786,7 +807,7 @@ namespace FIX
 #endif
         return *this;
       }
-      inline BitSet& NOTHROW set( int bit, bool value )
+      inline BitSet NOTHROW_PRE & NOTHROW_POST set( int bit, bool value )
       {
         return value ? set( bit ) : reset( bit );
       }
@@ -807,7 +828,7 @@ namespace FIX
         nRet = (m_bits[bit >> word_shift] &
                ((word_type)1 << (bit & (word_size - 1)))) ? 1 : 0;
 #endif
-        return nRet;
+        return nRet != 0;
       }
 
       inline int NOTHROW _Find_first()
@@ -822,7 +843,7 @@ namespace FIX
         return (word_size != v) ? ((i << word_shift) + v) : _Find_from(++i);
       }
 
-      inline BitSet& NOTHROW operator <<=(int n)
+      inline BitSet NOTHROW_PRE & NOTHROW_POST operator <<=(int n)
       {
         if (n <= N)
         {
@@ -849,7 +870,7 @@ namespace FIX
         return reset();
       }
 
-      inline BitSet& NOTHROW operator >>=(int n)
+      inline BitSet NOTHROW_PRE & NOTHROW_POST operator >>=(int n)
       {
         if (n <= N)
         {
@@ -884,24 +905,24 @@ namespace FIX
       BitSet() { reset(); }
       BitSet( bool v ) { m_bits = v ? ~(word_type)0 : 0; }
 
-      BitSet& reset() { m_bits = 0; return *this; }
-      BitSet& reset( int bit )
+      BitSet NOTHROW_PRE & NOTHROW_POST reset() { m_bits = 0; return *this; }
+      BitSet NOTHROW_PRE & NOTHROW_POST reset( int bit )
       { 
-	m_bits &= ~((word_type)1 << bit);
+	    m_bits &= ~((word_type)1 << bit);
         return *this;
       }
 
-      inline BitSet& NOTHROW set()
+      inline BitSet NOTHROW_PRE & NOTHROW_POST set()
       {
         m_bits = ~(word_type)0;
         return *this;
       }
-      inline BitSet& NOTHROW set( int bit )
+      inline BitSet NOTHROW_PRE & NOTHROW_POST set( int bit )
       {
         m_bits |= ((word_type)1 << bit);
         return *this;
       }
-      inline BitSet& NOTHROW set( int bit, bool value )
+      inline BitSet NOTHROW_PRE & NOTHROW_POST set( int bit, bool value )
       {
         return value ? set( bit ) : reset( bit );
       }
@@ -921,9 +942,9 @@ namespace FIX
         return detail::bit_scan(m_bits, b);
       }
 
-      inline BitSet& NOTHROW operator <<=(int n) { m_bits <<= n; return *this; }
+      inline BitSet NOTHROW_PRE & NOTHROW_POST operator <<=(int n) { m_bits <<= n; return *this; }
 
-      inline BitSet& NOTHROW operator >>=(int n) { m_bits >>= n; return *this; }
+      inline BitSet NOTHROW_PRE & NOTHROW_POST operator >>=(int n) { m_bits >>= n; return *this; }
 
       std::size_t size() const { return sizeof(word_type) << 3; }
     };
@@ -989,6 +1010,7 @@ namespace FIX
 #ifdef _MSC_VER
     typedef WSABUF   sg_buf_t;
     typedef LPWSABUF sg_buf_ptr;
+	typedef CHAR*    sg_ptr;
 
 #define IOV_BUF(b) ((b).buf)
 #define IOV_LEN(b) ((b).len)
@@ -996,7 +1018,7 @@ namespace FIX
     static inline bool NOTHROW send(SOCKET socket, sg_buf_ptr bufs, int n)
     {
       DWORD bytes;
-      return ::WSASend(fd, bufs, n, &bytes, 0, NULL, NULL) == 0;
+      return ::WSASend(socket, bufs, n, &bytes, 0, NULL, NULL) == 0;
     }
 
     static inline __int64 NOTHROW writev(FILE_HANDLE_TYPE handle,
@@ -1021,6 +1043,7 @@ namespace FIX
 #else
     typedef struct iovec  sg_buf_t;
     typedef struct iovec* sg_buf_ptr;
+    typedef void*         sg_ptr;
 
 #define IOV_BUF(b) ((b).iov_base)
 #define IOV_LEN(b) ((b).iov_len)

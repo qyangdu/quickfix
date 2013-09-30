@@ -34,7 +34,7 @@ DataDictionaryProvider::DataDictionaryProvider( const DataDictionaryProvider& co
   *this = copy;
 }
 
-const DataDictionary& NOTHROW HEAVYUSE DataDictionaryProvider::getSessionDataDictionary
+const DataDictionary& HEAVYUSE DataDictionaryProvider::getSessionDataDictionary
 (const BeginString& beginString) throw( DataDictionaryNotFound )
 {
   dictionary_map_t::iterator find =
@@ -45,7 +45,7 @@ const DataDictionary& NOTHROW HEAVYUSE DataDictionaryProvider::getSessionDataDic
   return emptyDataDictionary;
 }
 
-const DataDictionary& NOTHROW HEAVYUSE DataDictionaryProvider::getApplicationDataDictionary
+const DataDictionary& HEAVYUSE DataDictionaryProvider::getApplicationDataDictionary
 (const ApplVerID& applVerID) throw( DataDictionaryNotFound )
 {
   dictionary_map_t::iterator find =

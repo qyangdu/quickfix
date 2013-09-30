@@ -25,19 +25,63 @@
 #include "config.h"
 #endif
 
+#include <iostream>
+
 #include "Application.h"
 #include "quickfix/Mutex.h"
 #include "quickfix/AtomicCount.h"
 #include "quickfix/Session.h"
+#ifndef _MSC_VER
 #include <sys/time.h>
-#include <iostream>
+#else
+#include <time.h>
+
+static const __int64 DELTA_EPOCH_IN_MICROSECS= 11644473600000000;
+
+struct timezone
+{
+  __int32  tz_minuteswest; /* minutes W of Greenwich */
+  bool  tz_dsttime;     /* type of dst correction */
+};
+
+int gettimeofday(struct timeval *tv/*in*/, struct timezone *tz/*in*/)
+{
+  FILETIME ft;
+  __int64 tmpres = 0;
+  TIME_ZONE_INFORMATION tz_winapi;
+  int rez=0;
+
+   ZeroMemory(&ft,sizeof(ft));
+   ZeroMemory(&tz_winapi,sizeof(tz_winapi));
+
+    GetSystemTimeAsFileTime(&ft);
+
+    tmpres = ft.dwHighDateTime;
+    tmpres <<= 32;
+    tmpres |= ft.dwLowDateTime;
+
+    /*converting file time to unix epoch*/
+    tmpres /= 10;  /*convert into microseconds*/
+    tmpres -= DELTA_EPOCH_IN_MICROSECS; 
+    tv->tv_sec = (__int32)(tmpres*0.000001);
+    tv->tv_usec =(tmpres%1000000);
+
+
+    //_tzset(),don't work properly, so we use GetTimeZoneInformation
+    rez=GetTimeZoneInformation(&tz_winapi);
+    tz->tz_dsttime=(rez==2)?true:false;
+    tz->tz_minuteswest = tz_winapi.Bias + ((rez==2)?tz_winapi.DaylightBias:0);
+
+  return 0;
+}
+#endif
 
 #define NUM_SAMPLES 1000000
 
 timeval last_out, last_in;
 static unsigned long latency;
-static unsigned long min_latency = 100000000000UL;
-static unsigned long max_latency;
+static unsigned long long min_latency = 100000000000UL;
+static unsigned long long max_latency;
 static const unsigned long bucket_step = 2;
 static const int max_bucket = 200;
 static unsigned long latency_buckets[max_bucket + 1];
@@ -168,15 +212,25 @@ void Application::run()
 
           FIX::Session::sendToTarget( order );
 	  for (volatile int i = 0; i < 250; i++)
+	  {
+#ifndef _MSC_VER
 		sched_yield();
-        }
+#else
+        SwitchToThread();
+#endif
+	  }
+    }
 	std::cout << "Done sending" << std::endl;
 
-        while ( rp_matched < (NUM_SAMPLES + rp_prev) )
+    while ( rp_matched < (NUM_SAMPLES + rp_prev) )
+	{
+#ifndef _MSC_VER
 	  sleep(1);
-
-
-        gettimeofday(&en, NULL);
+#else
+      SleepEx(1000, false);
+#endif
+	}
+    gettimeofday(&en, NULL);
 	std::cout << "Duration : " << ((en.tv_sec - st.tv_sec) * 1000000 + en.tv_usec - st.tv_usec) << " usec " << std::endl;
 	std::cout << "Avg Latency : " << latency / NUM_SAMPLES << " usec " << std::endl;
 	std::cout << "Max Latency : " << max_latency << " usec " << std::endl;

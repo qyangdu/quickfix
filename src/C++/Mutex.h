@@ -78,7 +78,7 @@ public:
   bool trylock()
   {
 #ifdef _MSC_VER
-    return TryEnterCriticalSection( &m_mutex );
+    return TryEnterCriticalSection( &m_mutex ) != 0;
 #else
     if ( m_count && m_threadID == pthread_self() )
     { ++m_count; return true; }

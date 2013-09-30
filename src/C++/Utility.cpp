@@ -668,8 +668,8 @@ std::string file_appendpath( const std::string& path, const std::string& file )
 FILE_HANDLE_TYPE file_handle_open( const char* path )
 {
 #ifdef _MSC_VER
-    return ::CreateFile( path, GENERIC_READ | GENERIC_WRITE,
-                         FILE_SHARE_READ, NULL, OPEN_EXISTING,
+	return ::CreateFile( path, GENERIC_READ | GENERIC_WRITE,
+                         FILE_SHARE_READ, NULL, OPEN_ALWAYS,
                          FILE_ATTRIBUTE_NORMAL, NULL);
 #else
     return ::open64( path, O_CREAT | O_RDWR,
@@ -686,8 +686,8 @@ void file_handle_close( FILE_HANDLE_TYPE handle )
 #endif
 }
 
-long file_handle_read( FILE_HANDLE_TYPE handle, char* buf,
-                       std::size_t size, FILE_OFFSET_TYPE offset )
+long file_handle_read_at( FILE_HANDLE_TYPE handle, char* buf,
+                          std::size_t size, FILE_OFFSET_TYPE offset )
 {
 #ifdef _MSC_VER
     DWORD numRead;
@@ -703,12 +703,25 @@ long file_handle_read( FILE_HANDLE_TYPE handle, char* buf,
 #endif
 }
 
+long file_handle_write( FILE_HANDLE_TYPE handle, 
+					    const char* buf, std::size_t size )
+{
+#ifdef _MSC_VER
+    DWORD numWritten;
+    if( ::WriteFile( handle, buf, size, &numWritten, NULL ) )
+      return (long)numWritten;
+    return -1;
+#else
+    return ::write64( handle, buf, size, offset );
+#endif
+}
+
 FILE_OFFSET_TYPE file_handle_seek( FILE_HANDLE_TYPE handle,
                                    FILE_OFFSET_TYPE offset, int whence )
 {
 #ifdef _MSC_VER
     offset.LowPart = ::SetFilePointer( handle,
-                                offset.LowPart, &offset.HighPart, whence )
+                                offset.LowPart, &offset.HighPart, whence );
     if( offset.LowPart == INVALID_SET_FILE_POINTER &&
       ::GetLastError() != NO_ERROR )
       offset.QuadPart = -1;

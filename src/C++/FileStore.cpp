@@ -108,7 +108,9 @@ void FileStore::open( bool deleteFile )
   m_msgFileHandle = file_handle_open( m_msgFileName.c_str() );
   if ( m_msgFileHandle == INVALID_FILE_HANDLE_VALUE )
     throw ConfigError( "Could not open body file: " + m_msgFileName );
-  file_handle_seek( m_msgFileHandle, 0, FILE_POSITION_END );
+  FILE_OFFSET_TYPE offset;
+  FILE_OFFSET_TYPE_SET(offset, 0);
+  file_handle_seek( m_msgFileHandle, offset, FILE_POSITION_END );
 
   m_headerFile = file_fopen( m_headerFileName.c_str(), "r+" );
   if ( !m_headerFile ) m_headerFile = file_fopen( m_headerFileName.c_str(), "w+" );
@@ -205,9 +207,9 @@ throw ( IOException )
 {
   if ( fseek( m_headerFile, 0, SEEK_END ) ) 
     throw IOException( "Cannot seek to end of " + m_headerFileName );
-
-  FILE_OFFSET_TYPE offset = file_handle_seek( m_msgFileHandle,
-                                              0, FILE_POSITION_END );
+  FILE_OFFSET_TYPE offset;
+  FILE_OFFSET_TYPE_SET(offset, 0);
+  offset = file_handle_seek( m_msgFileHandle, offset, FILE_POSITION_END );
   if ( FILE_OFFSET_TYPE_VALUE(offset) < 0 ) 
     throw IOException( "Unable to get file pointer position from " +
                        m_msgFileName );
@@ -217,7 +219,7 @@ throw ( IOException )
                 msgSeqNum, FILE_OFFSET_TYPE_VALUE(offset), size ) < 0 )
     throw IOException( "Unable to write to file " + m_headerFileName );
   m_offsets[ msgSeqNum ] = std::make_pair( offset, size );
-  if ( size != write( m_msgFileHandle, msg.c_str(), size ) )
+  if ( size != file_handle_write( m_msgFileHandle, msg.c_str(), size ) )
     throw IOException( "Unable to write to file " + m_msgFileName );
   if ( fflush( m_headerFile ) == EOF ) 
     throw IOException( "Unable to flush file " + m_headerFileName );
@@ -229,9 +231,9 @@ throw ( IOException )
 {
   if ( fseek( m_headerFile, 0, SEEK_END ) ) 
     throw IOException( "Cannot seek to end of " + m_headerFileName );
-
-  FILE_OFFSET_TYPE offset = file_handle_seek( m_msgFileHandle,
-                                              0, FILE_POSITION_END );
+  FILE_OFFSET_TYPE offset;
+  FILE_OFFSET_TYPE_SET(offset, 0);
+  offset = file_handle_seek( m_msgFileHandle, offset, FILE_POSITION_END );
   if ( FILE_OFFSET_TYPE_VALUE(offset) < 0 ) 
     throw IOException( "Unable to get file pointer position from " + m_msgFileName );
   int size = Sg::size(b, n);
@@ -340,8 +342,8 @@ throw ( IOException )
   if ( find == m_offsets.end() ) return false;
   const OffsetSize& offset = find->second;
   msg.resize(offset.second);
-  if ( file_handle_read( m_msgFileHandle, const_cast<char*>(msg.c_str()),
-                         offset.second, offset.first) < offset.second )
+  if ( file_handle_read_at( m_msgFileHandle, const_cast<char*>(msg.c_str()),
+                            offset.second, offset.first) < offset.second )
     throw IOException( "Unable to read from file " + m_msgFileName );
   return true;
 }

@@ -252,12 +252,7 @@ std::string& HEAVYUSE Message::toString( std::string& str,
   l += m_header.setField(IntField::Pack(bodyLengthField, l)).getLength()
        + csumTagLength + csumPayloadLength + c.getBeginStringLength();
 
-#if defined(_MSC_VER) && _MSC_VER < 1300
-  str = "";
-#else
   str.clear();
-#endif
-
   str.reserve(l);
 
   if( getStatusBit( hint_no_reuse ) && checkSumField == FIELD::CheckSum )

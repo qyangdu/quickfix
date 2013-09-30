@@ -216,7 +216,8 @@ public:
     }
   }
 
-  inline message_order& NOTHROW operator=( const message_order& rhs )
+  inline message_order NOTHROW_PRE & NOTHROW_POST
+  operator=( const message_order& rhs )
   {
     m_mode = rhs.m_mode;
     m_delim = rhs.m_delim;
