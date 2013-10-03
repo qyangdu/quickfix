@@ -5,7 +5,7 @@ latency_SOURCES = \
 	Application.h \
 	Application.cpp
 
-latency_LDADD = $(top_builddir)/src/C++/libquickfix.la 
+latency_LDADD = $(top_builddir)/src/C++/libquickfix.la -lrt
 
 INCLUDES = -I$(top_builddir)/include -I..
 

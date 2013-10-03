@@ -103,6 +103,7 @@ libquickfix_la_SOURCES = \
 	Exceptions.h \
 	Utility.cpp \
 	Utility.h \
+        FixString.h \
 	ItemAllocator.h \
 	AtomicCount.h \
 	Values.h \
@@ -117,7 +118,8 @@ libquickfix_la_SOURCES = \
 BUILT_SOURCES = Config.h
 CLEANFILES = Config.h
 Config.h: Makefile $(top_builddir)/config.h
-	grep "_ALLOCATOR" $(top_builddir)/config.h >$@
+	grep "ENABLE_SSO" $(top_builddir)/config.h >$@
+	grep "_ALLOCATOR" $(top_builddir)/config.h >>$@
 	grep "HAVE_BOOST" $(top_builddir)/config.h >>$@
 	grep "HAVE_TBB" $(top_builddir)/config.h >>$@
 	grep "HAVE_SPARSEHASH" $(top_builddir)/config.h >>$@

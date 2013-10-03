@@ -83,17 +83,17 @@ ThreadedSocketConnection::~ThreadedSocketConnection()
 
 bool ThreadedSocketConnection::send( const std::string& msg )
 {
-  return socket_send( m_socket, Util::String::c_str(msg), Util::String::length(msg) ) >= 0;
+  return socket_send( m_socket, String::c_str(msg), String::length(msg) ) > 0;
 }
 
 bool ThreadedSocketConnection::send( Sg::sg_buf_ptr bufs, int n )
 {
-  return Sg::send(m_socket, bufs, n);
+  return Sg::send(m_socket, bufs, n) > 0;
 }
 
 bool ThreadedSocketConnection::connect()
 {
-  return socket_connect(getSocket(), Util::String::c_str(m_address), m_port) >= 0;
+  return socket_connect(getSocket(), String::c_str(m_address), m_port) >= 0;
 }
 
 void ThreadedSocketConnection::disconnect()

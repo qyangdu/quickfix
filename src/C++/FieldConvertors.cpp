@@ -27,7 +27,7 @@
 
 namespace FIX {
 
-UtcConvertorBase::NumberRange UtcConvertorBase::padded_numbers[100] = 
+ALIGN_DECL_DEFAULT UtcConvertorBase::NumberRange UtcConvertorBase::padded_numbers[100] = 
 {
 { {'0','0'} }, { {'0','1'} }, { {'0','2'} }, { {'0','3'} }, { {'0','4'} }, { {'0','5'} }, { {'0','6'} }, { {'0','7'} }, { {'0','8'} }, { {'0','9'} },
 { {'1','0'} }, { {'1','1'} }, { {'1','2'} }, { {'1','3'} }, { {'1','4'} }, { {'1','5'} }, { {'1','6'} }, { {'1','7'} }, { {'1','8'} }, { {'1','9'} },
@@ -55,7 +55,7 @@ int HEAVYUSE DoubleConvertor::Proxy::generate(char* buf) const
   */
 
   static const double threshold = 1000000000000000LL; // 10^(MaxPrecision)
-  static const double pwr10[] =
+  ALIGN_DECL_DEFAULT static const double pwr10[] =
   {
     1, 10, 100, 1000, 10000, 100000, 1000000,
     10000000, 100000000, 1000000000, 10000000000LL,

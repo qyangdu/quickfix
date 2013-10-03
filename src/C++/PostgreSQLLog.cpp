@@ -193,9 +193,9 @@ void PostgreSQLLog::clear()
   if( m_pSessionID )
   {
     whereClause
-    << "BeginString = '" << m_pSessionID->getBeginString().getValue() << "' "
-    << "AND SenderCompID = '" << m_pSessionID->getSenderCompID().getValue() << "' "
-    << "AND TargetCompID = '" << m_pSessionID->getTargetCompID().getValue() << "' ";
+    << "BeginString = '" << m_pSessionID->getBeginString() << "' "
+    << "AND SenderCompID = '" << m_pSessionID->getSenderCompID() << "' "
+    << "AND TargetCompID = '" << m_pSessionID->getTargetCompID() << "' ";
 
     if( m_pSessionID->getSessionQualifier().size() )
       whereClause << "AND SessionQualifier = '" << m_pSessionID->getSessionQualifier() << "'";
@@ -249,9 +249,9 @@ void PostgreSQLLog::insert( const std::string& table, const std::string value )
   if( m_pSessionID )
   {
     queryString
-    << "'" << m_pSessionID->getBeginString().getValue() << "',"
-    << "'" << m_pSessionID->getSenderCompID().getValue() << "',"
-    << "'" << m_pSessionID->getTargetCompID().getValue() << "',";
+    << "'" << m_pSessionID->getBeginString() << "',"
+    << "'" << m_pSessionID->getSenderCompID() << "',"
+    << "'" << m_pSessionID->getTargetCompID() << "',";
     if( m_pSessionID->getSessionQualifier() == "" )
       queryString << "NULL" << ",";
     else

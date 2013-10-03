@@ -75,36 +75,36 @@ throw( MessageParseError )
 bool Parser::readFixMessage( std::string& str )
 throw( MessageParseError )
 {
-  std::size_t bufSize = Util::String::length(m_buffer);
+  std::size_t bufSize = String::length(m_buffer);
 
   if( bufSize > 2 )
   {
-    const char* buf = Util::String::c_str(m_buffer);
+    const char* buf = String::c_str(m_buffer);
     const char* p = memchr2(buf, '8', '=', bufSize);
 
     if( p )
     {
-      std::size_t length = 0;
       std::size_t msgPos = p - buf;
+      std::size_t length = msgPos + 2;
 
       try
       {
         if( (length = extractLength( (buf = p), bufSize - msgPos )) )
         {
           std::size_t checksumOffset = msgPos + length;
-          if( bufSize >= (checksumOffset + 4) )
+          if( bufSize >= (checksumOffset + 3) )
           {
             p = Util::CharBuffer::memmem( p + length - 1,
                             bufSize - checksumOffset + 1, "\00110=", 4 );
             if( p )
             {
               p += 4;
-              p = (const char*)::memchr( p, '\001', p - buf);
+              p = (const char*)::memchr( p, '\001', bufSize - (p - buf));
               if( p )
               {
                 length = (p - buf) + 1;
                 if ( length == bufSize ) {
-                  Util::String::swap( str, m_buffer );
+                  String::swap( str, m_buffer );
                   m_buffer.clear();
                 } else {
                   m_buffer.substr( msgPos, length ).swap(str);

@@ -79,7 +79,22 @@ bool SocketConnection::send( Sg::sg_buf_ptr bufs, int n )
       struct timeval timeout = { 0, 0 };
       fd_set writeset = m_fds;
       if( select( 1 + m_socket, 0, &writeset, 0, &timeout ) > 0 )
-        return Sg::send(m_socket, bufs, n);
+      {
+        std::size_t sent = Sg::send(m_socket, bufs, n);
+        for (int i = 0; i < n; i++ )
+        {
+          std::size_t l = IOV_LEN(bufs[i]);
+          if( l > sent )
+          {
+            std::string s( (const char*)IOV_BUF(bufs[i]) + sent, l - sent);
+            while( ++i < n )
+              s.append( (const char*)IOV_BUF(bufs[i]), IOV_LEN(bufs[i]));
+            return send( s );
+          }
+          sent -= l;
+        }
+        return true;
+      }
     }
   } 
   return send( Sg::toString( bufs, n ) );
@@ -99,12 +114,14 @@ bool SocketConnection::processQueue()
   const std::string& msg = m_sendQueue.front();
 
   int result = socket_send
-    ( m_socket, Util::String::c_str(msg) + m_sendLength, Util::String::length(msg) - m_sendLength );
+    ( m_socket, String::c_str(msg) + m_sendLength, String::length(msg) - m_sendLength );
 
   if( result > 0 )
+  {
     m_sendLength += result;
+  }
 
-  if( m_sendLength == Util::String::length(msg) )
+  if( m_sendLength == String::length(msg) )
   {
     m_sendLength = 0;
     m_sendQueue.pop_front();
@@ -203,13 +220,16 @@ throw( SocketRecvFailed )
   m_parser.addToStream( m_buffer, size );
 }
 
+static int parse_errors = 0;
+
 bool SocketConnection::readMessage( std::string& msg )
 {
   try
   {
     return m_parser.readFixMessage( msg );
   }
-  catch ( MessageParseError& ) {}
+  catch ( MessageParseError& )
+  { parse_errors++; }
   return true;
 }
 

@@ -24,7 +24,7 @@
 
 #include "FieldTypes.h"
 #include "Exceptions.h"
-#include "Utility.h"
+#include "FixString.h"
 #include <string>
 #include <sstream>
 #include <iomanip>
@@ -64,7 +64,7 @@ struct StringConvertor
   typedef const char* value_type;
 
   static std::size_t RequiredSize(value_type v) { return ::strlen(v); }
-  static std::size_t RequiredSize(const std::string& v) { return Util::String::size(v); }
+  static std::size_t RequiredSize(const std::string& v) { return String::size(v); }
 
   template <typename S> static void generate(S& result, const S& value)
   {
@@ -76,25 +76,25 @@ struct StringConvertor
     result.append( value, size ? size : ::strlen(value) );
   }
 
-  static bool parse(const char* str, const char* end, std::string& result)
+  template <typename S> static bool parse(const char* str, const char* end, S& result)
   {
     result.assign(str, end - str);
     return true;
   }
 
-  static bool parse(const std::string& value, std::string& result)
+  template <typename S> static bool parse(const std::string& value, S& result)
   {
     result = value;
     return true;
   }
 
-  static const std::string& convert( const std::string& value )
+  static const String::value_type& convert( const String::value_type& value )
   { return value; }
 
-  static std::string convert( const char* p, std::size_t size )
-  { return std::string(p, size); }
+  static String::value_type convert( const char* p, std::size_t size )
+  { return String::value_type(p, size); }
 
-  static bool NOTHROW validate( const std::string& value )
+  template <typename S> static bool NOTHROW validate( const S& value )
   { return true; }
 };
 
@@ -108,7 +108,7 @@ struct IntConvertor
   static const std::size_t MaxValueSize = std::numeric_limits<long>::digits10 + 2;
   static std::size_t RequiredSize(value_type v = 0) { return MaxValueSize; }
 
-  struct Proxy {
+  class Proxy {
 	value_type m_value;
 
 	int generate(char* buffer) const {
@@ -124,14 +124,14 @@ struct IntConvertor
     public:
 	Proxy(value_type value) : m_value(value) {}
 
-	operator std::string() const
+	template <typename S> S convert_to() const
 	{
 		char buf[MaxValueSize];
 #ifdef HAVE_BOOST
-		return std::string(boost::rbegin(buf) + (MaxValueSize - generate(buf)), boost::rend(buf));
+		return S(boost::rbegin(buf) + (MaxValueSize - generate(buf)), boost::rend(buf));
 #else
-		return std::string(Util::CharBuffer::reverse_iterator(buf + generate(buf)),
-				   Util::CharBuffer::reverse_iterator((char*)buf));
+		return S(Util::CharBuffer::reverse_iterator(buf + generate(buf)),
+			 Util::CharBuffer::reverse_iterator((char*)buf));
 #endif
 	}
 	template <typename S> void append_to(S& s) const
@@ -167,7 +167,7 @@ struct IntConvertor
   }
 
   /// Returns converted length (no trailing zero),
-  /// buffer must be at least 12 characters long.
+  /// buffer must be at least 12 characters long. 
   static size_t generate(char* result, int value)
   {
 #ifdef HAVE_BOOST
@@ -199,10 +199,10 @@ struct IntConvertor
     return valid;
   }
 
-  template <typename T>
-  static bool parse( const std::string& value, T& result )
+  template <typename S, typename T>
+  static bool parse( const S& value, T& result )
   {
-    const char* str = Util::String::c_str(value);
+    const char* str = String::c_str(value);
     T x, multiplier = (*str == '-');
     str += multiplier;
     x = 0;
@@ -222,10 +222,15 @@ struct IntConvertor
 
   static std::string convert( long value )
   {
-    return Proxy(value);
+    return Proxy(value).convert_to<std::string>();
   }
 
-  static long convert( const std::string& value )
+  template <typename S> static S convert( long value )
+  {
+    return Proxy(value).convert_to<S>();
+  }
+
+  static long convert( const String::value_type& value )
   throw( FieldConvertError )
   {
     long result = 0;
@@ -234,11 +239,11 @@ struct IntConvertor
     throw FieldConvertError();
   }
 
-  static bool NOTHROW validate( const std::string& value )
+  template <typename S> static bool NOTHROW validate( const S& value )
   {
-    const char* s = Util::String::c_str(value);
+    const char* s = String::c_str(value);
     int negative = s[0] == '-';
-    return ::strspn(s + negative, "0123456789") == (Util::String::size(value) - negative);
+    return ::strspn(s + negative, "0123456789") == (String::size(value) - negative);
   }
 };
 
@@ -261,10 +266,10 @@ struct UnsignedConvertor
     return true;
   }
 
-  template <typename T>
-  static bool parse( const std::string& value, T& result )
+  template <typename S, typename T>
+  static bool parse( const S& value, T& result )
   {
-    const char* str = Util::String::c_str(value);
+    const char* str = String::c_str(value);
     T x = 0;
     do
     {
@@ -323,12 +328,18 @@ struct CheckSumConvertor
     return UnsignedConvertor::parse( str, end, result );
   }
 
-  static bool parse( const std::string& value, long& result )
+  template <typename S> static bool parse( const S& value, long& result )
   {
     return UnsignedConvertor::parse( value, result );
   }
 
   static std::string convert( long value )
+  throw( FieldConvertError )
+  {
+    return convert<std::string>(value);
+  }
+
+  template <typename S> static S convert( long value )
   throw( FieldConvertError )
   {
     unsigned char n, v = (unsigned char)value;
@@ -342,12 +353,12 @@ struct CheckSumConvertor
       buf[1] = '0' + n;
       v -= n * 10;
       buf[2] = '0' + v;
-      return std::string(buf, 3);
+      return S(buf, 3);
     }
     throw FieldConvertError();
   }
 
-  static long convert( const std::string& value )
+  static long convert( const String::value_type& value )
   throw( FieldConvertError )
   {
     long result = 0;
@@ -356,9 +367,9 @@ struct CheckSumConvertor
     throw FieldConvertError();
   }
 
-  static bool NOTHROW validate( const std::string& value )
+  template <typename S> static bool NOTHROW validate( const S& value )
   {
-    const char* s = Util::String::c_str(value);
+    const char* s = String::c_str(value);
     return ::strspn(s, "0123456789") == 3 && s[0] < 3;
   }
 };
@@ -369,10 +380,10 @@ struct DoubleConvertor
   typedef double value_type;
 
   static const int MaxPrecision = 15;
-  static const std::size_t MaxValueSize = /* std::log10(std::numeric_limits<double>::max()) + MaxPrecision + 3 */ 326;
+  static const std::size_t MaxValueSize = /* std::log10((std::numeric_limits<double>::max)()) + MaxPrecision + 3 */ 326;
   static std::size_t RequiredSize(value_type v = 0) { return MaxValueSize; }
 
-  struct Proxy {
+  class Proxy {
 	const value_type m_value;
         const int m_padded;
         const bool m_round;
@@ -381,18 +392,18 @@ struct DoubleConvertor
 
     public:
 	Proxy(value_type value, int padded, bool rounded)
-        : m_value(value), m_padded((std::max)(0, (std::min)(padded, (int)MaxPrecision))),
+        : m_value(value), m_padded( (std::max)(0, (std::min)(padded, (int)MaxPrecision)) ),
           m_round(rounded)
         {}
 
-	operator std::string() const
+        template <typename S> S convert_to() const
 	{
 		char buf[MaxValueSize];
 #ifdef HAVE_BOOST
-		return std::string(boost::rbegin(buf) + (MaxValueSize - generate(buf)), boost::rend(buf));
+		return S(boost::rbegin(buf) + (MaxValueSize - generate(buf)), boost::rend(buf));
 #else
-		return std::string(Util::CharBuffer::reverse_iterator(buf + generate(buf)),
-				   Util::CharBuffer::reverse_iterator((char*)buf));
+		return S(Util::CharBuffer::reverse_iterator(buf + generate(buf)),
+			 Util::CharBuffer::reverse_iterator((char*)buf));
 #endif
 	}
 	template <typename S> void append_to(S& s) const
@@ -420,10 +431,10 @@ struct DoubleConvertor
            (end == str);
   }
 
-  static bool parse( const std::string& value, double& result )
+  template <typename S> static bool parse( const S& value, double& result )
   {
-    const char* str = Util::String::c_str(value);
-    const char* end = str + Util::String::size(value);
+    const char* str = String::c_str(value);
+    const char* end = str + String::size(value);
     qi::any_real_parser<double> x;
     return x.parse( str, end, qi::unused, qi::unused, result ) &&
            (end == str);
@@ -473,9 +484,9 @@ struct DoubleConvertor
     return true;
   }
 
-  static bool parse( const std::string& value, double& result )
+  template <typename S> static bool parse( const S& value, double& result )
   {
-    const char * i = Util::String::c_str(value);
+    const char * i = String::c_str(value);
   
     // Catch null strings
     if( !*i ) return false;
@@ -497,17 +508,22 @@ struct DoubleConvertor
     }
   
     if( *i || !haveDigit ) return false;
-    result = strtod( Util::String::c_str(value), 0 );
+    result = strtod( String::c_str(value), 0 );
     return true;
   }
 #endif // HAVE_BOOST
 
   static std::string convert( double value, int padded = 0, bool rounded = false )
   {
-    return Proxy(value, padded, rounded);
+    return Proxy(value, padded, rounded).convert_to<std::string>();
   }
 
-  static double convert( const std::string& value )
+  template <typename S> static S convert( double value, int padded = 0, bool rounded = false )
+  {
+    return Proxy(value, padded, rounded).convert_to<S>();
+  }
+
+  static double convert( const String::value_type& value )
   throw( FieldConvertError )
   {
     double result = 0.0;
@@ -516,11 +532,11 @@ struct DoubleConvertor
     throw FieldConvertError();
   }
 
-  static bool NOTHROW validate( const std::string& value )
+  template <typename S> static bool NOTHROW validate( const S& value )
   {
-    const char* s = Util::String::c_str(value);
+    const char* s = String::c_str(value);
     int negative = s[0] == '-';
-    return ::strspn(s + negative, "0123456789.") == (Util::String::size(value) - negative);
+    return ::strspn(s + negative, "0123456789.") == (String::size(value) - negative);
   }
 };
 
@@ -548,9 +564,9 @@ struct CharConvertor
      return false;
   }
 
-  static bool parse( const std::string& value, char& result )
+  template <typename S> static bool parse( const S& value, char& result )
   {
-    if( Util::String::size(value) == 1 )
+    if( String::size(value) == 1 )
     {
       result = value[0];
       return true;
@@ -563,7 +579,12 @@ struct CharConvertor
     return value ? std::string(1, value) : std::string();
   }
 
-  static char convert( const std::string& value )
+  template <typename S> static S convert( char value )
+  {
+    return value ? S(1, value) : S();
+  }
+
+  static char convert( const String::value_type& value )
   throw( FieldConvertError )
   {
     char result;
@@ -572,10 +593,10 @@ struct CharConvertor
     throw FieldConvertError();
   }
 
-  static bool NOTHROW validate( const std::string& value )
+  template <typename S> static bool NOTHROW validate( const S& value )
   {
-    const char* s = Util::String::c_str(value);
-    return Util::String::size(value) == 1 && s[0] > 32 && s[0] < 127; // ::isalnum(s[0]) || ::ispunct(s[0])
+    const char* s = String::c_str(value);
+    return String::size(value) == 1 && s[0] > 32 && s[0] < 127; // ::isalnum(s[0]) || ::ispunct(s[0])
   }
 };
 
@@ -603,9 +624,9 @@ struct BoolConvertor
      return false;
   }
 
-  static bool parse( const std::string& value, bool& result )
+  template <typename S> static bool parse( const S& value, bool& result )
   {
-    if( Util::String::size(value) == 1 )
+    if( String::size(value) == 1 )
     {
       char c = value[0];
       result = (c == 'Y') && (c != 'N');
@@ -620,7 +641,13 @@ struct BoolConvertor
     return std::string( 1, ch );
   }
 
-  static bool convert( const std::string& value )
+  template <typename S> static S convert( bool value )
+  {
+    const char ch = value ? 'Y' : 'N';
+    return S( 1, ch );
+  }
+
+  static bool convert( const String::value_type& value )
   throw( FieldConvertError )
   {
     bool result = false;
@@ -629,10 +656,10 @@ struct BoolConvertor
     throw FieldConvertError();
   }
 
-  static bool NOTHROW validate( const std::string& value )
+  template <typename S> static bool NOTHROW validate( const S& value )
   {
-    const char* s = Util::String::c_str(value);
-    return Util::String::size(value) == 1 && (s[0] == 'Y' || s[0] == 'N');
+    const char* s = String::c_str(value);
+    return String::size(value) == 1 && (s[0] == 'Y' || s[0] == 'N');
   }
 };
 
@@ -804,10 +831,10 @@ struct UtcTimeStampConvertor : public UtcConvertorBase
     return false;
   }
 
-  static bool parse( const std::string& value, UtcTimeStamp& utc )
+  template <typename S> static bool parse( const S& value, UtcTimeStamp& utc )
   {
-    const char* str = Util::String::c_str(value);
-    return parse(str, str + Util::String::size(value), utc);
+    const char* str = String::c_str(value);
+    return parse(str, str + String::size(value), utc);
   }
 
   static std::string convert( const UtcTimeStamp& value,
@@ -819,7 +846,16 @@ struct UtcTimeStampConvertor : public UtcConvertorBase
     return result;
   }
 
-  static UtcTimeStamp convert( const std::string& value,
+  template <typename S> static S convert( const UtcTimeStamp& value,
+                                          bool showMilliseconds = false )
+  throw( FieldConvertError )
+  {
+    S result;
+    generate(result, value, showMilliseconds);
+    return result;
+  }
+
+  static UtcTimeStamp convert( const String::value_type& value,
                                bool calculateDays = false )
   throw( FieldConvertError )
   {
@@ -829,14 +865,14 @@ struct UtcTimeStampConvertor : public UtcConvertorBase
     throw FieldConvertError();
   }
 
-  static bool NOTHROW validate( const std::string& value )
+  template <typename S> static bool NOTHROW validate( const S& value )
   {
-    std::size_t sz = Util::String::size(value);
+    std::size_t sz = String::size(value);
 
     bool haveMilliseconds = (sz == 21);
     if ( haveMilliseconds || sz == 17)
     {
-      const unsigned char* p = (const unsigned char*)Util::String::c_str(value);
+      const unsigned char* p = (const unsigned char*)String::c_str(value);
       int year, mon, mday, hour = 0, min = 0, sec = 0, millis = 0;
       bool valid = parse_date(p, year, mon, mday);
 
@@ -902,10 +938,10 @@ struct UtcTimeOnlyConvertor : public UtcConvertorBase
     }
     return false;
   }
-  static bool parse( const std::string& value, UtcTimeOnly& utc )
+  template <typename S> static bool parse( const S& value, UtcTimeOnly& utc )
   {
-    const char* str = Util::String::c_str(value);
-    return parse(str, str + Util::String::size(value), utc);
+    const char* str = String::c_str(value);
+    return parse(str, str + String::size(value), utc);
   }
 
   static std::string convert( const UtcTimeOnly& value,
@@ -917,7 +953,16 @@ struct UtcTimeOnlyConvertor : public UtcConvertorBase
     return result;
   }
 
-  static UtcTimeOnly convert( const std::string& value )
+  template <typename S> static S convert( const UtcTimeOnly& value,
+                                          bool showMilliseconds = false)
+  throw( FieldConvertError )
+  {
+    S result;
+    generate(result, value, showMilliseconds);
+    return result;
+  }
+
+  static UtcTimeOnly convert( const String::value_type& value )
   throw( FieldConvertError )
   {
     UtcTimeOnly utc;
@@ -926,13 +971,13 @@ struct UtcTimeOnlyConvertor : public UtcConvertorBase
     throw FieldConvertError();
   }
 
-  static bool NOTHROW validate( const std::string& value )
+  template <typename S> static bool NOTHROW validate( const S& value )
   {
-    std::size_t sz = Util::String::size(value);
+    std::size_t sz = String::size(value);
     bool haveMilliseconds = (sz == 12);
     if ( haveMilliseconds || sz == 8)
     {
-      const unsigned char* p = (const unsigned char*)Util::String::c_str(value);
+      const unsigned char* p = (const unsigned char*)String::c_str(value);
       int hour, min, sec, millis = 0;
       bool valid = parse_time(p, hour, min, sec);
 
@@ -986,10 +1031,10 @@ struct UtcDateConvertor : public UtcConvertorBase
     }
     return false;
   }
-  static bool parse( const std::string& value, UtcDate& utc )
+  template <typename S> static bool parse( const S& value, UtcDate& utc )
   {
-    const char* str = Util::String::c_str(value);
-    return parse(str, str + Util::String::size(value), utc);
+    const char* str = String::c_str(value);
+    return parse(str, str + String::size(value), utc);
   }
 
   static std::string convert( const UtcDate& value )
@@ -1000,7 +1045,15 @@ struct UtcDateConvertor : public UtcConvertorBase
     return result;
   }
 
-  static UtcDate convert( const std::string& value )
+  template <typename S> static S convert( const UtcDate& value )
+  throw( FieldConvertError )
+  {
+    S result;
+    generate(result, value);
+    return result;
+  }
+
+  static UtcDate convert( const String::value_type& value )
   throw( FieldConvertError )
   {
     UtcDate utc;
@@ -1009,11 +1062,11 @@ struct UtcDateConvertor : public UtcConvertorBase
     throw FieldConvertError();
   }
 
-  static bool NOTHROW validate( const std::string& value )
+  template <typename S> static bool NOTHROW validate( const S& value )
   {
     int year, mon, mday;
-    std::size_t sz = Util::String::size(value);
-    const unsigned char* p = (const unsigned char*)Util::String::c_str(value);
+    std::size_t sz = String::size(value);
+    const unsigned char* p = (const unsigned char*)String::c_str(value);
     return (sz == 8) && parse_date(p, year, mon, mday );
   }
 };

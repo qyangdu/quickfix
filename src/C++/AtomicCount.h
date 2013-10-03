@@ -60,7 +60,7 @@ namespace FIX
       value_type operator--()
       { return __sync_sub_and_fetch( &m_value, 1); }
       operator value_type () const
-      { return static_cast<value_type volatile &>( m_value ); }
+      { return (value_type volatile &)m_value; }
 
     private:
       typedef value_type counter_type;
@@ -71,7 +71,7 @@ namespace FIX
       value_type operator--()
       { Locker l(m_mutex); return --m_value; }
       operator value_type () const
-      { return static_cast<value_type volatile &>( m_value ); }
+      { return (value_type volatile &)m_value; }
 
     private:
       typedef value_type counter_type;

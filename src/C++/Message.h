@@ -62,6 +62,14 @@ class Message : public FieldMap
 
   enum field_type { header, body, trailer };
 
+  enum admin_trait
+  {
+    admin_none = 0,
+    admin_session = 1, // TestRequest, Heartbeat, Reject
+    admin_status = 2, // ResendRequest, SequenceReset, Logout
+    admin_logon = 4, // Logon
+  };
+
   class HeaderFieldSet : public Util::BitSet<1280>
   {
     static const int   m_fields[];
@@ -91,18 +99,17 @@ class Message : public FieldMap
     const char* const m_end;
 
   public:
-
-    typedef StringField result_type;
+    typedef String::value_type result_type;
 
     FieldReader ( const std::string& s )
     : m_field(0), m_pos(0), m_length(0), m_csum(0),
-      m_start(Util::String::c_str(s)),
-      m_end(m_start + Util::String::size(s)) {}
+      m_start(String::c_str(s)),
+      m_end(m_start + String::size(s)) {}
 
     FieldReader ( const std::string& s, std::string::size_type pos )
     : m_field(0), m_pos(0), m_length(0), m_csum(0),
-      m_start(Util::String::c_str(s) + pos),
-      m_end(Util::String::c_str(s) + Util::String::size(s)) {}
+      m_start(String::c_str(s) + pos),
+      m_end(String::c_str(s) + String::size(s)) {}
 
     char getTagLength() const
     { return m_length + 1; }
@@ -134,13 +141,13 @@ class Message : public FieldMap
 
     int getField() const { return static_cast<int>(m_field); }
 
-    void assign_to(std::string& s) const
+    void assign_to(String::value_type& s) const
     {
       s.assign(m_start, m_pos);
     }
-    operator std::string () const
+    operator String::value_type () const
     {
-      return std::string(m_start, m_pos);
+      return String::value_type(m_start, m_pos);
     }
   };
 
@@ -153,7 +160,8 @@ class Message : public FieldMap
     int countGroups(FieldMap::g_const_iterator git,
                           const FieldMap::g_const_iterator& gend);
     void countHeader(const FieldMap& fields);
-    void countHeader(int beginStringTag, const FieldMap& fields);
+    void countHeader(int beginStringTag, int bodyLengthDag,
+                     const FieldMap& fields);
     int countBody(const FieldMap& fields);
     void countTrailer(const FieldMap& fields);
 
@@ -174,10 +182,16 @@ class Message : public FieldMap
     : m_length(0), m_prefix(0),
       bodyLengthTag(bodyLengthField), checkSumTag(checkSumField)
     {
-      countHeader(beginStringField, msg.m_header);
+      countHeader(beginStringField, bodyLengthField, msg.m_header);
       m_length += countBody(msg);
       countTrailer(msg.m_trailer);
     }
+
+    int getBodyLengthTag () const
+    { return bodyLengthTag; }
+
+    int getCheckSumTag () const
+    { return checkSumTag; }
 
     int getBodyLength() const
     { return m_length; }
@@ -186,6 +200,8 @@ class Message : public FieldMap
     { return m_prefix; }
 
   };
+
+  std::string& toString( const FieldCounter&, std::string& ) const;
 
 protected:
   /// Constructor for derived classes
@@ -263,18 +279,41 @@ public:
   { return FieldMap::hasGroup( num, group.field() ); }
 
   /// Get a string representation without making a copy
-  std::string& toString( std::string&,
-                         int beginStringField = FIELD::BeginString,
+  inline std::string& toString( std::string& str ) const
+  {
+    return toString( FieldCounter( *this ), str );
+  }
+
+  /// Get a string representation without making a copy
+  inline std::string& toString( std::string& str,
+                         int beginStringField,
                          int bodyLengthField = FIELD::BodyLength, 
-                         int checkSumField = FIELD::CheckSum ) const;
+                         int checkSumField = FIELD::CheckSum ) const
+  {
+    return toString( FieldCounter( *this,
+                                   beginStringField,
+                                   bodyLengthField,
+                                   checkSumField ), str );
+  }
 
   /// Get a string representation of the message
-  std::string toString( int beginStringField = FIELD::BeginString,
+  inline std::string toString() const
+  {
+    std::string str;
+    toString( FieldCounter( *this ), str );
+    return str;
+  }
+
+  /// Get a string representation of the message
+  inline std::string toString( int beginStringField,
                         int bodyLengthField = FIELD::BodyLength,
                         int checkSumField = FIELD::CheckSum ) const
   {
     std::string str;
-    toString( str, beginStringField, bodyLengthField, checkSumField );
+    toString( FieldCounter( *this,
+                            beginStringField,
+                            bodyLengthField,
+                            checkSumField ), str );
     return str;
   }
 
@@ -398,37 +437,36 @@ public:
 
   static inline bool NOTHROW isAdminMsgType( const MsgType& msgType )
   {
-    return isAdminMsgTypeValue( Util::String::c_str( msgType.getValue()) );
+    return isAdminMsgTypeValue( msgType.forString( String::CstrFunc() ) );
   }
 
   static inline bool NOTHROW isAdminMsgTypeValue( const char* value )
   {
+    Util::CharBuffer::Fixed<8> b = { { '0', '1', '3', '2', '4', '5', 'A', '\0' } };
     char sym = value[0];
-    return sym && value[1] == '\0' && ::strchr( "0A12345", sym ) != 0;
+    return sym && value[1] == '\0' && Util::CharBuffer::find(b, sym) < 7;
   }
 
   static inline bool isAdminMsg( const std::string& msg )
   {
-    std::string::size_type size = Util::String::size(msg);
+    std::string::size_type size = String::size(msg);
     if ( size > 5 )
     {
+      Util::CharBuffer::Fixed<8> b = { { '0', '1', '3', '2', '4', '5', 'A', '\0' } };
+      Util::CharBuffer::Fixed<4> const v = { { '\001', '3', '5', '=' } };
       union {
          const char* pc;
 	 const uint32_t* pu;
-      } u = { Util::String::c_str( msg ) };
-      union {
-	 char c[4];
-         uint32_t u;
-      } const v = { { '\001', '3', '5', '=' } };
+      } u = { String::c_str( msg ) };
       do
       {
-        if (LIKELY(*u.pu != v.u))
+        if (LIKELY(*u.pu != v.value))
         {
           size--;
           u.pc++;
           continue;
         }
-        return u.pc[5] == '\001' && ::strchr( "0A12345", u.pc[4] ) != 0;
+        return u.pc[5] == '\001' && Util::CharBuffer::find(b, u.pc[4]) < 7;
       }
       while ( size > 5 );
     }
@@ -547,11 +585,19 @@ private:
     return (m_status & (1 << bit)) != 0;
   }
 
+  static inline admin_trait getAdminTrait( char msgType ) 
+  {
+    Util::CharBuffer::Fixed<8> b = { { '0', '1', '3', '2', '4', '5', 'A', '\0' } };
+    std::size_t pos = Util::CharBuffer::find(b, msgType);
+    return (admin_trait)( (pos < 7) << (pos & 7) / 3 );
+  }
+
 protected:
   mutable FieldMap m_header;
   mutable FieldMap m_trailer;
   int m_status;
   int m_field;
+
   static std::auto_ptr<DataDictionary> s_dataDictionary;
 };
 /*! @} */
@@ -593,28 +639,35 @@ inline void Message::FieldCounter::countHeader( const FieldMap& fields )
   if( it != end )
   {
     if( LIKELY(it->first == FIELD::BeginString) )
+    {
       m_prefix = it->second.getLength();
+      if( LIKELY(++it != end) )
+        if( LIKELY(it->first == FIELD::BodyLength) )
+          ++it;
+    }
     else
-      m_length = it->second.getLength();
-    ++it;
+    {
+      if( it->first == FIELD::BodyLength )
+        ++it;
+    }
     for( ; it != end; ++it )
     {
-      if ( LIKELY(it->first != bodyLengthTag) )
-        m_length += it->second.getLength();
+      m_length += it->second.getLength();
     }
   }
   m_length += countGroups(fields.g_begin(), fields.g_end());
 }
 
-inline void Message::FieldCounter::countHeader( int beginStringTag,
+inline void Message::FieldCounter::countHeader( int beginStringField,
+                                                int bodyLengthField,
                                                 const FieldMap& fields )
 {
   const FieldMap::const_iterator end = fields.end();
   for( FieldMap::const_iterator it = fields.begin(); it != end; ++it )
   {
-    if ( LIKELY(it->first != bodyLengthTag) )
+    if ( LIKELY(it->first != bodyLengthField) )
     {
-      if( LIKELY(it->first != beginStringTag) )
+      if( LIKELY(it->first != beginStringField) )
         m_length += it->second.getLength();
       else
         m_prefix += it->second.getLength();

@@ -42,11 +42,11 @@ FileStore::FileStore( std::string path, const SessionID& s )
 
   if ( path.empty() ) path = ".";
   const std::string& begin =
-    s.getBeginString().getString();
+    s.getBeginString().dupString();
   const std::string& sender =
-    s.getSenderCompID().getString();
+    s.getSenderCompID().dupString();
   const std::string& target =
-    s.getTargetCompID().getString();
+    s.getTargetCompID().dupString();
   const std::string& qualifier =
     s.getSessionQualifier();
 

@@ -224,6 +224,7 @@ public:
   Mutex* getMutex() { return &m_mutex; }
 
 private:
+
   typedef std::map < SessionID, Session* > Sessions;
   typedef std::set < SessionID > SessionIDs;
 
@@ -259,7 +260,7 @@ private:
   }
 
   void fill( Header&, UtcTimeStamp now = UtcTimeStamp()  );
-  const char* preamble( Header&, UtcTimeStamp now = UtcTimeStamp() );
+  Message::admin_trait fill( Header&, int num, UtcTimeStamp now = UtcTimeStamp() );
 
   inline bool isGoodTime( const SendingTime& sendingTime,
                           const UtcTimeStamp& now )
@@ -282,8 +283,8 @@ private:
     if( !m_checkCompId ) return true;
 
     return
-      m_sessionID.getSenderCompID().getValue() == targetCompID.getValue()
-      && m_sessionID.getTargetCompID().getValue() == senderCompID.getValue();
+      m_sessionID.getSenderCompID() == targetCompID
+      && m_sessionID.getTargetCompID() == senderCompID;
   }
   bool shouldSendReset();
 
@@ -340,10 +341,10 @@ private:
 
   bool verify( const Message& msg,
                bool checkTooHigh = true, bool checkTooLow = true ) {
-    const Header& header = msg.getHeader();
-    const MsgType* pMsgType = FIELD_GET_PTR( header, MsgType );
+    const Header&  header = msg.getHeader();
+    const MsgType* pType = FIELD_GET_PTR( header, MsgType );
     return verify( msg, UtcTimeStamp(), header,
-                   pMsgType ? Util::String::c_str( pMsgType->getValue() ) : NULL,
+                   pType ? pType->forString(String::CstrFunc()) : NULL,
                    checkTooHigh, checkTooLow );
   }
 
@@ -438,7 +439,7 @@ private:
 					}
 				} else {
 					char* p = (char*)IOV_BUF(*e);
-					IOV_BUF(sg_[++n_]) = (Sg::sg_ptr)s;
+					IOV_BUF(sg_[++n_]) = (Sg::sg_ptr_t)s;
 					IOV_LEN(sg_[n_++]) = l;
 					p += IOV_LEN(*e);
 					IOV_BUF(sg_[n_]) = p;

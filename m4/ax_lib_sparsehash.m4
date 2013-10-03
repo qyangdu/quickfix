@@ -11,7 +11,7 @@ AC_ARG_WITH(sparsehash,
      fi],
     has_sparsehash=false
 )
-SPARSEHASH_PREFIX=$with_boost
+SPARSEHASH_PREFIX=$with_sparsehash
 AC_SUBST(SPARSEHASH_PREFIX)
 
 if test $has_sparsehash = true
@@ -27,7 +27,7 @@ if test $has_sparsehash = true
 then
     AC_MSG_CHECKING(for Google Sparsehash)
     AC_TRY_COMPILE(
-                [#include <google/dense_hash_map>],
+                [#include <sparsehash/dense_hash_map>],
                 [google::dense_hash_map < int, int > x;],
                 AC_MSG_RESULT(yes),
                 AC_MSG_ERROR(no))

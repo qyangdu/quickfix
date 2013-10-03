@@ -32,7 +32,7 @@
 #include "FieldNumbers.h"
 #include "FieldConvertors.h"
 #include "FieldTypes.h"
-#include "Utility.h"
+#include "FixString.h"
 
 namespace FIX
 {
@@ -49,7 +49,6 @@ class FieldTag
   };
 
 public:
-
   template <int N> struct Traits
   {
     enum
@@ -91,35 +90,23 @@ class FieldBase
 	C_ALL		= 3	/* C_DATA | C_METRICS */
   };
 
-protected:
-
-  template <int Field>
-  explicit FieldBase( FieldTag::Traits<Field> )
-    : m_tag(Field)
-    , m_tagChecksum(FieldTag::Traits<Field>::checksum)
-    , m_tagLength(FieldTag::Traits<Field>::length)
-    , m_calculated(C_NONE)
-  {}
-
-  template <int Field>
-  explicit FieldBase( FieldTag::Traits<Field>, const std::string& string)
-    : m_tag(Field)
-    , m_tagChecksum(FieldTag::Traits<Field>::checksum)
-    , m_tagLength(FieldTag::Traits<Field>::length)
-    , m_calculated(C_NONE)
-    , m_string(string)
-  {}
-
 public:
+
+  typedef int                      tag_type;
+  typedef int                      size_type;
+  typedef String::value_type       string_type;
+  typedef std::string              data_type;
+
   explicit FieldBase( int field = 0 )
     : m_tag(field)
     , m_tagChecksum(Util::Tag::checkSum(field))
     , m_tagLength(Util::Tag::length(field))
     , m_calculated(C_NONE)
-  {}
+    {}
 
-  template <typename Pack> 
-  explicit FieldBase(const Pack& p, typename Pack::result_type* = NULL)
+  template <typename Pack>
+  explicit FieldBase( const Pack& p,
+                      typename Pack::result_type* = NULL )
     : m_tag(p.getField()), m_tagChecksum(p.getTagChecksum())
     , m_tagLength(p.getTagLength()), m_calculated(C_NONE), m_string(p)
     {}
@@ -131,13 +118,7 @@ public:
     , m_calculated( C_NONE )
     , m_string(string)
     {}
-/*
-    FieldBase(const FieldBase& f)
-	: m_tag(f.m_tag), m_tagChecksum(f.m_tagChecksum)
-    , m_tagLength(f.m_tagLength), m_calculated(f.m_calculated), m_string(f.m_string)
-	, m_data(f.m_data_), m_total(f.m_total)
-    {}
-*/
+
   virtual inline ~FieldBase()
     {}
 
@@ -155,7 +136,9 @@ public:
     m_calculated = C_NONE;
   }
 
-  template <typename Pack> void setPacked(const Pack& p)
+  template <typename Pack>
+  void setPacked( const Pack& p,
+                  typename Pack::result_type* = NULL )
   {
     p.assign_to(m_string);
     m_calculated = C_NONE;
@@ -169,6 +152,10 @@ public:
   const std::string& getString() const
     { return m_string; }
 
+  /// Get a copy of the string representation of the fields value.
+  std::string dupString() const
+    { return String::CopyFunc()(m_string); }
+
   /// Get the string representation of the Field (i.e.) 55=MSFT[SOH]
   const std::string& getFixString() const
   {
@@ -176,30 +163,10 @@ public:
     return m_data;
   }
 
-  /// Push the string representation of the Field into an Sg buffer,
-  /// which must be large enough to hold the result
-  template <typename S> S& pushValue(S& sink) const
+  /// Pass string value representation to a functor 
+  template <typename F> typename F::result_type forString(F f) const
   {
-    return ( m_calculated & C_DATA)
-           ? sink.append(Util::String::c_str(m_data),
-                         Util::String::length(m_data))
-           : sink.append(m_tag, Util::String::c_str(m_string),
-                                Util::String::length(m_string));
-  }
-
-  /// Push the string representation of the Field into a buffer
-  std::string& pushValue(std::string& sink) const
-  {
-    if( m_calculated & C_DATA)
-      sink.append(m_data);
-    else
-    {
-      IntConvertor::generate(sink, m_tag);
-      sink.push_back('=');
-      sink.append(m_string);
-      sink.push_back('\001');
-    }
-    return sink;
+    return f(m_string);
   }
 
   /// Get the length of the fields string representation
@@ -216,9 +183,61 @@ public:
     return m_total;
   }
 
-  /// Compares fields based on thier tag numbers
+  /// Compares fields based on their tag numbers
   bool operator < ( const FieldBase& field ) const
     { return m_tag < field.m_tag; }
+
+  /// Push the string representation of the Field into an abstract buffer
+  template <typename S> S& pushValue(S& sink) const
+  {
+    return ( m_calculated & C_DATA)
+           ? sink.append(String::c_str(m_data),
+                         String::length(m_data))
+           : sink.append(m_tag, String::c_str(m_string),
+                                String::length(m_string));
+  }
+
+  /// Push the string representation of the Field into a string buffer
+  std::string& pushValue(std::string& sink) const
+  {
+    if( m_calculated & C_DATA)
+      sink.append(m_data);
+    else
+    {
+      IntConvertor::generate(sink, m_tag);
+      sink.push_back('=');
+      String::append(sink, m_string);
+      sink.push_back('\001');
+    }
+    return sink;
+  }
+
+  /// Checks whether field data is valid for the type
+  bool isValidType( TYPE::Type ) const;
+
+  friend std::ostream& operator << ( std::ostream&, const FieldBase& );
+
+protected:
+
+  template <int Field>
+  explicit FieldBase( FieldTag::Traits<Field> )
+    : m_tag(Field)
+    , m_tagChecksum(FieldTag::Traits<Field>::checksum)
+    , m_tagLength(FieldTag::Traits<Field>::length)
+    , m_calculated(C_NONE)
+    {}
+
+  template <int Field>
+  explicit FieldBase( FieldTag::Traits<Field>, const std::string& string)
+    : m_tag(Field)
+    , m_tagChecksum(FieldTag::Traits<Field>::checksum)
+    , m_tagLength(FieldTag::Traits<Field>::length)
+    , m_calculated(C_NONE)
+    , m_string(string)
+    {}
+
+  const string_type& getRawString() const
+    { return m_string; }
 
 private:
 
@@ -226,9 +245,9 @@ private:
   {
     if (!(m_calculated & C_METRICS))
     {
-      m_length = Util::String::length(m_string) ;
+      m_length = String::length(m_string) ;
       m_total = m_tagChecksum +
-        Util::CharBuffer::checkSum(Util::String::data(m_string), m_length) +
+        Util::CharBuffer::checkSum(String::data(m_string), m_length) +
         (int)'\001';
       m_length += m_tagLength + 1;
       m_calculated |= C_METRICS;
@@ -244,7 +263,7 @@ private:
       m_data.reserve(m_length);
       IntConvertor::generate(m_data, m_tag);
       m_data.push_back('=');
-      m_data.append(m_string);
+      String::append(m_data, m_string);
       m_data.push_back('\001');
   
       m_calculated = C_ALL;
@@ -257,7 +276,7 @@ private:
   mutable char  m_calculated;
   mutable int   m_length;
   mutable int   m_total;
-  std::string   m_string;
+  string_type   m_string;
   mutable std::string m_data;
 };
 /*! @} */
@@ -272,10 +291,81 @@ struct FieldTag::TraitsDetail<0>
   };
 };
 
+inline bool FieldBase::isValidType( TYPE::Type type ) const
+{
+  bool valid = true;
+  switch ( type )
+  {
+    case TYPE::Unknown:
+      break;
+    case TYPE::String:
+      valid = STRING_CONVERTOR::validate( m_string ); break;
+    case TYPE::Char:
+      valid = CHAR_CONVERTOR::validate( m_string ); break;
+    case TYPE::Price:
+      valid = PRICE_CONVERTOR::validate( m_string ); break;
+    case TYPE::Int:
+      valid = INT_CONVERTOR::validate( m_string ); break;
+    case TYPE::Amt:
+      valid = AMT_CONVERTOR::validate( m_string ); break;
+    case TYPE::Qty:
+      valid = QTY_CONVERTOR::validate( m_string ); break;
+    case TYPE::Currency:
+      valid = CURRENCY_CONVERTOR::validate( m_string ); break;
+    case TYPE::MultipleValueString:
+      valid = MULTIPLEVALUESTRING_CONVERTOR::validate( m_string ); break;
+    case TYPE::MultipleStringValue:
+      valid = MULTIPLESTRINGVALUE_CONVERTOR::validate( m_string ); break;
+    case TYPE::MultipleCharValue:
+      valid = MULTIPLECHARVALUE_CONVERTOR::validate( m_string ); break;
+    case TYPE::Exchange:
+      valid = EXCHANGE_CONVERTOR::validate( m_string ); break;
+    case TYPE::UtcTimeStamp:
+      valid = UTCTIMESTAMP_CONVERTOR::validate( m_string ); break;
+    case TYPE::Boolean:
+      valid = BOOLEAN_CONVERTOR::validate( m_string ); break;
+    case TYPE::LocalMktDate:
+      valid = LOCALMKTDATE_CONVERTOR::validate( m_string ); break;
+    case TYPE::Data:
+      valid = DATA_CONVERTOR::validate( m_string ); break;
+    case TYPE::Float:
+      valid = FLOAT_CONVERTOR::validate( m_string ); break;
+    case TYPE::PriceOffset:
+      valid = PRICEOFFSET_CONVERTOR::validate( m_string ); break;
+    case TYPE::MonthYear:
+      valid = MONTHYEAR_CONVERTOR::validate( m_string ); break;
+    case TYPE::DayOfMonth:
+      valid = DAYOFMONTH_CONVERTOR::validate( m_string ); break;
+    case TYPE::UtcDate:
+      valid = UTCDATE_CONVERTOR::validate( m_string ); break;
+    case TYPE::UtcTimeOnly:
+      valid = UTCTIMEONLY_CONVERTOR::validate( m_string ); break;
+    case TYPE::NumInGroup:
+      valid = NUMINGROUP_CONVERTOR::validate( m_string ); break;
+    case TYPE::Percentage:
+      valid = PERCENTAGE_CONVERTOR::validate( m_string ); break;
+    case TYPE::SeqNum:
+      valid = SEQNUM_CONVERTOR::validate( m_string ); break;
+    case TYPE::Length:
+      valid = LENGTH_CONVERTOR::validate( m_string ); break;
+    case TYPE::Country:
+      valid = COUNTRY_CONVERTOR::validate( m_string ); break;
+    case TYPE::TzTimeOnly:
+      valid = TZTIMEONLY_CONVERTOR::validate( m_string ); break;
+    case TYPE::TzTimeStamp:
+      valid = TZTIMESTAMP_CONVERTOR::validate( m_string ); break;
+    case TYPE::XmlData:
+      valid = XMLDATA_CONVERTOR::validate( m_string ); break;
+    case TYPE::Language:
+      valid = LANGUAGE_CONVERTOR::validate( m_string ); break;
+  }
+  return valid;
+}
+
 inline std::ostream& operator <<
 ( std::ostream& stream, const FieldBase& field )
 {
-  stream << field.getString();
+  stream << field.getRawString();
   return stream;
 }
 
@@ -293,7 +383,7 @@ class StringField : public FieldBase
     std::size_t m_length;
 
     explicit Data(const std::string& data)
-    : m_data(Util::String::c_str(data)), m_length(Util::String::size(data))
+    : m_data(String::c_str(data)), m_length(String::size(data))
     {}
 
     explicit Data(const char* data, std::size_t size)
@@ -304,13 +394,13 @@ class StringField : public FieldBase
     : m_data(data), m_length(::strlen(data))
     {}
 
-    void assign_to(std::string& s) const
+    template <typename S> void assign_to(S& s) const
     {
       s.assign(m_data, m_length);
     }
 
-    operator std::string () const
-    { return std::string(m_data, m_length); }
+    operator string_type () const
+    { return string_type(m_data, m_length); }
 
   };
 
@@ -318,7 +408,7 @@ protected:
 
   template <int Tag> struct Packed : public Data 
   {
-	typedef StringField result_type;
+    typedef StringField result_type;
 
     explicit Packed(const std::string& data)
     : Data(data) {}
@@ -351,7 +441,7 @@ public:
 
   struct Pack : public FieldTag, public Data
   {
-	typedef StringField result_type;
+    typedef StringField result_type;
 
     explicit Pack(int field, const std::string& data)
     : FieldTag(field), Data(data) {}
@@ -368,9 +458,13 @@ public:
 
   explicit StringField( int field, const std::string& data )
 : FieldBase( field, data ) {}
+  explicit StringField( int field, const char* data )
+: FieldBase( Pack( field, data ) ) {}
   StringField( int field )
 : FieldBase( field ) {}
 
+  bool hasValue() const
+    { return getRawString().size(); }
   void setValue( const std::string& value )
     { setString( value ); }
   const std::string& getValue() const
@@ -379,17 +473,17 @@ public:
     { return getString(); }
 
   bool operator<( const StringField& rhs ) const
-    { return getString() < rhs.getString(); }
+    { return getRawString() < rhs.getRawString(); }
   bool operator>( const StringField& rhs ) const
-    { return getString() > rhs.getString(); }
+    { return getRawString() > rhs.getRawString(); }
   bool operator==( const StringField& rhs ) const
-    { return getString() == rhs.getString(); }
+    { return getRawString() == rhs.getRawString(); }
   bool operator!=( const StringField& rhs ) const
-    { return getString() != rhs.getString(); }
+    { return getRawString() != rhs.getRawString(); }
   bool operator<=( const StringField& rhs ) const
-    { return getString() <= rhs.getString(); }
+    { return getRawString() <= rhs.getRawString(); }
   bool operator>=( const StringField& rhs ) const
-    { return getString() >= rhs.getString(); }
+    { return getRawString() >= rhs.getRawString(); }
   friend bool operator<( const StringField&, const char* );
   friend bool operator<( const char*, const StringField& );
   friend bool operator>( const StringField&, const char* );
@@ -418,74 +512,74 @@ public:
 };
 
 inline bool operator<( const StringField& lhs, const char* rhs )
-  { return lhs.getValue() < rhs; }
+  { return lhs.getRawString() < rhs; }
 inline bool operator<( const char* lhs, const StringField& rhs )
-  { return lhs < rhs.getValue(); }
+  { return lhs < rhs.getRawString(); }
 inline bool operator>( const StringField& lhs, const char* rhs )
-  { return lhs.getValue() > rhs; }
+  { return lhs.getRawString() > rhs; }
 inline bool operator>( const char* lhs, const StringField& rhs )
-  { return lhs > rhs.getValue(); }
+  { return lhs > rhs.getRawString(); }
 inline bool operator==( const StringField& lhs, const char* rhs )
-  { return lhs.getValue() == rhs; }
+  { return lhs.getRawString() == rhs; }
 inline bool operator==( const char* lhs, const StringField& rhs )
-  { return lhs == rhs.getValue(); }
+  { return lhs == rhs.getRawString(); }
 inline bool operator!=( const StringField& lhs, const char* rhs )
-  { return lhs.getValue() != rhs; }
+  { return lhs.getRawString() != rhs; }
 inline bool operator!=( const char* lhs, const StringField& rhs )
-  { return lhs != rhs.getValue(); }
+  { return lhs != rhs.getRawString(); }
 inline bool operator<=( const StringField& lhs, const char* rhs )
-  { return lhs.getValue() <= rhs; }
+  { return lhs.getRawString() <= rhs; }
 inline bool operator<=( const char* lhs, const StringField& rhs )
-  { return lhs <= rhs.getValue(); }
+  { return lhs <= rhs.getRawString(); }
 inline bool operator>=( const StringField& lhs, const char* rhs )
-  { return lhs.getValue() >= rhs; }
+  { return lhs.getRawString() >= rhs; }
 inline bool operator>=( const char* lhs, const StringField& rhs )
-  { return lhs >= rhs.getValue(); }
+  { return lhs >= rhs.getRawString(); }
 
 inline bool operator<( const StringField& lhs, const std::string& rhs )
-  { return lhs.getValue() < rhs; }
+  { return lhs.getRawString() < rhs; }
 inline bool operator<( const std::string& lhs, const StringField& rhs )
-  { return lhs < rhs.getValue(); }
+  { return lhs < rhs.getRawString(); }
 inline bool operator>( const StringField& lhs, const std::string& rhs )
-  { return lhs.getValue() > rhs; }
+  { return lhs.getRawString() > rhs; }
 inline bool operator>( const std::string& lhs, const StringField& rhs )
-  { return lhs > rhs.getValue(); }
+  { return lhs > rhs.getRawString(); }
 inline bool operator==( const StringField& lhs, const std::string& rhs )
-  { return lhs.getValue() == rhs; }
+  { return lhs.getRawString() == rhs; }
 inline bool operator==( const std::string& lhs, const StringField& rhs )
-  { return lhs == rhs.getValue(); }
+  { return lhs == rhs.getRawString(); }
 inline bool operator!=( const StringField& lhs, const std::string& rhs )
-  { return lhs.getValue() != rhs; }
+  { return lhs.getRawString() != rhs; }
 inline bool operator!=( const std::string& lhs, const StringField& rhs )
-  { return lhs != rhs.getValue(); }
+  { return lhs != rhs.getRawString(); }
 inline bool operator<=( const StringField& lhs, const std::string& rhs )
-  { return lhs.getValue() <= rhs; }
+  { return lhs.getRawString() <= rhs; }
 inline bool operator<=( const std::string& lhs, const StringField& rhs )
-  { return lhs <= rhs.getValue(); }
+  { return lhs <= rhs.getRawString(); }
 inline bool operator>=( const StringField& lhs, const std::string& rhs )
-  { return lhs.getValue() >= rhs; }
+  { return lhs.getRawString() >= rhs; }
 inline bool operator>=( const std::string& lhs, const StringField& rhs )
-  { return lhs >= rhs.getValue(); }
+  { return lhs >= rhs.getRawString(); }
 
 /// Field that contains a character value
 class CharField : public FieldBase
 {
-  struct Data {
-
+  struct Data
+  {
     typedef CharConvertor Convertor;
 
     char m_data;
 
     explicit Data(char data) : m_data(data) {}
 
-    void assign_to(std::string& s) const
+    template <typename S> void assign_to(S& s) const
     {
       s.clear();
       Convertor::generate(s, m_data);
     }
 
-    operator std::string() const
-    { return Convertor::convert(m_data); }
+    operator string_type() const
+    { return Convertor::convert<string_type>(m_data); }
   };
 
 protected:
@@ -537,7 +631,7 @@ public:
     { setPacked( Packed<0>(value) ); }
   char getValue() const throw ( IncorrectDataFormat )
     { try
-      { return Data::Convertor::convert( getString() ); }
+      { return Data::Convertor::convert( getRawString() ); }
       catch( FieldConvertError& )
       { throw IncorrectDataFormat( getField(), getString() ); }
     }
@@ -548,8 +642,8 @@ public:
 /// Field that contains a double value
 class DoubleField : public FieldBase
 {
-  struct Data {
-
+  struct Data
+  {
     typedef DoubleConvertor Convertor;
 
     double m_data;
@@ -560,14 +654,14 @@ class DoubleField : public FieldBase
     : m_data(data), m_padded(padding), m_round(rounded)
     {}
 
-    void assign_to(std::string& s) const
+    template <typename S> void assign_to(S& s) const
     {
       s.clear();
       Convertor::generate(s, m_data, m_padded, m_round);
     }
 
-    operator std::string () const
-    { return Convertor::convert(m_data, m_padded, m_round); }
+    operator string_type () const
+    { return Convertor::convert<string_type>(m_data, m_padded, m_round); }
   };
 
 protected:
@@ -624,7 +718,7 @@ public:
     { setPacked( Packed<0>(value, padding, rounded ) ); }
   double getValue() const throw ( IncorrectDataFormat )
     { try
-      { return Data::Convertor::convert( getString() ); }
+      { return Data::Convertor::convert( getRawString() ); }
       catch( FieldConvertError& )
       { throw IncorrectDataFormat( getField(), getString() ); }
     }
@@ -643,21 +737,21 @@ class IntField : public FieldBase
 
     Data(int data) : m_data(data) {}
 
-    void assign_to(std::string& s) const
+    template <typename S> void assign_to(S& s) const
     {
       s.clear();
       Convertor::generate(s, m_data);
     }
 
-    operator std::string () const
-    { return Convertor::convert(m_data); }
+    operator string_type () const
+    { return Convertor::convert<string_type>(m_data); }
   };
 
 protected:
 
   template <int Tag> struct Packed : public Data
   {
-	typedef IntField result_type;
+    typedef IntField result_type;
 
     explicit Packed( int data )
     : Data( data ) {}
@@ -684,7 +778,7 @@ public:
 
   struct Pack : public FieldTag, public Data
   {
-	typedef IntField result_type;
+    typedef IntField result_type;
 
     explicit Pack( int field, int data )
     : FieldTag(field), Data( data ) {}
@@ -702,7 +796,7 @@ public:
     { setPacked( Packed<0>( value ) ); }
   int getValue() const throw ( IncorrectDataFormat )
     { try
-      { return Data::Convertor::convert( getString() ); }
+      { return Data::Convertor::convert( getRawString() ); }
       catch( FieldConvertError& )
       { throw IncorrectDataFormat( getField(), getString() ); }
     }
@@ -722,14 +816,14 @@ class BoolField : public FieldBase
 
     Data(bool data) : m_data(data) {}
 
-    void assign_to(std::string& s) const
+    template <typename S> void assign_to(S& s) const
     {
       s.clear();
       Convertor::generate(s, m_data);
     }
 
-    operator std::string () const
-    { return Convertor::convert(m_data); }
+    operator string_type () const
+    { return Convertor::convert<string_type>(m_data); }
   };
 
 protected:
@@ -781,7 +875,7 @@ public:
     { setPacked( Packed<0>( value ) ); }
   bool getValue() const throw ( IncorrectDataFormat )
     { try
-      { return Data::Convertor::convert( getString() ); }
+      { return Data::Convertor::convert( getRawString() ); }
       catch( FieldConvertError& )
       { throw IncorrectDataFormat( getField(), getString() ); }
     }
@@ -802,14 +896,14 @@ class UtcTimeStampField : public FieldBase
     Data(const UtcTimeStamp& data, bool showMilliseconds)
     : m_data(data), m_msec(showMilliseconds) {}
 
-    void assign_to(std::string& s) const
+    template <typename S> void assign_to(S& s) const
     {
       s.clear();
       Convertor::generate(s, m_data, m_msec);
     }
 
-    operator std::string () const
-    { return Convertor::convert(m_data, m_msec); }
+    operator string_type () const
+    { return Convertor::convert<string_type>(m_data, m_msec); }
   };
 
 protected:
@@ -818,7 +912,7 @@ protected:
   {
     typedef UtcTimeStampField result_type;
 
-	explicit Packed( const UtcTimeStamp& data, bool showMilliseconds = false )
+    explicit Packed( const UtcTimeStamp& data, bool showMilliseconds = false )
     : Data( data, showMilliseconds) {}
 
     static inline int getField() { return Tag; }
@@ -864,7 +958,7 @@ public:
     { setPacked( Packed<0>( value ) ); }
   UtcTimeStamp getValue() const throw ( IncorrectDataFormat )
     { try
-      { return Data::Convertor::convert( getString() ); }
+      { return Data::Convertor::convert( getRawString() ); }
       catch( FieldConvertError& )
       { throw IncorrectDataFormat( getField(), getString() ); }
     }
@@ -891,14 +985,14 @@ class UtcDateField : public FieldBase
     Data(const UtcDate& data)
     : m_data(data) {}
 
-    void assign_to(std::string& s) const
+    template <typename S> void assign_to(S& s) const
     {
       s.clear();
       Convertor::generate(s, m_data);
     }
 
-    operator std::string () const
-    { return Convertor::convert(m_data); }
+    operator string_type () const
+    { return Convertor::convert<string_type>(m_data); }
   };
 
 protected:
@@ -950,7 +1044,7 @@ public:
     { setPacked( Packed<0>( value ) ); }
   UtcDate getValue() const throw ( IncorrectDataFormat )
     { try
-      { return Data::Convertor::convert( getString() ); }
+      { return Data::Convertor::convert( getRawString() ); }
       catch( FieldConvertError& )
       { throw IncorrectDataFormat( getField(), getString() ); }
     }
@@ -978,14 +1072,14 @@ class UtcTimeOnlyField : public FieldBase
     Data(const UtcTimeOnly& data, bool showMilliseconds)
     : m_data(data), m_msec(showMilliseconds) {}
 
-    void assign_to(std::string& s) const
+    template <typename S> void assign_to(S& s) const
     {
       s.clear();
       Convertor::generate(s, m_data, m_msec);
     }
 
-    operator std::string () const
-    { return Convertor::convert(m_data, m_msec); }
+    operator string_type () const
+    { return Convertor::convert<string_type>(m_data, m_msec); }
   };
 
 protected:
@@ -1040,7 +1134,7 @@ public:
     { setPacked( Packed<0>( value ) ); }
   UtcTimeOnly getValue() const throw ( IncorrectDataFormat )
     { try
-      { return Data::Convertor::convert( getString() ); }
+      { return Data::Convertor::convert( getRawString() ); }
       catch( FieldConvertError& )
       { throw IncorrectDataFormat( getField(), getString() ); }
     }
@@ -1067,14 +1161,14 @@ class CheckSumField : public FieldBase
     Data(int data)
     : m_data(data) {}
 
-    void assign_to(std::string& s) const
+    template <typename S> void assign_to(S& s) const
     {
       s.clear();
       Convertor::generate(s, m_data);
     }
 
-    operator std::string () const
-    { return Convertor::convert(m_data); }
+    operator string_type () const
+    { return Convertor::convert<string_type>(m_data); }
 
   };
 
@@ -1084,7 +1178,7 @@ protected:
   {
     typedef CheckSumField result_type;
 
-	explicit Packed( int data )
+    explicit Packed( int data )
     : Data( data ) {}
 
     static inline int getField() { return Tag; }
@@ -1127,7 +1221,7 @@ public:
     { setPacked( Packed<0>( value ) ); }
   int getValue() const throw ( IncorrectDataFormat )
     { try
-      { return Data::Convertor::convert( getString() ); }
+      { return Data::Convertor::convert( getRawString() ); }
       catch( FieldConvertError& )
       { throw IncorrectDataFormat( getField(), getString() ); }
     }

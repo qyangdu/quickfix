@@ -158,7 +158,7 @@ void Message::reverseRoute( const Header& header )
   if( header.isSetField( beginString ) )
   {
     header.getField( beginString );
-    if( beginString.getValue().size() )
+    if( beginString.hasValue() )
       m_header.setField( beginString );
 
     OnBehalfOfLocationID onBehalfOfLocationID;
@@ -172,14 +172,14 @@ void Message::reverseRoute( const Header& header )
       if( header.isSetField( onBehalfOfLocationID ) )
       {
         header.getField( onBehalfOfLocationID );
-        if( onBehalfOfLocationID.getValue().size() )
+        if( onBehalfOfLocationID.hasValue() )
           m_header.setField( DeliverToLocationID( onBehalfOfLocationID ) );
       }
 
       if( header.isSetField( deliverToLocationID ) )
       {
         header.getField( deliverToLocationID );
-        if( deliverToLocationID.getValue().size() )
+        if( deliverToLocationID.hasValue() )
           m_header.setField( OnBehalfOfLocationID( deliverToLocationID ) );
       }
     }
@@ -188,14 +188,14 @@ void Message::reverseRoute( const Header& header )
   if( header.isSetField( senderCompID ) )
   {
     header.getField( senderCompID );
-    if( senderCompID.getValue().size() )
+    if( senderCompID.hasValue() )
       m_header.setField( TargetCompID( senderCompID ) );
   }
 
   if( header.isSetField( targetCompID ) )
   {
     header.getField( targetCompID );
-    if( targetCompID.getValue().size() )
+    if( targetCompID.hasValue() )
       m_header.setField( SenderCompID( targetCompID ) );
   }
 
@@ -213,40 +213,39 @@ void Message::reverseRoute( const Header& header )
   if( header.isSetField( onBehalfOfCompID ) )
   {
     header.getField( onBehalfOfCompID );
-    if( onBehalfOfCompID.getValue().size() )
+    if( onBehalfOfCompID.hasValue() )
       m_header.setField( DeliverToCompID( onBehalfOfCompID ) );
   }
 
   if( header.isSetField( onBehalfOfSubID ) )
   {
     header.getField( onBehalfOfSubID );
-    if( onBehalfOfSubID.getValue().size() )
+    if( onBehalfOfSubID.hasValue() )
       m_header.setField( DeliverToSubID( onBehalfOfSubID ) );
   }
 
   if( header.isSetField( deliverToCompID ) )
   {
     header.getField( deliverToCompID );
-    if( deliverToCompID.getValue().size() )
+    if( deliverToCompID.hasValue() )
       m_header.setField( OnBehalfOfCompID( deliverToCompID ) );
   }
 
   if( header.isSetField( deliverToSubID ) )
   {
     header.getField( deliverToSubID );
-    if( deliverToSubID.getValue().size() )
+    if( deliverToSubID.hasValue() )
       m_header.setField( OnBehalfOfSubID( deliverToSubID ) );
   }
 }
 
-std::string& HEAVYUSE Message::toString( std::string& str, 
-                                int beginStringField,
-                                int bodyLengthField, 
-                                int checkSumField ) const
+std::string& HEAVYUSE
+Message::toString( const FieldCounter& c, std::string& str ) const
 {
+  const int checkSumField = c.getCheckSumTag();
+  const int bodyLengthField = c.getBodyLengthTag();
   const int csumPayloadLength = CheckSumConvertor::MaxValueSize + 1;
   const int csumTagLength = Util::PositiveInt::numDigits(checkSumField) + 1;
-  FieldCounter c(*this, beginStringField, bodyLengthField, checkSumField);
 
   int l = c.getBodyLength();
   l += m_header.setField(IntField::Pack(bodyLengthField, l)).getLength()
@@ -265,9 +264,11 @@ std::string& HEAVYUSE Message::toString( std::string& str,
 
     l -= csumPayloadLength;
 
-    char* p = const_cast<char*>( Util::String::c_str( str ) );
+    char* p = const_cast<char*>( String::c_str(str) );
     int32_t csum = Util::CharBuffer::checkSum( p, l - csumTagLength ) % 256;
     p += l;
+    // NOTE: We can modify this data in place even for Copy-on-Write strings
+    //       as the string is constructed locally
     CheckSumConvertor::generate(p, (unsigned char) csum );
     f.setPacked( StringField::Pack( checkSumField, p, 3 ) );
   }
@@ -347,7 +348,7 @@ std::string Message::toXMLFields(const FieldMap& fields, int space) const
   return stream.str();
 }
 
-void HEAVYUSE Message::extractField ( Message::FieldReader& reader,
+inline void HEAVYUSE Message::extractField ( Message::FieldReader& reader,
     const DataDictionary* pSessionDD, const DataDictionary* pAppDD,
     const Group* pGroup)
 {
@@ -379,13 +380,13 @@ void HEAVYUSE Message::extractField ( Message::FieldReader& reader,
 }
 
 static const DataDictionary::FieldToGroup::key_type group_key_header_ =
-       std::make_pair(0, std::string("_header_") );
+       std::make_pair(0, String::value_type("_header_") );
 static const DataDictionary::FieldToGroup::key_type group_key_null_header_ =
-       std::make_pair(0, std::string() );
+       std::make_pair(0, String::value_type() );
 static const DataDictionary::FieldToGroup::key_type group_key_trailer_ =
-       std::make_pair(0, std::string("_trailer_") );
+       std::make_pair(0, String::value_type("_trailer_") );
 static const DataDictionary::FieldToGroup::key_type group_key_null_trailer_ =
-       std::make_pair(0, std::string() );
+       std::make_pair(0, String::value_type() );
 
 void HEAVYUSE Message::setString( const std::string& str,
                          bool doValidation,
@@ -441,7 +442,7 @@ throw( InvalidMessage )
         p = &( reader >> m_header );
   
         if ( pApplicationDataDictionary )
-          msg_key.second = p->getString();
+          msg_key.second = p->forString( String::RvalFunc() );
   
         if ( pSessionDataDictionary )
         {
@@ -472,7 +473,7 @@ throw( InvalidMessage )
       }
 
       if ( pApplicationDataDictionary && p->getField() == FIELD::MsgType )
-        msg_key.second = p->getString();
+        msg_key.second = p->forString( String::RvalFunc() );
     }
     else if ( isTrailerField( reader.getField(), pSessionDataDictionary ) )
     {
@@ -516,7 +517,7 @@ void Message::setGroup( const std::string& msg,
   FieldReader reader(str, pos);
   DataDictionary::FieldToGroup::key_type key( field.getField(), msg );
   setGroup( reader, key, map, dataDictionary );
-  pos = reader.pos() - Util::String::c_str(str);
+  pos = reader.pos() - String::c_str(str);
 }
 
 void Message::setGroup( Message::FieldReader& reader,
@@ -582,7 +583,7 @@ bool Message::setStringHeader( const std::string& str )
   return true;
 }
 
-const int Message::HeaderFieldSet::m_fields[] =
+ALIGN_DECL_DEFAULT const int Message::HeaderFieldSet::m_fields[] =
 {
 FIELD::BeginString,
 FIELD::BodyLength,
@@ -616,7 +617,7 @@ FIELD::NoHops,
 0
 };
 
-Message::HeaderFieldSet Message::headerFieldSet;
+ALIGN_DECL_DEFAULT Message::HeaderFieldSet Message::headerFieldSet;
 
 SessionID Message::getSessionID( const std::string& qualifier ) const
 throw( FieldNotFound )

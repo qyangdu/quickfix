@@ -35,7 +35,7 @@ int main(int argc, char *argv[])
 
     std::string output;
     double tt = 0;
-    for(int i = 0 ; i < 100000; ++i)
+    for(int i = 0 ; i < 1000000; ++i)
     {
         FIX::Message msg(true);
         msg.getHeader().setField( FIX::BeginString::Pack( "FIX.4.4" ) );
@@ -84,7 +84,7 @@ int main(int argc, char *argv[])
 #ifdef HAVE_TBB
 	  tbb::tick_count start = tbb::tick_count::now();
 #endif
-	  for(int i = 0 ; i < 100000; ++i)
+	  for(int i = 0 ; i < 1000000; ++i)
 	  {
 	      FIX::Message * tmp = new FIX::Message(output, dict);
 	      delete tmp;

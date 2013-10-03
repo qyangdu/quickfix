@@ -108,11 +108,11 @@ public:
   > MsgFields;
 
   typedef boost::unordered_map <
-    std::string,
+    String::value_type,
     MsgFields,
     ItemHash,
-    Util::String::equal_to,
-    boost::fast_pool_allocator< std::pair<std::string, MsgFields> >
+    String::equal_to,
+    boost::fast_pool_allocator< std::pair<String::value_type, MsgFields> >
   > MsgTypeToField;
 
   typedef boost::container::flat_map <
@@ -130,18 +130,18 @@ public:
   typedef message_order OrderedFieldsArray;
 
   typedef boost::unordered_set <
-    std::string,
+    String::value_type,
     ItemHash,
-    Util::String::equal_to,
-    boost::fast_pool_allocator<std::string>
+    String::equal_to,
+    boost::fast_pool_allocator<String::value_type>
   > Values;
 
 #ifdef HAVE_SPARSEHASH
   typedef google::dense_hash_set <
-    std::string,
+    String::value_type,
     ItemHash,
-    Util::String::equal_to,
-    boost::pool_allocator<std::string>
+    String::equal_to,
+    boost::pool_allocator<String::value_type>
   > MsgTypes;
 
   typedef google::dense_hash_set <
@@ -168,10 +168,10 @@ public:
   > FieldToValue;
 #else
   typedef boost::unordered_set <
-    std::string,
+    String::value_type,
     ItemHash,
-    Util::String::equal_to,
-    boost::fast_pool_allocator<std::string>
+    String::equal_to,
+    boost::fast_pool_allocator<String::value_type>
   > MsgTypes;
 
   typedef boost::unordered_set <
@@ -209,7 +209,7 @@ public:
     std::string,
     int,
     ItemHash,
-    Util::String::equal_to,
+    String::equal_to,
     boost::fast_pool_allocator< std::pair<std::string, int> >
   > NameToField;
 
@@ -225,33 +225,33 @@ public:
   > ValueToName;
 
   typedef boost::unordered_map <
-    std::pair < int, std::string >,
+    std::pair < int, String::value_type >,
     std::pair < int, DataDictionary* >,
     ItemHash,
-    std::equal_to<std::pair< int, std::string> >,
+    std::equal_to<std::pair< int, String::value_type> >,
     boost::fast_pool_allocator< std::pair<std::pair<int, std::string>,
     std::pair<int, DataDictionary*> > >
   > FieldToGroup;
 
 #else /* !HAVE_BOOST */
   typedef std::set < int > MsgFields;
-  typedef std::map < std::string, MsgFields > MsgTypeToField;
+  typedef std::map < String::value_type, MsgFields > MsgTypeToField;
   typedef std::map < int, bool > NonBodyFields;
   typedef std::vector< int > OrderedFields;
   typedef message_order OrderedFieldsArray;
-  typedef std::set < std::string > Values;
+  typedef std::set < String::value_type > Values;
 #ifdef HAVE_SPARSEHASH
   typedef google::dense_hash_set <
-    std::string,
+    String::value_type,
     ItemHash,
-    Util::String::equal_to
+    String::equal_to
   > MsgTypes;
 
   typedef google::dense_hash_set < int > Fields;
   typedef google::dense_hash_map < int, TYPE::Type > FieldTypes;
   typedef google::dense_hash_map < int, Values > FieldToValue;
 #else
-  typedef std::set < std::string > MsgTypes;
+  typedef std::set < String::value_type > MsgTypes;
   typedef std::set < int > Fields;
   typedef std::map < int, TYPE::Type > FieldTypes;
   typedef std::map < int, Values > FieldToValue;
@@ -260,7 +260,7 @@ public:
   typedef std::map < std::string, int > NameToField;
   typedef std::map < std::pair < int, std::string > ,
   std::string  > ValueToName;
-  typedef std::map < std::pair < int, std::string > ,
+  typedef std::map < std::pair < int, String::value_type > ,
   std::pair < int, DataDictionary* > > FieldToGroup;
 #endif /* !HAVE_BOOST */
 
@@ -286,9 +286,9 @@ public:
     m_beginString = beginString;
     m_hasVersion = true;
   }
-  std::string getVersion() const
+  const std::string& getVersion() const
   {
-    return m_beginString.getString();
+    return m_beginString;
   }
 
   void addField( int field )
@@ -343,7 +343,7 @@ public:
     m_messages.insert( msgType );
   }
 
-  bool isMsgType( const std::string& msgType ) const
+  bool isMsgType( const String::value_type& msgType ) const
   {
     return m_messages.find( msgType ) != m_messages.end();
   }
@@ -353,7 +353,7 @@ public:
     m_messageFields[ msgType ].insert( field );
   }
 
-  bool isMsgField( const std::string& msgType, int field ) const
+  bool isMsgField( const String::value_type& msgType, int field ) const
   {
     MsgTypeToField::const_iterator i = m_messageFields.find( msgType );
     if ( i == m_messageFields.end() ) return false;
@@ -404,14 +404,14 @@ public:
     m_requiredFields[ msgType ].insert( field );
   }
 
-  bool isRequiredField( const std::string& msgType, int field ) const
+  bool isRequiredField( const String::value_type& msgType, int field ) const
   {
     MsgTypeToField::const_iterator i = m_requiredFields.find( msgType );
     if ( i == m_requiredFields.end() ) return false;
     return i->second.find( field ) != i->second.end();
   }
 
-  void addFieldValue( int field, const std::string& value )
+  void addFieldValue( int field, const String::value_type& value )
   {
     m_fieldValues[ field ].insert( value );
   }
@@ -422,7 +422,7 @@ public:
     return i != m_fieldValues.end();
   }
 
-  bool isFieldValue( int field, const std::string& value) const 
+  bool isFieldValue( int field, const String::value_type& value) const 
   {
     FieldToValue::const_iterator i = m_fieldValues.find( field );
     return ( i == m_fieldValues.end() ) ? false : isFieldValue( i, value );
@@ -439,7 +439,8 @@ public:
 
   bool isGroup( const std::string& msg, int field ) const
   {
-    return m_groups.find( std::make_pair( field, msg ) ) != m_groups.end();
+    return m_groups.find( std::make_pair( field,
+                   String::value_type(msg) ) ) != m_groups.end();
   }
 
   bool isGroup( const FieldToGroup::key_type& key ) const
@@ -450,7 +451,8 @@ public:
   bool getGroup( const std::string& msg, int field, int& delim,
                  const DataDictionary*& pDataDictionary ) const
   {
-    return getGroup( std::make_pair( field, msg ), delim, pDataDictionary );
+    return getGroup( std::make_pair( field,
+                   String::value_type(msg) ), delim, pDataDictionary );
   }
 
   bool getGroup( const FieldToGroup::key_type& key, int& delim,
@@ -529,7 +531,7 @@ private:
   /// Check if message type is defined in spec.
   void checkMsgType( const MsgType& msgType ) const
   {
-    if ( !isMsgType( msgType.getValue() ) )
+    if ( !isMsgType( msgType.forString( String::RvalFunc() ) ) )
       throw InvalidMessageType();
   }
 
@@ -553,93 +555,28 @@ private:
   void checkValidFormat( const FieldBase& field ) const
   throw( IncorrectDataFormat )
   {
-    bool valid = true;
     TYPE::Type type = TYPE::Unknown;
     getFieldType( field.getField(), type );
-    switch ( type )
-    {
-      case TYPE::Unknown:
-        break;
-      case TYPE::String:
-        valid = STRING_CONVERTOR::validate( field.getString() ); break;
-      case TYPE::Char:
-        valid = CHAR_CONVERTOR::validate( field.getString() ); break;
-      case TYPE::Price:
-        valid = PRICE_CONVERTOR::validate( field.getString() ); break;
-      case TYPE::Int:
-        valid = INT_CONVERTOR::validate( field.getString() ); break;
-      case TYPE::Amt:
-        valid = AMT_CONVERTOR::validate( field.getString() ); break;
-      case TYPE::Qty:
-        valid = QTY_CONVERTOR::validate( field.getString() ); break;
-      case TYPE::Currency:
-        valid = CURRENCY_CONVERTOR::validate( field.getString() ); break;
-      case TYPE::MultipleValueString:
-        valid = MULTIPLEVALUESTRING_CONVERTOR::validate( field.getString() ); break;
-      case TYPE::MultipleStringValue:
-        valid = MULTIPLESTRINGVALUE_CONVERTOR::validate( field.getString() ); break;
-      case TYPE::MultipleCharValue:
-        valid = MULTIPLECHARVALUE_CONVERTOR::validate( field.getString() ); break;
-      case TYPE::Exchange:
-        valid = EXCHANGE_CONVERTOR::validate( field.getString() ); break;
-      case TYPE::UtcTimeStamp:
-        valid = UTCTIMESTAMP_CONVERTOR::validate( field.getString() ); break;
-      case TYPE::Boolean:
-        valid = BOOLEAN_CONVERTOR::validate( field.getString() ); break;
-      case TYPE::LocalMktDate:
-        valid = LOCALMKTDATE_CONVERTOR::validate( field.getString() ); break;
-      case TYPE::Data:
-        valid = DATA_CONVERTOR::validate( field.getString() ); break;
-      case TYPE::Float:
-        valid = FLOAT_CONVERTOR::validate( field.getString() ); break;
-      case TYPE::PriceOffset:
-        valid = PRICEOFFSET_CONVERTOR::validate( field.getString() ); break;
-      case TYPE::MonthYear:
-        valid = MONTHYEAR_CONVERTOR::validate( field.getString() ); break;
-      case TYPE::DayOfMonth:
-        valid = DAYOFMONTH_CONVERTOR::validate( field.getString() ); break;
-      case TYPE::UtcDate:
-        valid = UTCDATE_CONVERTOR::validate( field.getString() ); break;
-      case TYPE::UtcTimeOnly:
-        valid = UTCTIMEONLY_CONVERTOR::validate( field.getString() ); break;
-      case TYPE::NumInGroup:
-        valid = NUMINGROUP_CONVERTOR::validate( field.getString() ); break;
-      case TYPE::Percentage:
-        valid = PERCENTAGE_CONVERTOR::validate( field.getString() ); break;
-      case TYPE::SeqNum:
-        valid = SEQNUM_CONVERTOR::validate( field.getString() ); break;
-      case TYPE::Length:
-        valid = LENGTH_CONVERTOR::validate( field.getString() ); break;
-      case TYPE::Country:
-        valid = COUNTRY_CONVERTOR::validate( field.getString() ); break;
-      case TYPE::TzTimeOnly:
-        valid = TZTIMEONLY_CONVERTOR::validate( field.getString() ); break;
-      case TYPE::TzTimeStamp:
-        valid = TZTIMESTAMP_CONVERTOR::validate( field.getString() ); break;
-      case TYPE::XmlData:
-        valid = XMLDATA_CONVERTOR::validate( field.getString() ); break;
-      case TYPE::Language:
-        valid = LANGUAGE_CONVERTOR::validate( field.getString() ); break;
-    }
-
-    if ( valid ) return;
+    if( field.isValidType( type ) )
+      return;
 
     throw IncorrectDataFormat( field.getField(), field.getString() );
   }
 
-  bool isFieldValue( const FieldToValue::const_iterator& i, const std::string& value ) const
+  bool isFieldValue( const FieldToValue::const_iterator& i,
+                     const String::value_type& v ) const
   {
     if( !isMultipleValueField( i->first ) )
-      return i->second.find( value ) != i->second.end();
+      return i->second.find( v ) != i->second.end();
 
     // MultipleValue
     std::string::size_type startPos = 0;
     std::string::size_type endPos = 0;
     do
     {
-      endPos = value.find_first_of(' ', startPos);
-      std::string singleValue =
-        value.substr( startPos, endPos - startPos );
+      endPos = v.find_first_of(' ', startPos);
+      String::value_type singleValue =
+        v.substr( startPos, endPos - startPos );
       if( i->second.find( singleValue ) == i->second.end() )
         return false;
       startPos = endPos + 1;
@@ -654,8 +591,7 @@ private:
     FieldToValue::const_iterator i = m_fieldValues.find( f );
     if ( i != m_fieldValues.end() )
     {
-      const std::string& value = field.getString();
-      if ( !isFieldValue( i, value ) )
+      if ( !isFieldValue( i, field.forString( String::RvalFunc() ) ) )
         throw IncorrectTagValue( f );
     }
   }
@@ -664,7 +600,8 @@ private:
   void checkHasValue( const FieldBase& field ) const
   throw( NoTagValue )
   {
-    if ( isChecked(FieldsHaveValues) && !field.getString().length() )
+    if ( isChecked(FieldsHaveValues) &&
+        !field.forString( String::SizeFunc() ) )
       throw NoTagValue( field.getField() );
   }
 
@@ -673,7 +610,7 @@ private:
   ( const FieldBase& field, const MsgType& msgType ) const
   throw( TagNotDefinedForMessage )
   {
-    if ( !isMsgField( msgType, field.getField() ) )
+    if ( !isMsgField( msgType.forString( String::RvalFunc() ), field.getField() ) )
       throw TagNotDefinedForMessage( field.getField() );
   }
 
@@ -686,7 +623,7 @@ private:
     if( isGroup(msgType, fieldNum) )
     {
       if( fieldMap.groupCount(fieldNum)
-        != IntConvertor::convert(field.getString()) )
+        != IntConvertor::convert( field.forString( String::RvalFunc() ) ) )
       throw RepeatingGroupCountMismatch(fieldNum);
     }
   }
@@ -712,7 +649,7 @@ private:
     }
 
     MsgTypeToField::const_iterator iM
-      = m_requiredFields.find( msgType.getString() );
+      = m_requiredFields.find( msgType.forString( String::RvalFunc() ) );
     if ( iM == m_requiredFields.end() ) return ;
 
     const MsgFields& fields = iM->second;
@@ -730,7 +667,7 @@ private:
     for( groups = body.g_begin(); groups != groups_end; ++groups )
     {
       group_key.first = groups->first;
-      group_key.second = msgType.getValue();
+      group_key.second = msgType.forString( String::RvalFunc() );
       if( getGroup( group_key, delim, DD ) )
       {
         FieldMap::g_item_const_iterator group, group_end = groups->second.end();
@@ -754,7 +691,7 @@ private:
 
   bool m_hasVersion;
   unsigned m_checks;
-  BeginString m_beginString;
+  std::string m_beginString;
   MsgTypeToField m_messageFields;
   MsgTypeToField m_requiredFields;
   MsgTypes m_messages;

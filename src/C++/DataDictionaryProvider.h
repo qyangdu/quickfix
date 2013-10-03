@@ -55,9 +55,9 @@ public:
 
 private:
 #ifdef HAVE_BOOST
-  typedef boost::unordered_map<std::string, const DataDictionary*, ItemHash, Util::String::equal_to> dictionary_map_t;
+  typedef boost::unordered_map<String::value_type, const DataDictionary*, ItemHash, String::equal_to> dictionary_map_t;
 #else
-  typedef std::map<std::string, const DataDictionary*> dictionary_map_t;
+  typedef std::map<String::value_type, const DataDictionary*> dictionary_map_t;
 #endif
 
   dictionary_map_t m_transportDictionaries;

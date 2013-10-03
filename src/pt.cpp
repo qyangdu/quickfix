@@ -54,9 +54,11 @@ int testIdentifyType( int );
 int testSerializeToStringHeartbeat( int );
 int testSerializeFromStringHeartbeat( int );
 int testCreateNewOrderSingle( int );
+int testCreateNewOrderSinglePacked( int );
 int testSerializeToStringNewOrderSingle( int );
 int testSerializeFromStringNewOrderSingle( int );
 int testCreateQuoteRequest( int );
+int testCreateQuoteRequestPacked( int );
 int testReadFromQuoteRequest( int );
 int testSerializeToStringQuoteRequest( int );
 int testSerializeFromStringQuoteRequest( int );
@@ -133,6 +135,9 @@ int main( int argc, char** argv )
   std::cout << "Creating NewOrderSingle messages: ";
   report( testCreateNewOrderSingle( count ), count );
 
+  std::cout << "Creating NewOrderSingle messages (packed): ";
+  report( testCreateNewOrderSinglePacked( count ), count );
+
   std::cout << "Serializing NewOrderSingle messages to strings: ";
   report( testSerializeToStringNewOrderSingle( count ), count );
 
@@ -141,6 +146,9 @@ int main( int argc, char** argv )
 
   std::cout << "Creating QuoteRequest messages: ";
   report( testCreateQuoteRequest( count ), count );
+
+  std::cout << "Creating QuoteRequest messages (packed): ";
+  report( testCreateQuoteRequestPacked( count ), count );
 
   std::cout << "Serializing QuoteRequest messages to strings: ";
   report( testSerializeToStringQuoteRequest( count ), count );
@@ -198,7 +206,7 @@ int testIntegerToString( int count )
 
 int testStringToInteger( int count )
 {
-  std::string value( "1234" );
+  FIX::String::value_type value( "1234" );
   count = count - 1;
 
   int start = GetTickCount();
@@ -223,7 +231,7 @@ int testDoubleToString( int count )
 
 int testStringToDouble( int count )
 {
-  std::string value( "123.45" );
+  FIX::String::value_type value( "123.45" );
   count = count - 1;
 
   int start = GetTickCount();
@@ -302,6 +310,23 @@ int testCreateNewOrderSingle( int count )
     FIX::TransactTime transactTime;
     FIX::OrdType ordType( FIX::OrdType_MARKET );
     FIX42::NewOrderSingle( clOrdID, handlInst, symbol, side, transactTime, ordType );
+  }
+
+  return GetTickCount() - start;
+}
+
+int testCreateNewOrderSinglePacked( int count )
+{
+  int start = GetTickCount();
+  for ( int i = 0; i <= count; ++i )
+  {
+    FIX42::NewOrderSingle o;
+    o.set( FIX::ClOrdID::Pack( "ORDERID" ) );
+    o.set( FIX::HandlInst::Pack( '1' ) );
+    o.set( FIX::Symbol::Pack( "LNUX" ) );
+    o.set( FIX::Side::Pack( FIX::Side_BUY ) );
+    o.set( FIX::TransactTime::Pack( FIX::UtcTimeStamp() ) );
+    o.set( FIX::OrdType::Pack( FIX::OrdType_MARKET ) );
   }
 
   return GetTickCount() - start;
@@ -387,6 +412,35 @@ int testCreateQuoteRequest( int count )
       noRelatedSym.set( orderQty );
       noRelatedSym.set( currency );
       noRelatedSym.set( ordType );
+      massQuote.addGroup( noRelatedSym );
+      noRelatedSym.clear();
+    }
+  }
+
+  return GetTickCount() - start;
+}
+
+int testCreateQuoteRequestPacked( int count )
+{
+  count = count - 1;
+
+  int start = GetTickCount();
+
+  for ( int i = 0; i <= count; ++i )
+  {
+    FIX42::QuoteRequest massQuote( FIX::QuoteReqID("1") );
+    FIX42::QuoteRequest::NoRelatedSym noRelatedSym;
+
+    for( int j = 1; j <= 10; ++j )
+    {
+      noRelatedSym.set( FIX::Symbol::Pack( "IBM" ) );
+      noRelatedSym.set( FIX::MaturityMonthYear::Pack( "022003" ) );
+      noRelatedSym.set( FIX::PutOrCall::Pack( FIX::PutOrCall_PUT ) );
+      noRelatedSym.set( FIX::StrikePrice::Pack( 120 ) );
+      noRelatedSym.set( FIX::Side::Pack( FIX::Side_BUY ) );
+      noRelatedSym.set( FIX::OrderQty::Pack( 100 ) );
+      noRelatedSym.set( FIX::Currency::Pack( "USD" ) );
+      noRelatedSym.set( FIX::OrdType::Pack( FIX::OrdType_MARKET ) );
       massQuote.addGroup( noRelatedSym );
       noRelatedSym.clear();
     }

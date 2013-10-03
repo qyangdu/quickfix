@@ -73,9 +73,9 @@ void MySQLStore::populateCache()
   std::stringstream queryString;
 
   queryString << "SELECT creation_time, incoming_seqnum, outgoing_seqnum FROM sessions WHERE "
-  << "beginstring=" << "\"" << m_sessionID.getBeginString().getValue() << "\" and "
-  << "sendercompid=" << "\"" << m_sessionID.getSenderCompID().getValue() << "\" and "
-  << "targetcompid=" << "\"" << m_sessionID.getTargetCompID().getValue() << "\" and "
+  << "beginstring=" << "\"" << m_sessionID.getBeginString() << "\" and "
+  << "sendercompid=" << "\"" << m_sessionID.getSenderCompID() << "\" and "
+  << "targetcompid=" << "\"" << m_sessionID.getTargetCompID() << "\" and "
   << "session_qualifier=" << "\"" << m_sessionID.getSessionQualifier() << "\"";
 
   MySQLQuery query( queryString.str() );
@@ -108,9 +108,9 @@ void MySQLStore::populateCache()
     std::stringstream queryString2;
     queryString2 << "INSERT INTO sessions (beginstring, sendercompid, targetcompid, session_qualifier,"
     << "creation_time, incoming_seqnum, outgoing_seqnum) VALUES("
-    << "\"" << m_sessionID.getBeginString().getValue() << "\","
-    << "\"" << m_sessionID.getSenderCompID().getValue() << "\","
-    << "\"" << m_sessionID.getTargetCompID().getValue() << "\","
+    << "\"" << m_sessionID.getBeginString() << "\","
+    << "\"" << m_sessionID.getSenderCompID() << "\","
+    << "\"" << m_sessionID.getTargetCompID() << "\","
     << "\"" << m_sessionID.getSessionQualifier() << "\","
     << "'" << sqlTime << "',"
     << m_cache.getNextTargetMsgSeqNum() << ","
@@ -177,9 +177,9 @@ throw ( IOException )
   queryString << "INSERT INTO messages "
   << "(beginstring, sendercompid, targetcompid, session_qualifier, msgseqnum, message) "
   << "VALUES ("
-  << "\"" << m_sessionID.getBeginString().getValue() << "\","
-  << "\"" << m_sessionID.getSenderCompID().getValue() << "\","
-  << "\"" << m_sessionID.getTargetCompID().getValue() << "\","
+  << "\"" << m_sessionID.getBeginString() << "\","
+  << "\"" << m_sessionID.getSenderCompID() << "\","
+  << "\"" << m_sessionID.getTargetCompID() << "\","
   << "\"" << m_sessionID.getSessionQualifier() << "\","
   << msgSeqNum << ","
   << "\"" << msgCopy.get() << "\")";
@@ -189,9 +189,9 @@ throw ( IOException )
   {
     std::stringstream queryString2;
     queryString2 << "UPDATE messages SET message=\"" << msg << "\" WHERE "
-    << "beginstring=" << "\"" << m_sessionID.getBeginString().getValue() << "\" and "
-    << "sendercompid=" << "\"" << m_sessionID.getSenderCompID().getValue() << "\" and "
-    << "targetcompid=" << "\"" << m_sessionID.getTargetCompID().getValue() << "\" and "
+    << "beginstring=" << "\"" << m_sessionID.getBeginString() << "\" and "
+    << "sendercompid=" << "\"" << m_sessionID.getSenderCompID() << "\" and "
+    << "targetcompid=" << "\"" << m_sessionID.getTargetCompID() << "\" and "
     << "session_qualifier=" << "\"" << m_sessionID.getSessionQualifier() << "\" and "
     << "msgseqnum=" << msgSeqNum;
     MySQLQuery query2( queryString2.str() );
@@ -208,9 +208,9 @@ throw ( IOException )
   result.clear();
   std::stringstream queryString;
   queryString << "SELECT message FROM messages WHERE "
-  << "beginstring=" << "\"" << m_sessionID.getBeginString().getValue() << "\" and "
-  << "sendercompid=" << "\"" << m_sessionID.getSenderCompID().getValue() << "\" and "
-  << "targetcompid=" << "\"" << m_sessionID.getTargetCompID().getValue() << "\" and "
+  << "beginstring=" << "\"" << m_sessionID.getBeginString() << "\" and "
+  << "sendercompid=" << "\"" << m_sessionID.getSenderCompID() << "\" and "
+  << "targetcompid=" << "\"" << m_sessionID.getTargetCompID() << "\" and "
   << "session_qualifier=" << "\"" << m_sessionID.getSessionQualifier() << "\" and "
   << "msgseqnum>=" << begin << " and " << "msgseqnum<=" << end << " "
   << "ORDER BY msgseqnum";
@@ -238,9 +238,9 @@ void MySQLStore::setNextSenderMsgSeqNum( int value ) throw ( IOException )
 {
   std::stringstream queryString;
   queryString << "UPDATE sessions SET outgoing_seqnum=" << value << " WHERE "
-  << "beginstring=" << "\"" << m_sessionID.getBeginString().getValue() << "\" and "
-  << "sendercompid=" << "\"" << m_sessionID.getSenderCompID().getValue() << "\" and "
-  << "targetcompid=" << "\"" << m_sessionID.getTargetCompID().getValue() << "\" and "
+  << "beginstring=" << "\"" << m_sessionID.getBeginString() << "\" and "
+  << "sendercompid=" << "\"" << m_sessionID.getSenderCompID() << "\" and "
+  << "targetcompid=" << "\"" << m_sessionID.getTargetCompID() << "\" and "
   << "session_qualifier=" << "\"" << m_sessionID.getSessionQualifier() << "\"";
   MySQLQuery query( queryString.str() );
   if( !m_pConnection->execute(query) )
@@ -252,9 +252,9 @@ void MySQLStore::setNextTargetMsgSeqNum( int value ) throw ( IOException )
 {
   std::stringstream queryString;
   queryString << "UPDATE sessions SET incoming_seqnum=" << value << " WHERE "
-  << "beginstring=" << "\"" << m_sessionID.getBeginString().getValue() << "\" and "
-  << "sendercompid=" << "\"" << m_sessionID.getSenderCompID().getValue() << "\" and "
-  << "targetcompid=" << "\"" << m_sessionID.getTargetCompID().getValue() << "\" and "
+  << "beginstring=" << "\"" << m_sessionID.getBeginString() << "\" and "
+  << "sendercompid=" << "\"" << m_sessionID.getSenderCompID() << "\" and "
+  << "targetcompid=" << "\"" << m_sessionID.getTargetCompID() << "\" and "
   << "session_qualifier=" << "\"" << m_sessionID.getSessionQualifier() << "\"";
 
   MySQLQuery query( queryString.str() );
@@ -280,9 +280,9 @@ void MySQLStore::reset() throw ( IOException )
 {
   std::stringstream queryString;
   queryString << "DELETE FROM messages WHERE "
-  << "beginstring=" << "\"" << m_sessionID.getBeginString().getValue() << "\" and "
-  << "sendercompid=" << "\"" << m_sessionID.getSenderCompID().getValue() << "\" and "
-  << "targetcompid=" << "\"" << m_sessionID.getTargetCompID().getValue() << "\" and "
+  << "beginstring=" << "\"" << m_sessionID.getBeginString() << "\" and "
+  << "sendercompid=" << "\"" << m_sessionID.getSenderCompID() << "\" and "
+  << "targetcompid=" << "\"" << m_sessionID.getTargetCompID() << "\" and "
   << "session_qualifier=" << "\"" << m_sessionID.getSessionQualifier() << "\"";
 
   MySQLQuery query( queryString.str() );
@@ -304,9 +304,9 @@ void MySQLStore::reset() throw ( IOException )
   queryString2 << "UPDATE sessions SET creation_time='" << sqlTime << "', "
   << "incoming_seqnum=" << m_cache.getNextTargetMsgSeqNum() << ", "
   << "outgoing_seqnum=" << m_cache.getNextSenderMsgSeqNum() << " WHERE "
-  << "beginstring=" << "\"" << m_sessionID.getBeginString().getValue() << "\" and "
-  << "sendercompid=" << "\"" << m_sessionID.getSenderCompID().getValue() << "\" and "
-  << "targetcompid=" << "\"" << m_sessionID.getTargetCompID().getValue() << "\" and "
+  << "beginstring=" << "\"" << m_sessionID.getBeginString() << "\" and "
+  << "sendercompid=" << "\"" << m_sessionID.getSenderCompID() << "\" and "
+  << "targetcompid=" << "\"" << m_sessionID.getTargetCompID() << "\" and "
   << "session_qualifier=" << "\"" << m_sessionID.getSessionQualifier() << "\"";
 
   MySQLQuery query2( queryString2.str() );

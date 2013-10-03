@@ -164,7 +164,7 @@ throw( FIX::Exception )
 
 void HEAVYUSE DataDictionary::iterate( const FieldMap& map, const MsgType& msgType ) const
 {
-  int hasBegin = m_beginString.getValue().length();
+  int hasBegin = m_beginString.length();
   int lastField = 0;
 
   FieldMap::iterator i, ibegin = map.begin(), iend = map.end();

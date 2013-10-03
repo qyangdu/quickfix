@@ -39,12 +39,13 @@ public:
              const std::string& senderCompID,
              const std::string& targetCompID,
              const std::string& sessionQualifier = "" )
-  : m_beginString( BeginString(beginString) ),
-    m_senderCompID( SenderCompID(senderCompID) ),
-    m_targetCompID( TargetCompID(targetCompID) ),
-    m_sessionQualifier( sessionQualifier ),
+  : m_sessionQualifier( sessionQualifier ),
     m_isFIXT(false)
   {
+    m_beginString.setPacked( BeginString::Pack(beginString.data(), beginString.size()) );
+    m_senderCompID.setPacked( SenderCompID::Pack(senderCompID.data(), senderCompID.size()) );
+    m_targetCompID.setPacked( TargetCompID::Pack(targetCompID.data(), targetCompID.size()) );
+    
     toString(m_frozenString);
     if( beginString.substr(0, 4) == "FIXT" )
       m_isFIXT = true;
@@ -86,16 +87,23 @@ public:
       return;
     if( second == std::string::npos )
       return;
-    m_beginString = str.substr(0, first);
-    m_senderCompID = str.substr(first+1, second - first - 1);
+    m_beginString.setPacked(
+      BeginString::Pack( str.substr(0, first).data(), first ) );
+    m_senderCompID.setPacked(
+      SenderCompID::Pack( str.substr(first+1, second - first - 1).data(),
+                                              second - first - 1) );
     if( first == third )
     {
-      m_targetCompID = str.substr(second+2);
+      m_targetCompID.setPacked(
+        TargetCompID::Pack( str.substr(second+2).data(),
+                            str.length() - second - 2 ) );
       m_sessionQualifier = "";
     }
     else
     {
-      m_targetCompID = str.substr(second+2, third - second - 2);
+      m_targetCompID.setPacked(
+        TargetCompID::Pack( str.substr(second+2, third - second - 2).data(),
+                                                 third - second - 2) );
       m_sessionQualifier = str.substr(third+1);
     }
     toString(m_frozenString);
@@ -104,9 +112,9 @@ public:
   /// Get a string representation without making a copy
   std::string& toString( std::string& str ) const
   {
-    str = getBeginString().getValue() + ":" +
-          getSenderCompID().getValue() + "->" +
-          getTargetCompID().getValue();
+    str = getBeginString().dupString() + ":" +
+          getSenderCompID().dupString() + "->" +
+          getTargetCompID().dupString();
     if( m_sessionQualifier.size() )
       str += ":" + m_sessionQualifier;
     return str;
@@ -120,8 +128,10 @@ public:
 
   SessionID operator~() const
   {
-    return SessionID( m_beginString, SenderCompID( m_targetCompID ),
-                      TargetCompID( m_senderCompID ), m_sessionQualifier );
+    return SessionID( m_beginString.dupString(),
+                      SenderCompID( m_targetCompID.dupString() ),
+                      TargetCompID( m_senderCompID.dupString() ),
+                      m_sessionQualifier );
   }
 
 private:

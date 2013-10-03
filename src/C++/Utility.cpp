@@ -37,8 +37,16 @@
 namespace FIX
 {
 
+ALIGN_DECL_DEFAULT const int detail::bitop_base::Mod67Position[] = {
+  64, 0, 1, 39, 2, 15, 40, 23, 3, 12, 16, 59, 41, 19, 24, 54,
+  4, 64, 13, 10, 17, 62, 60, 28, 42, 30, 20, 51, 25, 44, 55,
+  47, 5, 32, 65, 38, 14, 22, 11, 58, 18, 53, 63, 9, 61, 27,
+  29, 50, 43, 46, 31, 37, 21, 57, 52, 8, 26, 49, 45, 36, 56,
+  7, 48, 35, 6, 34, 33, 0
+};
+
 #if defined(__GNUC__) && (defined(__x86_64__) || defined(__i386__))
-Util::IntBase::Log2 Util::IntBase::m_digits[32] = 
+ALIGN_DECL_DEFAULT Util::IntBase::Log2 Util::IntBase::m_digits[32] = 
 {
   { 9, 1 },
   { 9, 1 },
@@ -74,7 +82,7 @@ Util::IntBase::Log2 Util::IntBase::m_digits[32] =
   { std::numeric_limits<int32_t>::max(), 10 }
 };
 
-Util::Long::Log2 Util::Long::m_digits[64] =
+ALIGN_DECL_DEFAULT Util::Long::Log2 Util::Long::m_digits[64] =
 {
   { 9, 1 },
   { 9, 1 },
@@ -668,12 +676,12 @@ std::string file_appendpath( const std::string& path, const std::string& file )
 FILE_HANDLE_TYPE file_handle_open( const char* path )
 {
 #ifdef _MSC_VER
-	return ::CreateFile( path, GENERIC_READ | GENERIC_WRITE,
+    return ::CreateFile( path, GENERIC_READ | GENERIC_WRITE,
                          FILE_SHARE_READ, NULL, OPEN_ALWAYS,
                          FILE_ATTRIBUTE_NORMAL, NULL);
 #else
-    return ::open64( path, O_CREAT | O_RDWR,
-                           S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH);
+    return ::open( path, O_CREAT | O_RDWR,
+                         S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH);
 #endif
 }
 
@@ -699,12 +707,12 @@ long file_handle_read_at( FILE_HANDLE_TYPE handle, char* buf,
       return (long)numRead;
     return -1;
 #else
-    return ::pread64( handle, buf, size, offset );
+    return ::pread( handle, buf, size, offset );
 #endif
 }
 
 long file_handle_write( FILE_HANDLE_TYPE handle, 
-					    const char* buf, std::size_t size )
+                                           const char* buf, std::size_t size )
 {
 #ifdef _MSC_VER
     DWORD numWritten;
@@ -712,23 +720,29 @@ long file_handle_write( FILE_HANDLE_TYPE handle,
       return (long)numWritten;
     return -1;
 #else
-    return ::write64( handle, buf, size, offset );
+    return ::write( handle, buf, size );
 #endif
 }
+
 
 FILE_OFFSET_TYPE file_handle_seek( FILE_HANDLE_TYPE handle,
                                    FILE_OFFSET_TYPE offset, int whence )
 {
 #ifdef _MSC_VER
     offset.LowPart = ::SetFilePointer( handle,
-                                offset.LowPart, &offset.HighPart, whence );
+                                offset.LowPart, &offset.HighPart, whence )
     if( offset.LowPart == INVALID_SET_FILE_POINTER &&
       ::GetLastError() != NO_ERROR )
       offset.QuadPart = -1;
     return offset;
 #else
-    return ::lseek64( handle, offset, whence );
+    return ::lseek( handle, offset, whence );
 #endif
+}
+
+bool Util::checkpoint()
+{
+  return true;
 }
 
 } // namespace FIX

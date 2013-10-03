@@ -97,9 +97,9 @@ public:
   FieldMap& operator=( const FieldMap& rhs );
 
   /// Adds a field without type checking by constructing in place
-  template <typename Packed> 
-  iterator addField( const Packed& packed, 
-	                 typename Packed::result_type* = NULL )
+  template <typename Packed>
+  iterator addField( const Packed& packed,
+                     typename Packed::result_type* = NULL )
   {
 #ifdef HAVE_BOOST
     Fields::iterator i = m_fields.emplace_hint( m_fields.end(),
@@ -123,33 +123,32 @@ public:
   }
 
   template <typename Packed>
-  iterator addField( FieldMap::iterator i, 
-	                 const Packed& packed, typename Packed::result_type* = NULL )
+  iterator addField( FieldMap::iterator hint, const Packed& packed,
+                     typename Packed::result_type* = NULL )
   {
 #ifdef HAVE_BOOST
-    return m_fields.emplace_hint( i, packed.getField(), packed );
+    return m_fields.emplace_hint( hint, packed.getField(), packed );
 #else
-    i = m_fields.insert( i,
-	Fields::value_type( packed.getField(), FieldBase( packed.getField() ) ) );
+    Fields::iterator i = m_fields.insert( Fields::value_type( packed.getField(),
+                                          FieldBase( packed.getField() ) ) );
     i->second.setPacked( packed );
     return i;
 #endif
   }
 
-  iterator addField( FieldMap::iterator i, const FieldBase& field )
+  iterator addField( FieldMap::iterator hint, const FieldBase& field )
   {
 #ifdef HAVE_BOOST
-    return m_fields.emplace_hint( i, field.getField(), field );
+    return m_fields.emplace_hint( hint, field.getField(), field );
 #else
-    return m_fields.insert( i,
-	Fields::value_type( field.getField(), field ) );
+    return m_fields.insert( Fields::value_type( field.getField(), field ) );
 #endif
   }
 
   /// Overwrite a field without type checking by constructing in place
   template <typename Packed>
-  FieldBase& setField( const Packed& packed, 
-	                   typename Packed::result_type* = NULL)
+  FieldBase& setField( const Packed& packed,
+                       typename Packed::result_type* = NULL)
   {
     int tag = packed.getField();
     Fields::iterator i =  m_fields.lower_bound( tag );

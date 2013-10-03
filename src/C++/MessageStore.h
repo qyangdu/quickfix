@@ -84,9 +84,9 @@ public:
   virtual void incrNextSenderMsgSeqNum() throw ( IOException ) = 0;
   virtual void incrNextTargetMsgSeqNum() throw ( IOException ) = 0;
 
-  inline NOTHROW UtcTimeStamp getCreationTime() const
+  inline UtcTimeStamp NOTHROW getCreationTime() const
   { UtcTimeStamp u; u.m_value = m_creationTime.m_value; return u; } // XXX: atomic
-  inline NOTHROW UtcTimeStamp setCreationTime( const UtcTimeStamp& creationTime )
+  inline UtcTimeStamp NOTHROW setCreationTime( const UtcTimeStamp& creationTime )
   { m_creationTime.m_value = creationTime.m_value; return m_creationTime; } // XXX: atomic
 
   virtual void reset() throw ( IOException ) = 0;

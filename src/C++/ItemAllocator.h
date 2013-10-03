@@ -118,7 +118,7 @@ namespace FIX
       inline const_pointer address(const_reference r) { return &r; }
   
       //    memory allocation
-      inline HEAVYUSE pointer allocate(size_type cnt, 
+      inline pointer HEAVYUSE allocate(size_type cnt, 
                      typename std::allocator<void>::const_pointer = 0)
       { 
         if ( cnt == 1 )
@@ -148,7 +148,7 @@ mapped:
               if ( elements )
               {
                 Buffer::Bitmap& bitmap = m_buffer->m_bitmap;
-		        elements = (std::min)(elements, (unsigned)bitmap.size());
+		elements = (std::min)(elements, (unsigned)bitmap.size());
                 bitmap.set();
                 bitmap >>= (bitmap.size() - elements);
                 m_buffer->m_item_size = sizeof(value_type);

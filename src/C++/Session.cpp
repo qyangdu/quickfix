@@ -101,11 +101,9 @@ void Session::fill( Header& header, UtcTimeStamp now )
   insertSendingTime( header, now );
 }
 
-const char* Session::preamble( Header& header, UtcTimeStamp now )
+Message::admin_trait Session::fill( Header& header, int num, UtcTimeStamp now )
 {
-  static const char undef_msgType[2] = { '\0', '\0' };
-
-  const char* msgType = undef_msgType;
+  Message::admin_trait trait = Message::admin_none;
   FieldMap::iterator it = header.begin();
 
   m_state.lastSentTime( now );
@@ -115,19 +113,23 @@ const char* Session::preamble( Header& header, UtcTimeStamp now )
     ++it;
   }
   else
-    header.addField( it, static_cast<const FieldBase&>(m_sessionID.getBeginString()) );
+    header.addField( it, m_sessionID.getBeginString() );
 
   if (it->first == FIX::FIELD::BodyLength )
     ++it;
   if (it->first == FIX::FIELD::MsgType )
-    msgType = Util::String::c_str(it->second.getString());
-
+  {
+    const char* p = it->second.forString( String::CstrFunc() );
+    char msgType = *p;
+    if( msgType && p[1] == '\0' )
+      trait = Message::getAdminTrait( msgType );
+  }
   header.setField( m_sessionID.getSenderCompID() );
   header.setField( m_sessionID.getTargetCompID() );
-  header.setField( MsgSeqNum::Pack( getExpectedSenderNum() ) );
+  header.setField( MsgSeqNum::Pack( num ? num : getExpectedSenderNum() ) );
   insertSendingTime( header, now );
 
-  return msgType;
+  return trait;
 }
 
 void Session::next()
@@ -372,7 +374,7 @@ void Session::nextResendRequest( const Message& resendRequest, const UtcTimeStam
        + IntConvertor::convert( beginSeqNo ) +
                    " TO: " + IntConvertor::convert( endSeqNo ) );
 
-  const std::string& beginString = m_sessionID.getBeginString().getValue();
+  const BeginString& beginString = m_sessionID.getBeginString();
   if ( (beginString >= FIX::BeginString_FIX42 && endSeqNo == 0) ||
        (beginString <= FIX::BeginString_FIX42 && endSeqNo == 999999) ||
        (endSeqNo >= getExpectedSenderNum()) )
@@ -481,25 +483,15 @@ bool Session::sendRaw( Message& message, int num )
   {
     Header& header = message.getHeader();
 
-    const char* msgType = preamble( header );
+    Message::admin_trait trait = fill( header, num );
 
-/*
-    MsgType msgType;
-    if( header.isSetField(msgType) )
-      header.getField( msgType );
-
-    fill( header );
-*/
-
-    if ( num )
-      header.setField( MsgSeqNum::Pack( num ) );
-
-    if ( Message::isAdminMsgTypeValue( msgType ) )
+    if ( trait & ( Message::admin_logon |
+                   Message::admin_status |
+                   Message::admin_session ) )
     {
       m_application.toAdmin( message, m_sessionID );
 
-      if( msgType[0] == 'A' && msgType[1] == '\0'
-          && !m_state.receivedReset() )
+      if( trait == Message::admin_logon && !m_state.receivedReset() )
       {
         ResetSeqNumFlag resetSeqNumFlag( false );
         if( message.isSetField(resetSeqNumFlag) )
@@ -514,15 +506,14 @@ bool Session::sendRaw( Message& message, int num )
 
       if( m_pResponder )
       {
-	const SgBufferFactory::SgBuffer& s = message.toBuffer( sg_buffer_factory );
+	const SgBufferFactory::SgBuffer& s =
+                       message.toBuffer( sg_buffer_factory );
 
 	if( !num )
 	  persist( message, s.iovec(), s.elements() );
 
-        if (
-	  isLoggedOn()
-          || ( ( msgType[0] == 'A' || msgType[0] == '5'
-              || msgType[0] == '2' || msgType[0] == '4') && msgType[1] == '\0') )
+        if ( isLoggedOn() ||
+           ( trait & ( Message::admin_logon | Message::admin_status ) ) )
         {
           tx( s.iovec(), s.elements() );
         }  
@@ -547,7 +538,8 @@ bool Session::sendRaw( Message& message, int num )
 
 	if( m_pResponder )
         {
-	  const SgBufferFactory::SgBuffer& s = message.toBuffer( sg_buffer_factory );
+	  const SgBufferFactory::SgBuffer& s =
+                         message.toBuffer( sg_buffer_factory );
 
 	  if( !num )
 	    persist( message, s.iovec(), s.elements() );
@@ -759,7 +751,7 @@ void Session::generateTestRequest( const std::string& id )
 
 void Session::generateReject( const Message& message, int err, int field )
 {
-  const std::string& beginString = m_sessionID.getBeginString().getValue();
+  const BeginString& beginString = m_sessionID.getBeginString();
 
   Message reject;
   reject.getHeader().setField( MsgType::Pack( "3", 1 ) );
@@ -773,13 +765,13 @@ void Session::generateReject( const Message& message, int err, int field )
   if( message.getHeader().isSetField( msgSeqNum ) )
   {
     message.getHeader().getField( msgSeqNum );
-    if( msgSeqNum.getString() != "" )
+    if( msgSeqNum.forString( String::SizeFunc() ) )
       reject.setField( RefSeqNum( msgSeqNum ) );
   }
 
   if ( beginString >= FIX::BeginString_FIX42 )
   {
-    if( msgType.getString() != "" )
+    if( msgType.forString( String::SizeFunc() ) )
       reject.setField( RefMsgType( msgType ) );
     if ( (beginString == FIX::BeginString_FIX42
           && err <= SessionRejectReason_INVALID_MSGTYPE)
@@ -835,17 +827,17 @@ void Session::generateReject( const Message& message, int err, int field )
   if ( reason && ( field || err == SessionRejectReason_INVALID_TAG_NUMBER ) )
   {
     populateRejectReason( reject, field, reason );
-    m_state.onEvent( "Message " + msgSeqNum.getString() + " Rejected: "
+    m_state.onEvent( "Message " + msgSeqNum.dupString() + " Rejected: "
                      + reason + ":" + IntConvertor::convert( field ) );
   }
   else if ( reason )
   {
     populateRejectReason( reject, reason );
-    m_state.onEvent( "Message " + msgSeqNum.getString()
+    m_state.onEvent( "Message " + msgSeqNum.dupString()
          + " Rejected: " + reason );
   }
   else
-    m_state.onEvent( "Message " + msgSeqNum.getString() + " Rejected" );
+    m_state.onEvent( "Message " + msgSeqNum.dupString() + " Rejected" );
 
   if ( !m_state.receivedLogon() )
     throw std::runtime_error( "Tried to send a reject while not logged on" );
@@ -855,7 +847,7 @@ void Session::generateReject( const Message& message, int err, int field )
 
 void Session::generateReject( const Message& message, const std::string& str )
 {
-  const std::string& beginString = m_sessionID.getBeginString().getValue();
+  const BeginString& beginString = m_sessionID.getBeginString();
 
   Message reject;
   reject.getHeader().setField( MsgType::Pack( "3", 1 ) );
@@ -876,7 +868,7 @@ void Session::generateReject( const Message& message, const std::string& str )
 
   reject.setField( Text::Pack( str ) );
   sendRaw( reject );
-  m_state.onEvent( "Message " + msgSeqNum.getString()
+  m_state.onEvent( "Message " + msgSeqNum.dupString()
                    + " Rejected: " + str );
 }
 
@@ -926,17 +918,17 @@ void Session::generateBusinessReject( const Message& message, int err, int field
   if ( reason && field )
   {
     populateRejectReason( reject, field, reason );
-    m_state.onEvent( "Message " + msgSeqNum.getString() + " Rejected: "
+    m_state.onEvent( "Message " + msgSeqNum.dupString() + " Rejected: "
                      + reason + ":" + IntConvertor::convert( field ) );
   }
   else if ( reason )
   {
     populateRejectReason( reject, reason );
-    m_state.onEvent( "Message " + msgSeqNum.getString()
+    m_state.onEvent( "Message " + msgSeqNum.dupString()
          + " Rejected: " + reason );
   }
   else
-    m_state.onEvent( "Message " + msgSeqNum.getString() + " Rejected" );
+    m_state.onEvent( "Message " + msgSeqNum.dupString() + " Rejected" );
 
   sendRaw( reject );
 }
@@ -1059,8 +1051,7 @@ bool HEAVYUSE Session::verify( const Message& msg, const UtcTimeStamp& now,
 
 bool Session::shouldSendReset()
 {
-  const std::string& beginString = m_sessionID.getBeginString().getValue();
-  return beginString >= FIX::BeginString_FIX41
+  return m_sessionID.getBeginString() >= FIX::BeginString_FIX41
     && ( m_resetOnLogon || 
          m_resetOnLogout || 
          m_resetOnDisconnect )
@@ -1070,7 +1061,7 @@ bool Session::shouldSendReset()
 
 bool Session::validLogonState( const MsgType& msgType )
 {
-  return validLogonState( Util::String::c_str( msgType.getValue() ) );
+  return validLogonState( msgType.forString( String::CstrFunc() ) );
 }
 
 bool Session::validLogonState( const char* msgTypeValue )
@@ -1308,7 +1299,7 @@ void HEAVYUSE Session::next( const Message& message, const DataDictionary& sessi
       if ( beginString == m_sessionID.getBeginString() )
       {
         const MsgType& msgType = FIELD_GET_REF( header, MsgType );
-        const char* msgTypeValue = Util::String::c_str(msgType.getValue());
+        const char* msgTypeValue = msgType.forString( String::CstrFunc() );
         char msgChar = msgTypeValue[0];
     
         if ( LIKELY( msgChar != 'A' && msgChar < '0' && msgChar > '5' ) ||

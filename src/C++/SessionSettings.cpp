@@ -138,9 +138,9 @@ throw( ConfigError )
   if( has(sessionID) )
     throw ConfigError( "Duplicate Session " + sessionID.toString() );
 
-  settings.setString( BEGINSTRING, sessionID.getBeginString() );
-  settings.setString( SENDERCOMPID, sessionID.getSenderCompID() );
-  settings.setString( TARGETCOMPID, sessionID.getTargetCompID() );
+  settings.setString( BEGINSTRING, sessionID.getBeginString().dupString() );
+  settings.setString( SENDERCOMPID, sessionID.getSenderCompID().dupString() );
+  settings.setString( TARGETCOMPID, sessionID.getTargetCompID().dupString() );
 
   settings.merge( m_defaults );
   validate( settings );

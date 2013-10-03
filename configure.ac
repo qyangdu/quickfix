@@ -5,6 +5,7 @@ AC_PREREQ([2.59])
 
 AC_INIT([QuickFIX], [1.14.0], [ask@quickfixengine.org])
 AC_CONFIG_MACRO_DIR([m4])
+m4_include([m4/ax_sso.m4])
 m4_include([m4/ax_lib_mysql.m4])
 m4_include([m4/ax_lib_postgresql.m4])
 m4_include([m4/ax_lib_boost.m4])
@@ -29,6 +30,7 @@ AC_LIBTOOL_WIN32_DLL
 AM_PROG_LIBTOOL
 AM_PROG_LEX
 
+AX_SSO()
 AX_LIB_MYSQL()
 AX_LIB_POSTGRESQL()
 AX_LIB_BOOST()
@@ -59,16 +61,17 @@ fi
 ########################################
 # LIBXML
 ########################################
-AM_PATH_XML2('2.0.0', , AC_MSG_ERROR(libxml2 must be installed.))
+#AM_PATH_XML2('2.0.0', , AC_MSG_ERROR(libxml2 must be installed.))
+PKG_CHECK_MODULES(XML, libxml-2.0 >= 2.6)
 ########################################
 
 # libs
 LIBS="$STLPORT_LIBS $XML_LIBS $MYSQL_LIBS $POSTGRESQL_LIBS $TBB_LIBS $BOOST_LIBS $LIBS"
 # gcc flags
 if test `uname` == SunOS; then
-   	SHAREDFLAGS="$TBB_CFLAGS $BOOST_CFLAGS $STLPORT_CFLAGS $MYSQL_CFLAGS $POSTGRESQL_CFLAGS $XML_CPPFLAGS $XML_CFLAGS $JAVA_CFLAGS $PYTHON_CFLAGS $RUBY_CFLAGS"
+   	SHAREDFLAGS="$TBB_CFLAGS $BOOST_CFLAGS $SPARSEHASH_CFLAGS $STLPORT_CFLAGS $MYSQL_CFLAGS $POSTGRESQL_CFLAGS $XML_CPPFLAGS $XML_CFLAGS $JAVA_CFLAGS $PYTHON_CFLAGS $RUBY_CFLAGS"
 else
-	SHAREDFLAGS="-Wall -ansi -Wpointer-arith -Wwrite-strings $TBB_CFLAGS $BOOST_CFLAGS $STLPORT_CFLAGS $MYSQL_CFLAGS $POSTGRESQL_CFLAGS $XML_CPPFLAGS $XML_CFLAGS $PYTHON_CFLAGS $RUBY_CFLAGS"
+	SHAREDFLAGS="-Wall -ansi -Wpointer-arith -Wwrite-strings $TBB_CFLAGS $BOOST_CFLAGS $SPARSEHASH_CFLAGS $STLPORT_CFLAGS $MYSQL_CFLAGS $POSTGRESQL_CFLAGS $XML_CPPFLAGS $XML_CFLAGS $PYTHON_CFLAGS $RUBY_CFLAGS"
 fi
 
 CFLAGS="$CFLAGS $SHAREDFLAGS"
@@ -207,6 +210,9 @@ AC_TRY_COMPILE(
 	 AC_DEFINE(GETHOSTBYNAME_R_INPUTS_RESULT, 1,
 	 The system has gethostbyname_r which takes a result as a pass-in param),
 	 AC_MSG_RESULT(no))
+
+# check for SSO
+AX_SSO_CHECK()
 
 # check for tbb
 AX_LIB_TBB_CHECK()

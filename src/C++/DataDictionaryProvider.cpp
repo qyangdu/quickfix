@@ -34,22 +34,24 @@ DataDictionaryProvider::DataDictionaryProvider( const DataDictionaryProvider& co
   *this = copy;
 }
 
-const DataDictionary& HEAVYUSE DataDictionaryProvider::getSessionDataDictionary
+const DataDictionary NOTHROW_PRE & NOTHROW_POST HEAVYUSE
+DataDictionaryProvider::getSessionDataDictionary
 (const BeginString& beginString) throw( DataDictionaryNotFound )
 {
   dictionary_map_t::iterator find =
-    m_transportDictionaries.find(beginString);
+    m_transportDictionaries.find(beginString.forString( String::RvalFunc() ));
   if( find != m_transportDictionaries.end() )
     return *find->second;
   
   return emptyDataDictionary;
 }
 
-const DataDictionary& HEAVYUSE DataDictionaryProvider::getApplicationDataDictionary
+const DataDictionary NOTHROW_PRE & NOTHROW_POST HEAVYUSE
+DataDictionaryProvider::getApplicationDataDictionary
 (const ApplVerID& applVerID) throw( DataDictionaryNotFound )
 {
   dictionary_map_t::iterator find =
-    m_applicationDictionaries.find(applVerID);
+    m_applicationDictionaries.find(applVerID.forString( String::RvalFunc() ));
   if( find != m_applicationDictionaries.end() )
     return *find->second;
 
@@ -59,13 +61,13 @@ const DataDictionary& HEAVYUSE DataDictionaryProvider::getApplicationDataDiction
 void DataDictionaryProvider::addTransportDataDictionary
 (const BeginString& beginString, const DataDictionary* pDD)
 {
-  m_transportDictionaries[beginString.getValue()] = pDD;
+  m_transportDictionaries[beginString.forString( String::RvalFunc() )] = pDD;
 }
 
 void DataDictionaryProvider::addApplicationDataDictionary
 (const ApplVerID applVerID, const DataDictionary* pDD)
 {
-  m_applicationDictionaries[applVerID.getValue()] = pDD;
+  m_applicationDictionaries[applVerID.forString( String::RvalFunc() )] = pDD;
 }
 }
 

@@ -76,14 +76,14 @@
 #include <time.h>
 #include <xmmintrin.h>
 #if _MSC_VER < 1600
-    typedef signed __int8     int8_t;
-    typedef signed __int16    int16_t;
-    typedef signed __int32    int32_t;
-    typedef unsigned __int8   uint8_t;
-    typedef unsigned __int16  uint16_t;
-    typedef unsigned __int32  uint32_t;
-    typedef signed __int64    int64_t;
-    typedef unsigned __int64  uint64_t;
+  typedef signed __int8     int8_t;
+  typedef signed __int16    int16_t;
+  typedef signed __int32    int32_t;
+  typedef unsigned __int8   uint8_t;
+  typedef unsigned __int16  uint16_t;
+  typedef unsigned __int32  uint32_t;
+  typedef signed __int64    int64_t;
+  typedef unsigned __int64  uint64_t;
 #else
 #include <stdint.h>
 #endif
@@ -131,40 +131,52 @@ typedef int socklen_t;
 #endif
 
 #if defined(_MSC_VER)
-#define HAVE_FSCANF_S
+#define HAVE_FSCANF_S 1
 #define FILE_FSCANF fscanf_s
 #else
 #define FILE_FSCANF fscanf
 #endif
 
 #if defined(_MSC_VER)
+#define HAVE_SNPRINTF_S 1
 #define STRING_SNPRINTF sprintf_s
 #else
 #define STRING_SNPRINTF snprintf
 #endif
 
 #if defined(_MSC_VER)
+#define ALIGN_DECL(x) __declspec(align(x))
 #define NOTHROW __declspec(nothrow)
 #define NOTHROW_PRE __declspec(nothrow)
 #define NOTHROW_POST
 #define HEAVYUSE
 #define PREFETCH(addr, rw, longevity) _mm_prefetch(addr, longevity)
 #define LIKELY(x) (x)
+#define MAY_ALIAS
+#define PURE
 #elif defined(__GNUC__)
+#define ALIGN_DECL(x) __attribute__ ((aligned(x)))
 #define NOTHROW __attribute__ ((nothrow))
 #define NOTHROW_PRE
-#define NOTHROW_POST  __attribute__ ((nothrow))
+#define NOTHROW_POST __attribute__ ((nothrow))
 #define HEAVYUSE __attribute__((hot))
 #define PREFETCH(addr, rw, longevity) __builtin_prefetch(addr, rw, longevity)
 #define LIKELY(x) __builtin_expect((x),1)
+#define MAY_ALIAS __attribute__ ((may_alias))
+#define PURE __attribute__ ((pure))
 #else
+#define ALIGN_DECL(x)
 #define NOTHROW
 #define NOTHROW_PRE
 #define NOTHROW_POST
 #define HEAVYUSE
 #define PREFETCH(addr, rw, longevity) while(false)
 #define LIKELY(x) (x)
+#define MAY_ALIAS
+#define PURE
 #endif
+
+#define ALIGN_DECL_DEFAULT ALIGN_DECL(16)
 
 namespace FIX
 {
@@ -211,7 +223,7 @@ namespace FIX
 
 #ifdef _MSC_VER
 
-#define ALIGNED_ALLOC(p, sz, alignment) (p = (char*)_aligned_malloc(sz, alignment))
+#define ALIGNED_ALLOC(p, sz, alignment) (p = (CHAR*)_aligned_malloc(sz, alignment))
 #define ALIGNED_FREE(p) _aligned_free(p)
 
   typedef unsigned int (_stdcall THREAD_START_ROUTINE)(void *);
@@ -243,7 +255,7 @@ namespace FIX
 #define FILE_POSITION_SET (SEEK_SET)
 #define FILE_POSITION_END (SEEK_CUR)
 #define FILE_POSITION_CUR (SEEK_END)
-  typedef off64_t   FILE_OFFSET_TYPE;
+  typedef off_t   FILE_OFFSET_TYPE;
 #define FILE_OFFSET_TYPE_MOD		"L"
 #define FILE_OFFSET_TYPE_SET(offt, value) ((offt) = (value))
 #define FILE_OFFSET_TYPE_VALUE(offt) ((long long)offt)
@@ -254,7 +266,7 @@ namespace FIX
   void file_handle_close( FILE_HANDLE_TYPE );
   long file_handle_write( FILE_HANDLE_TYPE, const char* , std::size_t size );
   long file_handle_read_at( FILE_HANDLE_TYPE, char*, std::size_t size,
-                            FILE_OFFSET_TYPE offset );
+                         FILE_OFFSET_TYPE offset );
   FILE_OFFSET_TYPE file_handle_seek( FILE_HANDLE_TYPE,
                                      FILE_OFFSET_TYPE offset, int whence );
 
@@ -292,30 +304,115 @@ namespace FIX
       enum { value = 0 };
     };
 
-    template <typename W>
-    static inline std::size_t bit_scan(W w, std::size_t from = 0)
+    struct bitop_base
     {
-      register const W notfound = (W)(sizeof(W) << 3);
-      w &= (~(W)0 << from);
-#if defined(__GNUC__) && defined(__x86_64__)
-      __asm__ __volatile__ (
-        "bsf %1, %0; "
-        "cmovz %2, %0"
-        : "=r" (from)
-        : "rm" (w), "r"(notfound)
-        : "cc");
-      return from;
-#else
-      static const int Mod67Position[] = {
-         64, 0, 1, 39, 2, 15, 40, 23, 3, 12, 16, 59, 41, 19, 24, 54,
-         4, 64, 13, 10, 17, 62, 60, 28, 42, 30, 20, 51, 25, 44, 55,
-         47, 5, 32, 65, 38, 14, 22, 11, 58, 18, 53, 63, 9, 61, 27,
-         29, 50, 43, 46, 31, 37, 21, 57, 52, 8, 26, 49, 45, 36, 56,
-         7, 48, 35, 6, 34, 33, 0
-      };
-      from = Mod67Position[((1 + ~(uint64_t)w) & (uint64_t)w) % 67];
-      return (from != 64) ? from : notfound;
+      static const int Mod67Position[];
+    };
+
+    template <typename W, std::size_t S = sizeof(W)>
+    struct bitop : public bitop_base
+    {
+      static inline std::size_t bsf(W w)
+      {
+        register const W notfound = (W)(S << 3);
+        std::size_t v = Mod67Position[((1 + ~(uint64_t)w) & (uint64_t)w) % 67];
+        return (v != 64) ? v : notfound;
+      }
+    };
+
+#if defined (__GNUC__)
+#  if defined (__x86_64__)
+    template <typename W> struct bitop<W, 8>
+    {
+      static inline std::size_t PURE HEAVYUSE bsf(W w)
+      {
+        register std::size_t v;
+        register const W notfound = 64;
+        __asm__ __volatile__ (
+          "bsf %1, %0; "
+          "cmovz %2, %0"
+          : "=r" (v)
+          : "rm" (w), "r"(notfound)
+          : "cc");
+        return v;
+      }
+    };
+    
+    template <typename W> struct bitop<W, 4>
+    {
+      static inline std::size_t PURE HEAVYUSE bsf(W w)
+      {
+        register unsigned v;
+        register const W notfound = 32;
+        __asm__ __volatile__ (
+          "bsf %1, %0; "
+          "cmovz %2, %0"
+          : "=r" (v)
+          : "rm" (w), "r"(notfound)
+          : "cc");
+        return v;
+      }
+    };
+#  else
+    template <typename W> struct bitop<W, 8>
+    {
+      static inline std::size_t PURE HEAVYUSE bsf(W w)
+      {
+        register std::size_t v = __builtin_ffsll((uint64_t)w);
+        return v ? (v - 1) : 64;
+      }
+    };
+    
+    template <typename W> struct bitop<W, 4>
+    {
+      static inline std::size_t PURE HEAVYUSE bsf(W w)
+      {
+        register std::size_t v = __builtin_ffs((uint32_t)w);
+        return v ? (v - 1) : 32;
+      }
+    };
+#  endif
+#elif defined(_MSC_VER)
+
+    template <typename W> struct bitop<W, 4>
+    {
+      static inline std::size_t PURE HEAVYUSE bsf(W w)
+      {
+        unsigned long v;
+        return _BitScanForward(&v, (unsigned long)w) ? v : 32;
+      }
+    };
+
+#  if defined(_M_X64)
+
+    template <typename W> struct bitop<W, 8>
+    {
+      static inline std::size_t PURE HEAVYUSE bsf(W w)
+      {
+        unsigned long v;
+        return _BitScanForward64(&v, (unsigned __int64)w) ? v : 64;
+      }
+    };
+
+#  elif defined(_M_IX86)
+
+    template <typename W> struct bitop<W, 8>
+    {
+      static inline std::size_t PURE HEAVYUSE bsf(W w)
+      {
+        unsigned long v;
+        return _BitScanForward( &v, (unsigned long) w ) ? v
+             : _BitScanForward( &v, (unsigned long)(w >> 32) ) ? (v + 32) : 64;
+      }
+    };
+
+#  endif
 #endif
+
+    template <typename W>
+    static inline std::size_t PURE HEAVYUSE bit_scan(W w, std::size_t from = 0)
+    {
+      return bitop<W>::bsf( w & (~(W)0 << from) );
     }
 
   } // namespace detail
@@ -350,7 +447,7 @@ namespace FIX
 
     class Int : public IntBase {
       public:
-      static int numDigits( int32_t i )
+      static inline int PURE HEAVYUSE numDigits( int32_t i )
       {
 	register int32_t z = 0;
 	register uint32_t log2;
@@ -366,7 +463,7 @@ namespace FIX
     };
     class PositiveInt : public IntBase {
       public:
-      static int numDigits( int32_t i )
+      static inline int PURE HEAVYUSE numDigits( int32_t i )
       {
         register uint32_t log2;
         __asm__ __volatile__ (
@@ -376,7 +473,7 @@ namespace FIX
         register const Log2& e = m_digits[log2];
         return e.m_count + ( i > e.m_threshold );
       }
-      static inline short checkSum(int n)
+      static inline short PURE HEAVYUSE checkSum(int n)
       {
 	short csum = 0;
         do
@@ -393,7 +490,7 @@ namespace FIX
       };
       static Log2 m_digits[64];
       public:
-      static int numDigits( int64_t i )
+      static inline int PURE HEAVYUSE numDigits( int64_t i )
       {
         register const int64_t z = 0;
         register uint64_t log2;
@@ -411,7 +508,7 @@ namespace FIX
 #else
     class Int {
       public:
-      static int numDigits( int32_t i )
+      static inline int PURE HEAVYUSE numDigits( int32_t i )
       {
 	if (i < 0)  i = -i;
 	if              (i < 100000) {
@@ -437,7 +534,7 @@ namespace FIX
     };
     class PositiveInt {
       public:
-      static int numDigits( int32_t i )
+      static inline int PURE HEAVYUSE numDigits( int32_t i )
       {
 	if              (i < 100000) {
 	    if          (i < 1000) {
@@ -459,7 +556,7 @@ namespace FIX
 	    }
 	}
       }
-      static inline short checkSum(int n)
+      static inline short PURE HEAVYUSE checkSum(int n)
       {
 	short csum = 0;
         do
@@ -471,7 +568,7 @@ namespace FIX
     };
     class Long {
       public:
-      static int numDigits( int64_t v )
+      static inline int PURE HEAVYUSE numDigits( int64_t v )
       {
         int r = 1;
         if (v < 0) v = -v;
@@ -501,7 +598,7 @@ namespace FIX
 #endif
     class ULong {
       public:
-      static int numFractionDigits( uint64_t v )
+      static inline int PURE HEAVYUSE numFractionDigits( uint64_t v )
       {
         if            ( v % 100000000 ) {
           if          ( v % 10000 ) {
@@ -546,10 +643,12 @@ namespace FIX
           reverse_iterator operator++() { return --m_p; }
           reverse_iterator operator++(int) { return m_p--; }
           char operator*() const { return *m_p; }
-          bool operator==(const reverse_iterator& it) const
+          bool operator==( reverse_iterator it) const
           { return m_p == it.m_p; }
-          bool operator!=(const reverse_iterator& it) const
+          bool operator!=( reverse_iterator it) const
           { return m_p != it.m_p; }
+          difference_type operator-( reverse_iterator it) const
+          { return it.m_p - m_p; }
       };
 
       static inline const char* memmem(const char* buf, int bsz,
@@ -559,18 +658,19 @@ namespace FIX
 	return (const char*)::memmem(buf, bsz, str, ssz);
 #else
         const char* end = buf + bsz;
-        for ( buf = (const char*)::memchr (buf, str[0], bsz) ; buf && bsz >= ssz;
-              buf = (const char*)::memchr (buf, str[0], bsz) )
+        for ( buf = ::memchr (buf, str[0], bsz) ; buf && bsz >= ssz;
+              buf = ::memchr (buf, str[0], bsz) )
         {
             if( 0 == ::memcmp (buf, str, ssz) ) 
               return buf; 
             bsz = end - ++buf;
+          }
         }
         return 0; 
 #endif
       }
 
-      static inline int32_t checkSum(const char* p, int size)
+      static inline int32_t PURE HEAVYUSE checkSum(const char* p, int size)
       {
         register int32_t x = 0;
 #if defined(__GNUC__) && defined(__x86_64__)
@@ -643,55 +743,66 @@ namespace FIX
             n--;
         }
 #else
-        for (; size > 0; p++, size--)
+        for (; size > 0; p++, n--)
           x += *(unsigned char*)p;
 #endif
         return x;
       }
-    };
-  
-    struct String
+
+      template <std::size_t S> union Fixed
+      {
+        char data[S];
+      };
+
+      /// Returns array index less than S on success and a value of S or higher on failure
+      template <std::size_t S> static inline std::size_t find(const Fixed<S>& f, int v)
+      {
+        const char* p = (const char*)::memchr(f.data, v, S);
+        return p ? p - f.data : S;
+      }
+
+    }; // CharBuffer
+
+#if defined(__GNUC__) && defined(__x86_64__)
+
+    template <> union CharBuffer::Fixed<4>
     {
-       static inline void NOTHROW swap(std::string& a, std::string& b)
-       {
-         a.swap(b);
-       }
+      char data[4];
+      uint32_t value;
+    };
+
+    template <> union CharBuffer::Fixed<8>
+    {
+      char data[8];
+      uint64_t value;
+    };
+
+    template<> inline std::size_t PURE CharBuffer::find<8>(const CharBuffer::Fixed<8>& f, int v)
+    {
+      register unsigned at = 0;
+      __asm__ __volatile (
+        "movd %1, %%xmm1            \n\t"
+        "punpcklbw %%xmm1, %%xmm1   \n\t"
+        "movq %2, %%xmm0            \n\t"
+        "pshuflw $0, %%xmm1, %%xmm1 \n\t"
+        "movl $8, %1                \n\t"
+        "pcmpeqb %%xmm1, %%xmm0     \n\t"
+        "pmovmskb %%xmm0, %0        \n\t"
+        "bsf %0, %0                 \n\t"
+        "cmovz %1, %0               \n\t"
+        : "=a" (at), "+r" (v)
+        : "r" (f.value)
+        : "xmm0", "xmm1" );
+      return at;
+    }
+
+#endif
   
-       static inline std::size_t size(const std::string& r)
-       {
-         return r.size();
-       }
-
-       static inline std::size_t length(const std::string& r)
-       {
-         return r.length();
-       }
-
-       static inline const char* data(const std::string& r)
-       {
-         return r.data();
-       }
-
-       static inline const char* c_str(const std::string& r)
-       {
-         return r.c_str();
-       }
-
-       struct equal_to
-       {
-         inline bool NOTHROW operator()(const std::string& a, const std::string& b) const
-         {
-           return a == b;
-         }
-       };
-
-    }; // String
-
     struct Tag {
 
       /* NOTE: Current tag value range is 1-39999, may not contain leading zeroes */
 
-      static inline const char NOTHROW_PRE * NOTHROW_POST delimit(const char* p, unsigned len)
+      static inline const char NOTHROW_PRE * PURE HEAVYUSE NOTHROW_POST delimit(const char* p, unsigned len)
       {
         uintptr_t b = ~(uintptr_t)p + 1;
         switch (len)
@@ -709,7 +820,7 @@ namespace FIX
         return p + b;
       }
 
-      static inline bool NOTHROW parse(const char* b, const char* e, int& rv, int& rx)
+      static inline bool HEAVYUSE NOTHROW parse(const char* b, const char* e, int& rv, int& rx)
       {
         register bool result = true;
         int value = 0, checksum = 0;
@@ -822,13 +933,15 @@ namespace FIX
         : "=r" (nRet)                                   
         : "Ir" (bit), "m"(*(volatile word_type*)m_bits) 
         : "cc");
+        return nRet;
 #elif defined(_MSC_VER)
         nRet = _bittest( (long*)m_bits, bit );
+        return nRet != 0;
 #else
         nRet = (m_bits[bit >> word_shift] &
                ((word_type)1 << (bit & (word_size - 1)))) ? 1 : 0;
-#endif
         return nRet != 0;
+#endif
       }
 
       inline int NOTHROW _Find_first()
@@ -849,7 +962,6 @@ namespace FIX
         {
           const int offset = n / word_size;
           const int shift  = n - (offset * word_size);
-          const word_type mask = ~(word_type)0 << shift;
           int dst = Width - 1, src = Width - 1 - offset;
           word_type rem = m_bits[src--] << shift;
           for ( ; src >= 0; dst--, src-- )
@@ -908,7 +1020,7 @@ namespace FIX
       BitSet NOTHROW_PRE & NOTHROW_POST reset() { m_bits = 0; return *this; }
       BitSet NOTHROW_PRE & NOTHROW_POST reset( int bit )
       { 
-	    m_bits &= ~((word_type)1 << bit);
+	m_bits &= ~((word_type)1 << bit);
         return *this;
       }
 
@@ -949,60 +1061,10 @@ namespace FIX
       std::size_t size() const { return sizeof(word_type) << 3; }
     };
 
+    // Debugging aid
+    bool checkpoint();
+
   } // namespace FIX::Util
-
-  struct ItemHash
-  {
-    std::size_t NOTHROW generate(const char* p, std::size_t sz, std::size_t hash) const
-    {
-      static const unsigned int PRIME = 709607;
-
-      for(; sz >= sizeof(uint64_t); sz -= sizeof(uint64_t), p += sizeof(uint64_t))
-      {
-        uint32_t v = *(uint32_t*)p;
-#if defined(__GNUC__) && (defined(__x86_64__) || defined(__i386__))
-        __asm__ __volatile__ ( "bswap %0" : "+r" (v) : : );
-        hash = (hash ^ (v^*(uint32_t *)(p+sizeof(uint32_t)))) * PRIME;
-#else
-        hash = (hash ^ (((v << 5) | (v >> 27))^*(uint32_t *)(p+sizeof(v)))) * PRIME;
-#endif
-      }
-  
-      if (sz & sizeof(uint32_t))
-      {
-              hash = (hash ^ *(uint32_t*)p) * PRIME;
-              p += sizeof(uint32_t);
-      }
-      if (sz & sizeof(uint16_t))
-      {
-              hash = (hash ^ *(uint16_t*)p) * PRIME;
-              p += sizeof(uint16_t);
-      }
-      if (sz & 1)
-              hash = (hash ^ *p) * PRIME;
-
-      return hash;
-    }
-
-    std::size_t NOTHROW operator()(const std::pair<int, std::string>& key ) const
-    {
-      const std::string& s = key.second;
-      return generate(Util::String::data(s), Util::String::size(s), key.first);
-    }
-
-    std::size_t NOTHROW operator()(const std::pair< std::string, int>& key ) const
-    {
-      const std::string& s = key.first;
-      return generate(Util::String::data(s), Util::String::size(s), key.second);
-    }
-
-    std::size_t NOTHROW operator()(const std::string& key) const
-    {
-      std::size_t l = Util::String::size(key);
-      return generate(Util::String::data(key), l, l);
-    }
-
-  }; // class ItemHash
 
   struct Sg
   {
@@ -1010,21 +1072,22 @@ namespace FIX
 #ifdef _MSC_VER
     typedef WSABUF   sg_buf_t;
     typedef LPWSABUF sg_buf_ptr;
-	typedef CHAR*    sg_ptr;
+    typedef CHAR*    sg_ptr_t;
 
 #define IOV_BUF(b) ((b).buf)
 #define IOV_LEN(b) ((b).len)
 
-    static inline bool NOTHROW send(SOCKET socket, sg_buf_ptr bufs, int n)
+    static inline std::size_t NOTHROW send(SOCKET socket, sg_buf_ptr bufs, int n)
     {
       DWORD bytes;
-      return ::WSASend(socket, bufs, n, &bytes, 0, NULL, NULL) == 0;
+      int i = ::WSASend(socket, bufs, n, &bytes, 0, NULL, NULL);
+      return (i == 0) ? bytes : 0;
     }
 
-    static inline __int64 NOTHROW writev(FILE_HANDLE_TYPE handle,
+    static inline int64_t NOTHROW writev(FILE_HANDLE_TYPE handle,
                                          sg_buf_ptr bufs, int n)
     {
-      __int64 sz = 0;
+      int64_t sz = 0;
       for( int i = 0; i < n; i++ )
       {
         DWORD written = 0;
@@ -1035,7 +1098,7 @@ namespace FIX
             return -1;
           break;
         }
-        sz += written;
+        sz += (int64_t)written;
       }
       return sz;
     }
@@ -1043,18 +1106,19 @@ namespace FIX
 #else
     typedef struct iovec  sg_buf_t;
     typedef struct iovec* sg_buf_ptr;
-    typedef void*         sg_ptr;
+    typedef void*         sg_ptr_t;
 
 #define IOV_BUF(b) ((b).iov_base)
 #define IOV_LEN(b) ((b).iov_len)
 
-    static inline bool NOTHROW send(int socket, sg_buf_ptr bufs, int n)
+    static inline std::size_t NOTHROW send(int socket, sg_buf_ptr bufs, int n)
     {
-      struct msghdr m = { NULL, 0, bufs, n, NULL, 0, 0 };
-      return ::sendmsg(socket, &m, MSG_NOSIGNAL) >= 0;
+      struct msghdr m = { NULL, 0, bufs, (std::size_t)n, NULL, 0, 0 };
+      ssize_t sz = ::sendmsg(socket, &m, MSG_NOSIGNAL);
+      return sz >= 0 ? (std::size_t)sz : 0;
     }
 
-    static inline ssize_t NOTHROW writev(FILE_HANDLE_TYPE handle,
+    static inline int64_t NOTHROW writev(FILE_HANDLE_TYPE handle,
                                          sg_buf_ptr bufs, int n)
     {
       return ::writev(handle, bufs, n);
@@ -1062,14 +1126,18 @@ namespace FIX
 
 #endif
 
-    template <typename B> static std::size_t NOTHROW size(const B bufs, int n) {
+    template <typename B>
+    static std::size_t NOTHROW size( const B bufs, int n )
+    {
       size_t sz = 0;
       for (int i = 0; i < n; i++)
        	sz += IOV_LEN(bufs[i]);
       return sz;
     }
 
-    template <typename B> static std::string toString(const B bufs, int n) {
+    template <typename B>
+    static std::string toString( const B bufs, int n )
+    {
       std::string s;
       for (int i = 0; i < n; i++)
        	s.append((const char*)IOV_BUF(bufs[i]), IOV_LEN(bufs[i]));
