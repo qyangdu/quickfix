@@ -59,6 +59,7 @@ int testSerializeToStringNewOrderSingle( int );
 int testSerializeFromStringNewOrderSingle( int );
 int testCreateQuoteRequest( int );
 int testCreateQuoteRequestPacked( int );
+int testCreateQuoteRequestPackedInplace( int );
 int testReadFromQuoteRequest( int );
 int testSerializeToStringQuoteRequest( int );
 int testSerializeFromStringQuoteRequest( int );
@@ -149,6 +150,9 @@ int main( int argc, char** argv )
 
   std::cout << "Creating QuoteRequest messages (packed): ";
   report( testCreateQuoteRequestPacked( count ), count );
+
+  std::cout << "Creating QuoteRequest messages (packed, in place): ";
+  report( testCreateQuoteRequestPackedInplace( count ), count );
 
   std::cout << "Serializing QuoteRequest messages to strings: ";
   report( testSerializeToStringQuoteRequest( count ), count );
@@ -444,6 +448,36 @@ int testCreateQuoteRequestPacked( int count )
       massQuote.addGroup( noRelatedSym );
       noRelatedSym.clear();
     }
+  }
+
+  return GetTickCount() - start;
+}
+
+int testCreateQuoteRequestPackedInplace( int count )
+{
+  count = count - 1;
+
+  int start = GetTickCount();
+
+  for ( int i = 0; i <= count; ++i )
+  {
+    FIX42::QuoteRequest massQuote;
+    FIX42::QuoteRequest::NoRelatedSym noRelatedSym;
+
+    for( int j = 1; j <= 10; ++j )
+    {
+      FIX::FieldMap& g = massQuote.addGroup( noRelatedSym );
+      g.addField( FIX::Symbol::Pack( "IBM" ) );
+      g.addField( FIX::MaturityMonthYear::Pack( "022003" ) );
+      g.addField( FIX::PutOrCall::Pack( FIX::PutOrCall_PUT ) );
+      g.addField( FIX::StrikePrice::Pack( 120 ) );
+      g.addField( FIX::Side::Pack( FIX::Side_BUY ) );
+      g.addField( FIX::OrderQty::Pack( 100 ) );
+      g.addField( FIX::Currency::Pack( "USD" ) );
+      g.addField( FIX::OrdType::Pack( FIX::OrdType_MARKET ) );
+    }
+
+    massQuote.set( FIX::QuoteReqID::Pack("1") );
   }
 
   return GetTickCount() - start;
