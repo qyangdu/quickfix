@@ -54,19 +54,21 @@ FieldMap& FieldMap::operator=( const FieldMap& rhs )
   return *this;
 }
 
-void FieldMap::addGroup( int field, const FieldMap& group, bool setCount )
+FieldMap& FieldMap::addGroup( int field, const FieldMap& group, bool setCount )
 {
   FieldMap * pGroup = new FieldMap( group );
   addGroupPtr( field, pGroup, setCount );
+  return *pGroup;
 }
 
-void FieldMap::replaceGroup( int num, int field, const FieldMap& group )
+bool FieldMap::replaceGroup( int num, int field, const FieldMap& group )
 {
   Groups::const_iterator i = m_groups.find( field );
-  if ( i == m_groups.end() ) return;
-  if ( num <= 0 ) return;
-  if ( i->second.size() < ( unsigned ) num ) return;
+  if ( i == m_groups.end() ) return false;
+  if ( num <= 0 ) return false;
+  if ( i->second.size() < ( unsigned ) num ) return false;
   *( *( i->second.begin() + ( num - 1 ) ) ) = group;
+  return true;
 }
 
 void FieldMap::removeGroup( int num, int field )
@@ -243,7 +245,7 @@ namespace detail {
 
 std::size_t FieldMap::init_allocation_unit()
 {
-  FieldMap::Fields f;
+  FieldMap::Fields f( message_order( message_order::normal ), ItemStore::buffer(1024) );
   // Metrics of the inserted FieldBase object must be calculated at compile time
   f.insert(std::make_pair(1, FIX::FieldBase(detail::FieldProxy())));
   return f.get_allocator().item_size();

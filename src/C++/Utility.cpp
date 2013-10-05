@@ -730,7 +730,7 @@ FILE_OFFSET_TYPE file_handle_seek( FILE_HANDLE_TYPE handle,
 {
 #ifdef _MSC_VER
     offset.LowPart = ::SetFilePointer( handle,
-                                offset.LowPart, &offset.HighPart, whence )
+                                offset.LowPart, &offset.HighPart, whence );
     if( offset.LowPart == INVALID_SET_FILE_POINTER &&
       ::GetLastError() != NO_ERROR )
       offset.QuadPart = -1;

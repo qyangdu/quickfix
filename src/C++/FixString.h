@@ -221,7 +221,7 @@ namespace FIX
 
            ~Data() { destroy(); }
 
-           inline bool PURE HEAVYUSE isLocal() const
+           inline bool PURE_DECL HEAVYUSE isLocal() const
            { return LIKELY(m_length < MaxLocalCapacity); }
 
            inline void clear()
@@ -325,19 +325,19 @@ namespace FIX
                                   : String::c_str(asString());
            }
 
-           inline bool PURE HEAVYUSE operator == (const Data& d) const
+           inline bool PURE_DECL HEAVYUSE operator == (const Data& d) const
            {
              std::size_t l = size();
              return ( l == d.size() && !::memcmp(c_str(), d.c_str(), l) );
            }
 
-           inline bool PURE HEAVYUSE operator != (const Data& d) const
+           inline bool PURE_DECL HEAVYUSE operator != (const Data& d) const
            {
              std::size_t l = size();
              return ( l != d.size() || ::memcmp(c_str(), d.c_str(), l) );
            }
 
-           inline int PURE HEAVYUSE compare( const char* p, std::size_t sz ) const
+           inline int PURE_DECL HEAVYUSE compare( const char* p, std::size_t sz ) const
            {
              if( isLocal() )
              {
@@ -347,7 +347,7 @@ namespace FIX
              return asString().compare(0, std::string::npos, p, sz);
            }
 
-           inline int PURE HEAVYUSE compare( const char* p ) const
+           inline int PURE_DECL HEAVYUSE compare( const char* p ) const
            {
              return isLocal() ? ::strcmp( m_data, p ) : asString().compare(p);
            }
@@ -747,120 +747,120 @@ namespace FIX
     return out.write( bs.data(), bs.size() );
   }
 
-  static inline bool PURE HEAVYUSE
+  static inline bool PURE_DECL HEAVYUSE
   operator < ( const String::value_type& lhs, const String::value_type& rhs )
   { return lhs.compare( rhs ) < 0; }
-  static inline bool PURE HEAVYUSE
+  static inline bool PURE_DECL HEAVYUSE
   operator <=( const String::value_type& lhs, const String::value_type& rhs )
   { return lhs.compare( rhs ) <= 0; }
 
-  static inline bool PURE HEAVYUSE
+  static inline bool PURE_DECL HEAVYUSE
   operator > ( const String::value_type& lhs, const String::value_type& rhs )
   { return lhs.compare( rhs ) > 0; }
-  static inline bool PURE HEAVYUSE
+  static inline bool PURE_DECL HEAVYUSE
   operator >=( const String::value_type& lhs, const String::value_type& rhs )
   { return lhs.compare( rhs ) >= 0; }
 
 
-  static inline bool PURE HEAVYUSE
+  static inline bool PURE_DECL HEAVYUSE
   operator==( const char* p, const String::value_type& rhs )
   {
     std::size_t sz = ::strlen(p);
     return ( LIKELY(sz != rhs.size()) ) ? false : !::memcmp(p, rhs.data(), sz);
   }
-  static inline bool PURE HEAVYUSE
+  static inline bool PURE_DECL HEAVYUSE
   operator==( const String::value_type& lhs, const char* p )
   {
     std::size_t sz = ::strlen(p);
     return ( LIKELY(sz != lhs.size()) ) ? false : !::memcmp(p, lhs.data(), sz);
   }
-  static inline bool PURE HEAVYUSE
+  static inline bool PURE_DECL HEAVYUSE
   operator!=( const char* p, const String::value_type& rhs )
   {
     std::size_t sz = ::strlen(p);
     return ( LIKELY(sz != rhs.size()) ) ? true : ::memcmp(p, rhs.data(), sz);
   }
-  static inline bool PURE HEAVYUSE
+  static inline bool PURE_DECL HEAVYUSE
   operator!=( const String::value_type& lhs, const char* p )
   {
     std::size_t sz = ::strlen(p);
     return ( LIKELY(sz != lhs.size()) ) ? true : ::memcmp(p, lhs.data(), sz);
   }
-  static inline bool PURE HEAVYUSE
+  static inline bool PURE_DECL HEAVYUSE
   operator < ( const char* p, const String::value_type& rhs )
   { return rhs.compare( p ) > 0; }
-  static inline bool PURE HEAVYUSE
+  static inline bool PURE_DECL HEAVYUSE
   operator <=( const char* p, const String::value_type& rhs )
   { return rhs.compare( p ) >= 0; }
-  static inline bool PURE HEAVYUSE
+  static inline bool PURE_DECL HEAVYUSE
   operator > ( const char* p, const String::value_type& rhs )
   { return rhs.compare( p ) < 0; }
-  static inline bool PURE HEAVYUSE
+  static inline bool PURE_DECL HEAVYUSE
   operator >=( const char* p, const String::value_type& rhs )
   { return rhs.compare( p ) <= 0; }
-  static inline bool PURE HEAVYUSE
+  static inline bool PURE_DECL HEAVYUSE
   operator < ( const String::value_type& lhs, const char* p )
   { return lhs.compare( p ) < 0; }
-  static inline bool PURE HEAVYUSE
+  static inline bool PURE_DECL HEAVYUSE
   operator <=( const String::value_type& lhs, const char* p )
   { return lhs.compare( p ) <= 0; }
-  static inline bool PURE HEAVYUSE
+  static inline bool PURE_DECL HEAVYUSE
   operator > ( const String::value_type& lhs, const char* p )
   { return lhs.compare( p ) > 0; }
-  static inline bool PURE HEAVYUSE
+  static inline bool PURE_DECL HEAVYUSE
   operator >=( const String::value_type& lhs, const char* p )
   { return lhs.compare( p ) >= 0; }
 
-  static inline bool PURE HEAVYUSE
+  static inline bool PURE_DECL HEAVYUSE
   operator==( const std::string& s, const String::value_type& rhs )
   {
     std::size_t sz = String::size(s);
     return ( LIKELY(sz != rhs.size()) )
            ? false : !::memcmp(String::data(s), rhs.data(), sz);
   }
-  static inline bool PURE HEAVYUSE
+  static inline bool PURE_DECL HEAVYUSE
   operator==( const String::value_type& lhs, const std::string& s )
   {
     std::size_t sz = String::size(s);
     return ( LIKELY(sz != lhs.size()) )
            ? false : !::memcmp(String::data(s), lhs.data(), sz);
   }
-  static inline bool PURE HEAVYUSE
+  static inline bool PURE_DECL HEAVYUSE
   operator!=( const std::string& s, const String::value_type& rhs )
   {
     std::size_t sz = String::size(s);
     return ( LIKELY(sz != rhs.size()) )
            ? true : ::memcmp(String::data(s), rhs.data(), sz);
   }
-  static inline bool PURE HEAVYUSE
+  static inline bool PURE_DECL HEAVYUSE
   operator!=( const String::value_type& lhs, const std::string& s )
   {
     std::size_t sz = String::size(s);
     return ( LIKELY(sz != lhs.size()) )
            ? true : ::memcmp(String::data(s), lhs.data(), sz);
   }
-  static inline bool PURE HEAVYUSE
+  static inline bool PURE_DECL HEAVYUSE
   operator < ( const std::string& s, const String::value_type& rhs )
   { return rhs.compare( s ) > 0; }
-  static inline bool PURE HEAVYUSE
+  static inline bool PURE_DECL HEAVYUSE
   operator <=( const std::string& s, const String::value_type& rhs )
   { return rhs.compare( s ) >= 0; }
-  static inline bool PURE HEAVYUSE
+  static inline bool PURE_DECL HEAVYUSE
   operator > ( const std::string& s, const String::value_type& rhs )
   { return rhs.compare( s ) < 0; }
-  static inline bool PURE HEAVYUSE
+  static inline bool PURE_DECL HEAVYUSE
   operator >=( const std::string& s, const String::value_type& rhs )
   { return rhs.compare( s ) <= 0; }
-  static inline bool PURE HEAVYUSE
+  static inline bool PURE_DECL HEAVYUSE
   operator < ( const String::value_type& lhs, const std::string& s )
   { return lhs.compare( s ) < 0; }
-  static inline bool PURE HEAVYUSE
+  static inline bool PURE_DECL HEAVYUSE
   operator <=( const String::value_type& lhs, const std::string& s )
   { return lhs.compare( s ) <= 0; }
-  static inline bool PURE HEAVYUSE
+  static inline bool PURE_DECL HEAVYUSE
   operator > ( const String::value_type& lhs, const std::string& s )
   { return lhs.compare( s ) > 0; }
-  static inline bool PURE HEAVYUSE
+  static inline bool PURE_DECL HEAVYUSE
   operator >=( const String::value_type& lhs, const std::string& s )
   { return lhs.compare( s ) >= 0; }
 #endif

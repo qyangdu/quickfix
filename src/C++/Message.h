@@ -256,8 +256,8 @@ public:
   /// Set global data dictionary for encoding messages into XML
   static bool InitializeXML( const std::string& string );
 
-  void addGroup( FIX::Group& group )
-  { FieldMap::addGroup( group.field(), group ); }
+  FieldMap& addGroup( FIX::Group& group )
+  { return FieldMap::addGroup( group.field(), group ); }
 
   void replaceGroup( unsigned num, FIX::Group& group )
   { FieldMap::replaceGroup( num, group.field(), group ); }
@@ -321,12 +321,13 @@ public:
   template <typename S> typename S::buffer_type& toBuffer( S& s ) const
   {
     FieldCounter c( *this );
+	int bodyLength = c.getBodyLength() + c.getBeginStringLength() + 
+	  m_header.setField(BodyLength::Pack(c.getBodyLength())).getLength();
     return m_trailer.serializeTo(
              FieldMap::serializeTo(
                m_header.serializeTo(
-                 s.buffer(c.getBodyLength() + c.getBeginStringLength() +
-                   m_header.setField(BodyLength::Pack(c.getBodyLength())).getLength() +
-                     m_trailer.setField(CheckSum::Pack(checkSum())).getLength()
+                 s.buffer(bodyLength +
+                   m_trailer.setField(CheckSum::Pack(checkSum())).getLength()
                  ) ) ) );
   }
 
@@ -444,7 +445,7 @@ public:
   {
     Util::CharBuffer::Fixed<8> b = { { '0', '1', '3', '2', '4', '5', 'A', '\0' } };
     char sym = value[0];
-    return sym && value[1] == '\0' && Util::CharBuffer::find(b, sym) < 7;
+    return sym && value[1] == '\0' && Util::CharBuffer::find( sym, b ) < 7;
   }
 
   static inline bool isAdminMsg( const std::string& msg )
@@ -454,21 +455,8 @@ public:
     {
       Util::CharBuffer::Fixed<8> b = { { '0', '1', '3', '2', '4', '5', 'A', '\0' } };
       Util::CharBuffer::Fixed<4> const v = { { '\001', '3', '5', '=' } };
-      union {
-         const char* pc;
-	 const uint32_t* pu;
-      } u = { String::c_str( msg ) };
-      do
-      {
-        if (LIKELY(*u.pu != v.value))
-        {
-          size--;
-          u.pc++;
-          continue;
-        }
-        return u.pc[5] == '\001' && Util::CharBuffer::find(b, u.pc[4]) < 7;
-      }
-      while ( size > 5 );
+      const char* p = Util::CharBuffer::find( v, String::c_str(msg), size );
+      return p && p[5] == '\001' && Util::CharBuffer::find( p[4], b ) < 7;
     }
     throw MessageParseError();
   }
@@ -588,7 +576,7 @@ private:
   static inline admin_trait getAdminTrait( char msgType ) 
   {
     Util::CharBuffer::Fixed<8> b = { { '0', '1', '3', '2', '4', '5', 'A', '\0' } };
-    std::size_t pos = Util::CharBuffer::find(b, msgType);
+    std::size_t pos = Util::CharBuffer::find( msgType, b );
     return (admin_trait)( (pos < 7) << (pos & 7) / 3 );
   }
 

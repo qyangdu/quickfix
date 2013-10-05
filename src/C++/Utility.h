@@ -153,7 +153,7 @@ typedef int socklen_t;
 #define PREFETCH(addr, rw, longevity) _mm_prefetch(addr, longevity)
 #define LIKELY(x) (x)
 #define MAY_ALIAS
-#define PURE
+#define PURE_DECL
 #elif defined(__GNUC__)
 #define ALIGN_DECL(x) __attribute__ ((aligned(x)))
 #define NOTHROW __attribute__ ((nothrow))
@@ -163,7 +163,7 @@ typedef int socklen_t;
 #define PREFETCH(addr, rw, longevity) __builtin_prefetch(addr, rw, longevity)
 #define LIKELY(x) __builtin_expect((x),1)
 #define MAY_ALIAS __attribute__ ((may_alias))
-#define PURE __attribute__ ((pure))
+#define PURE_DECL __attribute__ ((pure))
 #else
 #define ALIGN_DECL(x)
 #define NOTHROW
@@ -173,7 +173,7 @@ typedef int socklen_t;
 #define PREFETCH(addr, rw, longevity) while(false)
 #define LIKELY(x) (x)
 #define MAY_ALIAS
-#define PURE
+#define PURE_DECL
 #endif
 
 #define ALIGN_DECL_DEFAULT ALIGN_DECL(16)
@@ -324,7 +324,7 @@ namespace FIX
 #  if defined (__x86_64__)
     template <typename W> struct bitop<W, 8>
     {
-      static inline std::size_t PURE HEAVYUSE bsf(W w)
+      static inline std::size_t PURE_DECL HEAVYUSE bsf(W w)
       {
         register std::size_t v;
         register const W notfound = 64;
@@ -340,7 +340,7 @@ namespace FIX
     
     template <typename W> struct bitop<W, 4>
     {
-      static inline std::size_t PURE HEAVYUSE bsf(W w)
+      static inline std::size_t PURE_DECL HEAVYUSE bsf(W w)
       {
         register unsigned v;
         register const W notfound = 32;
@@ -356,7 +356,7 @@ namespace FIX
 #  else
     template <typename W> struct bitop<W, 8>
     {
-      static inline std::size_t PURE HEAVYUSE bsf(W w)
+      static inline std::size_t PURE_DECL HEAVYUSE bsf(W w)
       {
         register std::size_t v = __builtin_ffsll((uint64_t)w);
         return v ? (v - 1) : 64;
@@ -365,7 +365,7 @@ namespace FIX
     
     template <typename W> struct bitop<W, 4>
     {
-      static inline std::size_t PURE HEAVYUSE bsf(W w)
+      static inline std::size_t PURE_DECL HEAVYUSE bsf(W w)
       {
         register std::size_t v = __builtin_ffs((uint32_t)w);
         return v ? (v - 1) : 32;
@@ -376,7 +376,7 @@ namespace FIX
 
     template <typename W> struct bitop<W, 4>
     {
-      static inline std::size_t PURE HEAVYUSE bsf(W w)
+      static inline std::size_t PURE_DECL HEAVYUSE bsf(W w)
       {
         unsigned long v;
         return _BitScanForward(&v, (unsigned long)w) ? v : 32;
@@ -387,7 +387,7 @@ namespace FIX
 
     template <typename W> struct bitop<W, 8>
     {
-      static inline std::size_t PURE HEAVYUSE bsf(W w)
+      static inline std::size_t PURE_DECL HEAVYUSE bsf(W w)
       {
         unsigned long v;
         return _BitScanForward64(&v, (unsigned __int64)w) ? v : 64;
@@ -398,7 +398,7 @@ namespace FIX
 
     template <typename W> struct bitop<W, 8>
     {
-      static inline std::size_t PURE HEAVYUSE bsf(W w)
+      static inline std::size_t PURE_DECL HEAVYUSE bsf(W w)
       {
         unsigned long v;
         return _BitScanForward( &v, (unsigned long) w ) ? v
@@ -410,7 +410,7 @@ namespace FIX
 #endif
 
     template <typename W>
-    static inline std::size_t PURE HEAVYUSE bit_scan(W w, std::size_t from = 0)
+    static inline std::size_t PURE_DECL HEAVYUSE bit_scan(W w, std::size_t from = 0)
     {
       return bitop<W>::bsf( w & (~(W)0 << from) );
     }
@@ -447,7 +447,7 @@ namespace FIX
 
     class Int : public IntBase {
       public:
-      static inline int PURE HEAVYUSE numDigits( int32_t i )
+      static inline int PURE_DECL HEAVYUSE numDigits( int32_t i )
       {
 	register int32_t z = 0;
 	register uint32_t log2;
@@ -463,7 +463,7 @@ namespace FIX
     };
     class PositiveInt : public IntBase {
       public:
-      static inline int PURE HEAVYUSE numDigits( int32_t i )
+      static inline int PURE_DECL HEAVYUSE numDigits( int32_t i )
       {
         register uint32_t log2;
         __asm__ __volatile__ (
@@ -473,7 +473,7 @@ namespace FIX
         register const Log2& e = m_digits[log2];
         return e.m_count + ( i > e.m_threshold );
       }
-      static inline short PURE HEAVYUSE checkSum(int n)
+      static inline short PURE_DECL HEAVYUSE checkSum(int n)
       {
 	short csum = 0;
         do
@@ -490,7 +490,7 @@ namespace FIX
       };
       static Log2 m_digits[64];
       public:
-      static inline int PURE HEAVYUSE numDigits( int64_t i )
+      static inline int PURE_DECL HEAVYUSE numDigits( int64_t i )
       {
         register const int64_t z = 0;
         register uint64_t log2;
@@ -508,7 +508,7 @@ namespace FIX
 #else
     class Int {
       public:
-      static inline int PURE HEAVYUSE numDigits( int32_t i )
+      static inline int PURE_DECL HEAVYUSE numDigits( int32_t i )
       {
 	if (i < 0)  i = -i;
 	if              (i < 100000) {
@@ -534,7 +534,7 @@ namespace FIX
     };
     class PositiveInt {
       public:
-      static inline int PURE HEAVYUSE numDigits( int32_t i )
+      static inline int PURE_DECL HEAVYUSE numDigits( int32_t i )
       {
 	if              (i < 100000) {
 	    if          (i < 1000) {
@@ -556,7 +556,7 @@ namespace FIX
 	    }
 	}
       }
-      static inline short PURE HEAVYUSE checkSum(int n)
+      static inline short PURE_DECL HEAVYUSE checkSum(int n)
       {
 	short csum = 0;
         do
@@ -568,7 +568,7 @@ namespace FIX
     };
     class Long {
       public:
-      static inline int PURE HEAVYUSE numDigits( int64_t v )
+      static inline int PURE_DECL HEAVYUSE numDigits( int64_t v )
       {
         int r = 1;
         if (v < 0) v = -v;
@@ -598,7 +598,7 @@ namespace FIX
 #endif
     class ULong {
       public:
-      static inline int PURE HEAVYUSE numFractionDigits( uint64_t v )
+      static inline int PURE_DECL HEAVYUSE numFractionDigits( uint64_t v )
       {
         if            ( v % 100000000 ) {
           if          ( v % 10000 ) {
@@ -651,26 +651,29 @@ namespace FIX
           { return it.m_p - m_p; }
       };
 
-      static inline const char* memmem(const char* buf, int bsz,
-                                       const char* str, int ssz)
+      static inline const char* memmem(const char* buf, std::size_t bsz,
+                                       const char* str, std::size_t ssz)
       {
 #if defined(__GNUC__)
 	return (const char*)::memmem(buf, bsz, str, ssz);
 #else
-        const char* end = buf + bsz;
-        for ( buf = ::memchr (buf, str[0], bsz) ; buf && bsz >= ssz;
-              buf = ::memchr (buf, str[0], bsz) )
+        if( bsz >= ssz )
         {
+          const char* end = buf + bsz - ssz + 1;
+		  char c = str[0];
+          while( LIKELY(NULL != (buf = (const char*)::memchr (buf, c, end - buf))) )
+          {
             if( 0 == ::memcmp (buf, str, ssz) ) 
               return buf; 
-            bsz = end - ++buf;
+            if( ++buf >= end )
+              break;
           }
         }
         return 0; 
 #endif
       }
 
-      static inline int32_t PURE HEAVYUSE checkSum(const char* p, int size)
+      static inline int32_t PURE_DECL HEAVYUSE checkSum(const char* p, int size)
       {
         register int32_t x = 0;
 #if defined(__GNUC__) && defined(__x86_64__)
@@ -743,7 +746,7 @@ namespace FIX
             n--;
         }
 #else
-        for (; size > 0; p++, n--)
+        for (; size > 0; p++, size--)
           x += *(unsigned char*)p;
 #endif
         return x;
@@ -754,16 +757,29 @@ namespace FIX
         char data[S];
       };
 
-      /// Returns array index less than S on success and a value of S or higher on failure
-      template <std::size_t S> static inline std::size_t find(const Fixed<S>& f, int v)
+      /// Scans f for character v, returns array index less than S on success
+      /// or a value >= S on failure.
+      template <std::size_t S>
+      static inline std::size_t find(int v, const Fixed<S>& f)
       {
         const char* p = (const char*)::memchr(f.data, v, S);
         return p ? p - f.data : S;
       }
 
+      /// Locates a substring f.
+      template <std::size_t S>
+      static inline const char* find(const Fixed<S>& f, const char* p, std::size_t size)
+      {
+        return CharBuffer::memmem( p, size, f.data, S );
+      }
+
     }; // CharBuffer
 
-#if defined(__GNUC__) && defined(__x86_64__)
+    template <> union CharBuffer::Fixed<2>
+    {
+      char data[2];
+      uint16_t value;
+    };
 
     template <> union CharBuffer::Fixed<4>
     {
@@ -771,13 +787,40 @@ namespace FIX
       uint32_t value;
     };
 
+#if defined(__x86_64__) || defined(__i386__) || defined(_M_X64) || defined(_M_IX86)
+
+    template <>
+    inline const char* CharBuffer::find<2>(const CharBuffer::Fixed<2>& f,
+                                           const char* p, std::size_t size)
+    {
+      for (; size >= 2; size--, p++)
+        if (*(const uint16_t*)p == f.value )
+          return p;
+      return NULL;
+    }
+
+    template <>
+    inline const char* CharBuffer::find<4>(const CharBuffer::Fixed<4>& f,
+                                           const char* p, std::size_t size)
+    {
+      for (; size >= 4; size--, p++)
+        if (*(const uint32_t*)p == f.value )
+          return p;
+      return NULL;
+    }
+
+#endif
+
     template <> union CharBuffer::Fixed<8>
     {
       char data[8];
       uint64_t value;
     };
 
-    template<> inline std::size_t PURE CharBuffer::find<8>(const CharBuffer::Fixed<8>& f, int v)
+#if defined(__GNUC__) && defined(__x86_64__)
+
+    template<>
+    inline std::size_t PURE_DECL CharBuffer::find<8>(int v, const CharBuffer::Fixed<8>& f)
     {
       register unsigned at = 0;
       __asm__ __volatile (
@@ -802,7 +845,7 @@ namespace FIX
 
       /* NOTE: Current tag value range is 1-39999, may not contain leading zeroes */
 
-      static inline const char NOTHROW_PRE * PURE HEAVYUSE NOTHROW_POST delimit(const char* p, unsigned len)
+      static inline const char NOTHROW_PRE * PURE_DECL HEAVYUSE NOTHROW_POST delimit(const char* p, unsigned len)
       {
         uintptr_t b = ~(uintptr_t)p + 1;
         switch (len)

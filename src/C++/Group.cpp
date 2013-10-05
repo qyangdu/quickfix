@@ -27,14 +27,14 @@
 
 namespace FIX
 {
-void Group::addGroup( const FIX::Group& group )
+FieldMap& Group::addGroup( const FIX::Group& group )
 {
-  FieldMap::addGroup( group.field(), group );
+  return FieldMap::addGroup( group.field(), group );
 }
 
-void Group::replaceGroup( unsigned num, const FIX::Group& group )
+bool Group::replaceGroup( unsigned num, const FIX::Group& group )
 {
-  FieldMap::replaceGroup( num, group.field(), group ); 
+  return FieldMap::replaceGroup( num, group.field(), group ); 
 }
 
 Group& Group::getGroup( unsigned num, FIX::Group& group ) const throw( FieldNotFound )

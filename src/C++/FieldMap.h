@@ -267,14 +267,14 @@ public:
     }
   }
 
-  /// Add a group.
-  void addGroup( int tag, const FieldMap& group, bool setCount = true );
+  /// Add a group and return a reference to the added object.
+  FieldMap& addGroup( int tag, const FieldMap& group, bool setCount = true );
 
   /// Acquire ownership of Group object
   void addGroupPtr( int tag, FieldMap* group, bool setCount = true );
 
-  /// Replace a specific instanct of a group.
-  void replaceGroup( int num, int tag, const FieldMap& group );
+  /// Replace a specific instance of a group.
+  bool replaceGroup( int num, int tag, const FieldMap& group );
 
   /// Get a specific instance of a group.
   FieldMap& getGroup( int num, int tag, FieldMap& group ) const

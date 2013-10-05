@@ -35,29 +35,18 @@
 
 namespace FIX
 {
-static inline const char* memchr2(const char* p, char c1, char c2, int n) {
-        union {
-                char     c[2];
-                uint16_t u;
-        } u = { { c1, c2 } };
-        for (int i = 0, l = n - 2; i <= l; i++, p++) {
-                if (*(const uint16_t*)p == u.u )
-                        return p;
-        }
-        return NULL;
-}
 
 std::size_t Parser::extractLength( const char* msg, std::size_t sz )
 throw( MessageParseError )
 {
-  if( sz > 3 )
+  if( LIKELY(sz > 3) )
   {
     const char* p = Util::CharBuffer::memmem(msg, sz, "\0019=", 3);
-    if( p )
+    if( LIKELY(NULL != p) )
     {
       std::size_t startPos = p - msg + 3;
       p = (const char*)::memchr( p + 3, '\001', sz - startPos);
-      if( p )
+      if( LIKELY(NULL != p) )
       {
         int length = 0;
         std::size_t endPos = p - msg;
@@ -75,34 +64,38 @@ throw( MessageParseError )
 bool Parser::readFixMessage( std::string& str )
 throw( MessageParseError )
 {
-  std::size_t bufSize = String::length(m_buffer);
+  const std::size_t bufSize = String::length(m_buffer);
 
-  if( bufSize > 2 )
+  if( LIKELY(bufSize > 2) )
   {
-    const char* buf = String::c_str(m_buffer);
-    const char* p = memchr2(buf, '8', '=', bufSize);
+    Util::CharBuffer::Fixed<2> beginStringTag = { { '8', '=' } };
 
-    if( p )
+    const char* buf = String::c_str(m_buffer);
+    const char* p = Util::CharBuffer::find( beginStringTag, buf, bufSize );
+
+    if( LIKELY(NULL != p) )
     {
       std::size_t msgPos = p - buf;
       std::size_t length = msgPos + 2;
 
       try
       {
-        if( (length = extractLength( (buf = p), bufSize - msgPos )) )
+        if( LIKELY( 0 != (length = extractLength( p, bufSize - msgPos )) ) )
         {
           std::size_t checksumOffset = msgPos + length;
-          if( bufSize >= (checksumOffset + 3) )
+          if( LIKELY(bufSize >= (checksumOffset + 3)) )
           {
-            p = Util::CharBuffer::memmem( p + length - 1,
-                            bufSize - checksumOffset + 1, "\00110=", 4 );
-            if( p )
+            Util::CharBuffer::Fixed<4> checkSumTag = { { '\001', '1', '0', '=' } };
+
+            if( LIKELY(NULL !=
+                      (p = Util::CharBuffer::find( checkSumTag, p + length - 1,
+                                             bufSize - checksumOffset + 1 )) ) )
             {
               p += 4;
               p = (const char*)::memchr( p, '\001', bufSize - (p - buf));
-              if( p )
+              if( LIKELY(NULL != p) )
               {
-                length = (p - buf) + 1;
+                length = p - (buf + msgPos) + 1;
                 if ( length == bufSize ) {
                   String::swap( str, m_buffer );
                   m_buffer.clear();

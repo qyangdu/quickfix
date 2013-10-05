@@ -121,21 +121,21 @@ namespace FIX
       inline pointer HEAVYUSE allocate(size_type cnt, 
                      typename std::allocator<void>::const_pointer = 0)
       { 
-        if ( cnt == 1 )
+        if ( LIKELY(cnt == 1) )
         {
 restart:
-          if ( m_buffer )
+          if ( LIKELY(NULL != m_buffer) )
           {
             unsigned char (*arena)[sizeof(value_type)] =
                           (unsigned char(*)[sizeof(value_type)])(m_buffer + 1);
-            if ( m_buffer->m_item_size )
+            if ( LIKELY(0 != m_buffer->m_item_size) )
             {
 mapped:
-              if ( m_buffer->m_item_size >= sizeof(value_type) )
+              if ( LIKELY(m_buffer->m_item_size >= sizeof(value_type)) )
               {
                 Buffer::Bitmap& bitmap = m_buffer->m_bitmap;
                 unsigned char slot = bitmap._Find_first();
-                if ( slot != bitmap.size() )
+                if ( LIKELY(slot != bitmap.size()) )
                 {
                   bitmap.reset(slot);
 	          return (value_type*)(arena[slot]);
