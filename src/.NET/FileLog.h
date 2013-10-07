@@ -21,8 +21,6 @@
 
 #pragma once
 
-using namespace System;
-
 #include "quickfix_net.h"
 
 #include "CPPLog.h"
@@ -30,7 +28,8 @@ using namespace System;
 #include "LogFactory.h"
 #include "SessionSettings.h"
 #include "quickfix/FileLog.h"
-#include "vcclr.h"
+
+using namespace System;
 
 namespace QuickFix
 {

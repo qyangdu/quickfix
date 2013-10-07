@@ -21,11 +21,13 @@
 
 #pragma once
 
-using namespace System;
-using System::Runtime::InteropServices::Marshal;
-
 #include <string>
 #include <iostream>
+
+#include <vcclr.h>
+
+using namespace System;
+using System::Runtime::InteropServices::Marshal;
 
 namespace QuickFix
 {

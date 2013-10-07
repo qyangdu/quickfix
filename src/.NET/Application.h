@@ -21,8 +21,6 @@
 
 #pragma once
 
-using namespace System;
-
 #include "quickfix_net.h"
 
 #include "Message.h"
@@ -30,7 +28,8 @@ using namespace System;
 #include "MessageFactory.h"
 #include "quickfix/Application.h"
 #include "quickfix/Values.h"
-#include "vcclr.h"
+
+using namespace System;
 
 namespace QuickFix
 {

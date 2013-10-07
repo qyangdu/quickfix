@@ -21,10 +21,8 @@
 
 #pragma once
 
-using namespace System;
-using namespace System::Collections;
-
 #include "quickfix_net.h"
+
 #include "FieldMap.h"
 #include "Field.h"
 #include "Fields.h"
@@ -34,7 +32,8 @@ using namespace System::Collections;
 
 #include "quickfix/Message.h"
 
-#include <vcclr.h>
+using namespace System;
+using namespace System::Collections;
 
 namespace QuickFix
 {

@@ -739,11 +739,5 @@ FILE_OFFSET_TYPE file_handle_seek( FILE_HANDLE_TYPE handle,
     return ::lseek( handle, offset, whence );
 #endif
 }
-
-bool Util::checkpoint()
-{
-  return true;
-}
-
 } // namespace FIX
 

@@ -22,8 +22,6 @@
 #ifdef HAVE_ODBC
 #pragma once
 
-using namespace System;
-
 #include "quickfix_net.h"
 
 #include "CPPLog.h"
@@ -33,7 +31,8 @@ using namespace System;
 #include "SessionSettings.h"
 #include "quickfix/OdbcLog.h"
 #include "quickfix/Settings.h"
-#include "vcclr.h"
+
+using namespace System;
 
 namespace QuickFix
 {

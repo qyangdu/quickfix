@@ -21,13 +21,13 @@
 
 #pragma once
 
-using namespace System;
-using namespace System::IO;
-
 #include "quickfix_net.h"
 
 #include "quickfix/Dictionary.h"
 #include "Exceptions.h"
+
+using namespace System;
+using namespace System::IO;
 
 namespace QuickFix
 {

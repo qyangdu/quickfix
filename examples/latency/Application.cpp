@@ -28,12 +28,12 @@
 
 #include "quickfix/fix42/ExecutionReport.h"
 
-Application::Application(uint64_t N) 
-: logonCount_(0), receiveCount_(0)
+Application::Application(std::size_t N) 
+: logonCount_(0), receiveCount_(0), ready_(1),
+  tick_(FIX::Util::Sys::TickCount::now())
 {
-  sem_init(&ready_, 0, 1);
-  totalNsec_ = 0;
-  spans_ = new uint64_t[N];
+  totalSec_ = 0;
+  spans_ = new double[N];
   num_spans_ = N;
 }
 

@@ -21,16 +21,16 @@
 
 #pragma once
 
-using namespace System;
-using namespace System::IO;
-using namespace System::Collections;
-
 #include "quickfix_net.h"
 
 #include "quickfix/SessionSettings.h"
 #include "SessionID.h"
 #include "Dictionary.h"
 #include "Exceptions.h"
+
+using namespace System;
+using namespace System::IO;
+using namespace System::Collections;
 
 namespace QuickFix
 {

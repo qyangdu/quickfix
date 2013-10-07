@@ -1,9 +1,7 @@
 #include "quickfix/Field.h"
 #include "quickfix/Values.h"
 #include "quickfix/Message.h"
-#ifdef HAVE_TBB
-#include "tbb/tick_count.h"
-#endif
+
 
 //-------------------------------------------------------------------------------------------------
 int main(int argc, char *argv[])
@@ -11,13 +9,13 @@ int main(int argc, char *argv[])
     FIX::Message msg;
     msg.getHeader().setField( FIX::BeginString( "FIX.4.4" ) );
     msg.getHeader().setField( FIX::MsgType( FIX::MsgType_NewOrderSingle ) );
-    msg.getHeader().setField( FIX::MsgSeqNum(78));
-    msg.getHeader().setField(FIX::SenderCompID("A12345B"));
-    msg.getHeader().setField(FIX::SenderSubID("2DEFGH4"));
-    msg.getHeader().setField(FIX::SendingTime(FIX::UtcTimeStamp()));
-    msg.getHeader().setField(FIX::TargetCompID("COMPARO"));
-    msg.getHeader().setField(FIX::TargetSubID("G"));
-    msg.getHeader().setField(FIX::SenderLocationID("AU,SY"));
+    msg.getHeader().setField( FIX::MsgSeqNum(78) );
+    msg.getHeader().setField( FIX::SenderCompID("A12345B") );
+    msg.getHeader().setField( FIX::SenderSubID("2DEFGH4") );
+    msg.getHeader().setField( FIX::SendingTime(FIX::UtcTimeStamp()) );
+    msg.getHeader().setField( FIX::TargetCompID("COMPARO") );
+    msg.getHeader().setField( FIX::TargetSubID("G") );
+    msg.getHeader().setField( FIX::SenderLocationID("AU,SY") );
 
     msg.setField( FIX::Account( "01234567") );
     msg.setField( FIX::ClOrdID( "4" ) );
@@ -62,41 +60,34 @@ int main(int argc, char *argv[])
         msg.setField( FIX::TransactTime() );
         msg.setField( FIX::SecurityType::Pack( FIX::SecurityType_OPTION ) );
 
-#ifdef HAVE_TBB
-        tbb::tick_count start = tbb::tick_count::now();
-#endif
+        FIX::Util::Sys::TickCount start = FIX::Util::Sys::TickCount::now();
         msg.toString(output);
-#ifdef HAVE_TBB
-        tbb::tick_count end = tbb::tick_count::now();
+        FIX::Util::Sys::TickCount end = FIX::Util::Sys::TickCount::now();
 
         tt += (end-start).seconds();
-#endif
     }
-#ifdef HAVE_TBB
+
     std::cout << "to string - " << tt << std::endl;
-#endif
 
     if( argc > 1 )
     {
-        if( FIX::file_exists(argv[1]) )
+      if( FIX::file_exists(argv[1]) )
+      {
+        FIX::DataDictionary dict(argv[1]);
+
+        FIX::Util::Sys::TickCount start = FIX::Util::Sys::TickCount::now();
+        for(int i = 0 ; i < 1000000; ++i)
         {
-	  FIX::DataDictionary dict(argv[1]);
-#ifdef HAVE_TBB
-	  tbb::tick_count start = tbb::tick_count::now();
-#endif
-	  for(int i = 0 ; i < 1000000; ++i)
-	  {
-	      FIX::Message * tmp = new FIX::Message(output, dict);
-	      delete tmp;
-	  }
-#ifdef HAVE_TBB
-	  tbb::tick_count end = tbb::tick_count::now();
-	  std::cout << "from string - " << (end-start).seconds() << std::endl;
-#endif
+          FIX::Message * tmp = new FIX::Message(output, dict);
+          delete tmp;
         }
-        else
-          std::cout << "Unable to open dictionary file " << argv[1] << std::endl;
+        FIX::Util::Sys::TickCount end = FIX::Util::Sys::TickCount::now();
+
+        std::cout << "from string - " << (end-start).seconds() << std::endl;
+      }
+      else
+        std::cout << "Unable to open dictionary file " << argv[1] << std::endl;
     }
-    return 0;
+  return 0;
 }
 

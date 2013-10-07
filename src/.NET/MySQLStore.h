@@ -22,8 +22,6 @@
 #ifdef HAVE_MYSQL
 #pragma once
 
-using namespace System;
-
 #include "quickfix_net.h"
 
 #include "CPPMessageStore.h"
@@ -32,7 +30,8 @@ using namespace System;
 #include "SessionSettings.h"
 #include "quickfix/MySQLStore.h"
 #include "quickfix/Settings.h"
-#include "vcclr.h"
+
+using namespace System;
 
 namespace QuickFix
 {

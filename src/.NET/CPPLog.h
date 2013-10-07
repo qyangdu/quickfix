@@ -21,16 +21,15 @@
 
 #pragma once
 
-using namespace System;
-using namespace System::Threading;
-
 #include "quickfix_net.h"
 
 #include "Log.h"
 #include "LogFactory.h"
 #include "SessionSettings.h"
 #include "quickfix/FileLog.h"
-#include "vcclr.h"
+
+using namespace System;
+using namespace System::Threading;
 
 namespace QuickFix
 {

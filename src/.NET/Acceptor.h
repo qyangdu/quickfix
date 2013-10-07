@@ -21,10 +21,10 @@
 
 #pragma once
 
+#include "quickfix_net.h"
+
 using namespace System;
 using namespace System::Collections;
-
-#include "quickfix_net.h"
 
 namespace QuickFix
 {

@@ -44,10 +44,11 @@
 				Name="VCCLCompilerTool"
 				Optimization="0"
 				FavorSizeOrSpeed="0"
-				AdditionalIncludeDirectories="&quot;$(SolutionDir)\src&quot;;&quot;$(SolutionDir)\UnitTest++\src&quot;;D:\Dev\boost_1_54_0;&quot;D:\Dev\sparsehash-2.0.2\src&quot;;&quot;D:\Dev\sparsehash-2.0.2\src\windows&quot;;D:\Dev\tbb42_20130725oss\include"
-				PreprocessorDefinitions="WIN32;_DEBUG;_LIB;HAVE_BOOST=1;HAVE_SPARSEHASH=1;HAVE_TBB=1"
-				BasicRuntimeChecks="3"
+				AdditionalIncludeDirectories="&quot;$(SolutionDir)\src&quot;;&quot;$(SolutionDir)\UnitTest++\src&quot;"
+				PreprocessorDefinitions="WIN32;_DEBUG;_LIB"
+				BasicRuntimeChecks="0"
 				RuntimeLibrary="3"
+				EnableEnhancedInstructionSet="0"
 				RuntimeTypeInfo="true"
 				UsePrecompiledHeader="0"
 				PrecompiledHeaderThrough="stdafx.h"
@@ -121,9 +122,11 @@
 			/>
 			<Tool
 				Name="VCCLCompilerTool"
-				InlineFunctionExpansion="1"
+				Optimization="3"
+				InlineFunctionExpansion="2"
 				EnableIntrinsicFunctions="true"
 				FavorSizeOrSpeed="1"
+				OmitFramePointers="true"
 				AdditionalIncludeDirectories="$(SolutionDir)\src,$(SolutionDir)\UnitTest++\src"
 				PreprocessorDefinitions="WIN32,NDEBUG,_LIB"
 				StringPooling="true"
@@ -176,10 +179,10 @@
 		</Configuration>
 		<Configuration
 			Name="DebugBoost|Win32"
-			OutputDirectory="$(SolutionDir)$(ConfigurationName)"
-			IntermediateDirectory="$(ConfigurationName)"
+			OutputDirectory="$(SolutionDir)\lib\debug.boost"
+			IntermediateDirectory="debug.boost\vs9"
 			ConfigurationType="4"
-			InheritedPropertySheets="$(VCInstallDir)VCProjectDefaults\UpgradeFromVC71.vsprops"
+			InheritedPropertySheets="$(VCInstallDir)VCProjectDefaults\UpgradeFromVC71.vsprops;..\..\OptionalSettings.vsprops"
 			UseOfMFC="0"
 			ATLMinimizesCRunTimeLibraryUsage="false"
 			CharacterSet="2"
@@ -203,17 +206,17 @@
 				Name="VCCLCompilerTool"
 				Optimization="0"
 				FavorSizeOrSpeed="0"
-				AdditionalIncludeDirectories="&quot;$(SolutionDir)\src&quot;;&quot;$(SolutionDir)\UnitTest++\src&quot;;D:\Dev\boost_1_54_0;&quot;D:\Dev\sparsehash-2.0.2\src&quot;;&quot;D:\Dev\sparsehash-2.0.2\src\windows&quot;;D:\Dev\tbb42_20130725oss\include"
-				PreprocessorDefinitions="WIN32;_DEBUG;_LIB;HAVE_BOOST=1;HAVE_SPARSEHASH=1;HAVE_TBB=1"
+				AdditionalIncludeDirectories="&quot;$(SolutionDir)\src&quot;;&quot;$(SolutionDir)\UnitTest++\src&quot;;$(BOOST_INCLUDE);$(SPARSEHASH_INCLUDE);$(TBB_INCLUDE)"
+				PreprocessorDefinitions="WIN32;_DEBUG;_LIB;$(WITH_BOOST);$(WITH_SPARSEHASH);$(WITH_TBB)"
 				BasicRuntimeChecks="3"
 				RuntimeLibrary="3"
 				RuntimeTypeInfo="true"
 				UsePrecompiledHeader="0"
 				PrecompiledHeaderThrough="stdafx.h"
-				PrecompiledHeaderFile=".\Debug/quickfix.pch"
-				AssemblerListingLocation=".\Debug/"
-				ObjectFile=".\Debug/"
-				ProgramDataBaseFileName=".\Debug/"
+				PrecompiledHeaderFile=".\DebugBoost/quickfix.pch"
+				AssemblerListingLocation=".\DebugBoost/"
+				ObjectFile=".\DebugBoost/"
+				ProgramDataBaseFileName=".\DebugBoost/"
 				WarningLevel="3"
 				SuppressStartupBanner="true"
 				DebugInformationFormat="3"
@@ -232,9 +235,9 @@
 			/>
 			<Tool
 				Name="VCLibrarianTool"
-				AdditionalDependencies="tbb.lib tbbmalloc.lib"
+				AdditionalDependencies="$(TBB_DEPS)"
 				OutputFile="$(OutDir)\quickfix.lib"
-				AdditionalLibraryDirectories="D:\Dev\tbb42_20130725oss\lib\ia32\vc9"
+				AdditionalLibraryDirectories="$(BOOST_LIB);$(TBB_LIB)"
 				SuppressStartupBanner="true"
 			/>
 			<Tool
@@ -256,10 +259,10 @@
 		</Configuration>
 		<Configuration
 			Name="ReleaseBoost|Win32"
-			OutputDirectory="$(SolutionDir)$(ConfigurationName)"
-			IntermediateDirectory="$(ConfigurationName)"
+			OutputDirectory="$(SolutionDir)\lib\release.boost"
+			IntermediateDirectory="release.boost\vs9"
 			ConfigurationType="4"
-			InheritedPropertySheets="$(VCInstallDir)VCProjectDefaults\UpgradeFromVC71.vsprops"
+			InheritedPropertySheets="$(VCInstallDir)VCProjectDefaults\UpgradeFromVC71.vsprops;..\..\OptionalSettings.vsprops"
 			UseOfMFC="0"
 			ATLMinimizesCRunTimeLibraryUsage="false"
 			CharacterSet="2"
@@ -281,11 +284,13 @@
 			/>
 			<Tool
 				Name="VCCLCompilerTool"
-				InlineFunctionExpansion="1"
+				Optimization="3"
+				InlineFunctionExpansion="2"
 				EnableIntrinsicFunctions="true"
 				FavorSizeOrSpeed="1"
-				AdditionalIncludeDirectories="$(SolutionDir)\src,$(SolutionDir)\UnitTest++\src;D:\Dev\boost_1_54_0;&quot;D:\Dev\sparsehash-2.0.2\src&quot;;&quot;D:\Dev\sparsehash-2.0.2\src\windows&quot;;D:\Dev\tbb42_20130725oss\include"
-				PreprocessorDefinitions="WIN32,NDEBUG,_LIB;HAVE_BOOST=1;HAVE_SPARSEHASH=1;HAVE_TBB=1"
+				OmitFramePointers="true"
+				AdditionalIncludeDirectories="$(SolutionDir)\src,$(SolutionDir)\UnitTest++\src;$(BOOST_INCLUDE);$(SPARSEHASH_INCLUDE);$(TBB_INCLUDE)"
+				PreprocessorDefinitions="WIN32,NDEBUG,_LIB;$(WITH_BOOST);$(WITH_SPARSEHASH);$(WITH_TBB)"
 				StringPooling="true"
 				RuntimeLibrary="2"
 				EnableFunctionLevelLinking="true"
@@ -293,10 +298,10 @@
 				RuntimeTypeInfo="true"
 				UsePrecompiledHeader="0"
 				PrecompiledHeaderThrough="stdafx.h"
-				PrecompiledHeaderFile=".\Release/quickfix.pch"
-				AssemblerListingLocation=".\Release/"
-				ObjectFile=".\Release/"
-				ProgramDataBaseFileName=".\Release/"
+				PrecompiledHeaderFile=".\ReleaseBoost/quickfix.pch"
+				AssemblerListingLocation=".\ReleaseBoost/"
+				ObjectFile=".\ReleaseBoost/"
+				ProgramDataBaseFileName=".\ReleaseBoost/"
 				WarningLevel="3"
 				SuppressStartupBanner="true"
 			/>
@@ -313,9 +318,9 @@
 			/>
 			<Tool
 				Name="VCLibrarianTool"
-				AdditionalDependencies="tbb.lib tbbmalloc.lib"
+				AdditionalDependencies="$(TBB_DEPS)"
 				OutputFile="$(OutDir)\quickfix.lib"
-				AdditionalLibraryDirectories="D:\Dev\tbb42_20130725oss\lib\ia32\vc9"
+				AdditionalLibraryDirectories="$(BOOST_LIB);$(TBB_LIB)"
 				SuppressStartupBanner="true"
 			/>
 			<Tool
@@ -679,6 +684,10 @@
 						Outputs=""
 					/>
 				</FileConfiguration>
+			</File>
+			<File
+				RelativePath=".\FixString.h"
+				>
 			</File>
 			<File
 				RelativePath=".\FlexLexer.h"

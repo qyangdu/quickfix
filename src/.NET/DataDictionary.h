@@ -23,7 +23,7 @@
 
 using namespace System;
 using namespace System::IO;
-using namespace System::Runtime::InteropServices;
+//using namespace System::Runtime::InteropServices;
 
 #include "quickfix_net.h"
 
@@ -152,8 +152,9 @@ public:
     return unmanaged().isGroup( convertString(msg), field );
   }
 
-  bool DataDictionary::getGroup( String* msg, int field, [Out]int delim,
-                                 [Out]DataDictionary** dataDictionary )
+  bool DataDictionary::getGroup( String* msg, int field, 
+      [System::Runtime::InteropServices::Out]int delim,
+      [System::Runtime::InteropServices::Out]DataDictionary** dataDictionary )
   {  
     const FIX::DataDictionary* pDataDictionary = 0;
     bool result = unmanaged().getGroup( convertString(msg), field, delim, pDataDictionary );

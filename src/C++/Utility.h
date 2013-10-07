@@ -103,10 +103,14 @@ typedef int socklen_t;
 #include <fcntl.h>
 #include <unistd.h>
 #include <pthread.h>
+#include <semaphore.h>
 #include <signal.h>
 #include <errno.h>
 #include <time.h>
 #include <stdlib.h>
+#ifdef (__MACH__)
+#include <mach/mach_time.h>
+#endif
 /////////////////////////////////////////////
 #endif
 
@@ -126,8 +130,9 @@ typedef int socklen_t;
 #endif
 
 #ifdef HAVE_TBB
-  #include <tbb/spin_mutex.h>
-  #include <tbb/atomic.h>
+#include <tbb/tick_count.h>
+#include <tbb/spin_mutex.h>
+#include <tbb/atomic.h>
 #endif
 
 #if defined(_MSC_VER)
@@ -434,7 +439,168 @@ namespace FIX
       };
     };
 #endif
-  
+
+    struct Sys
+    {
+#ifdef HAVE_TBB
+
+      typedef tbb::tick_count TickCount;
+
+#elif defined(_MSC_VER)
+      class TickCount
+      {
+        ALIGN_DECL(16) LARGE_INTEGER m_data;
+
+        TickCount(LARGE_INTEGER data) : m_data(data) {}
+        TickCount()
+        {
+	      ::QueryPerformanceCounter(&m_data);
+        }
+      public:
+        static inline TickCount now()
+        { return TickCount(); }
+
+        TickCount operator-(const TickCount& rhs) const
+        {
+          LARGE_INTEGER diff;
+	      diff.QuadPart = m_data.QuadPart - rhs.m_data.QuadPart;
+	      return diff;
+        }
+
+        double seconds() const
+        {
+	      LARGE_INTEGER freq;
+	      ::QueryPerformanceFrequency(&freq);
+	      return (double)m_data.QuadPart/(double)freq.QuadPart;
+        }
+      };
+#elif defined(__MACH__)
+      class TickCount
+      {
+        uint64_t m_data;
+
+        TickCount(uint64_t data) : m_data(data) {}
+        TickCount()
+        {
+          m_data = ::mach_absolute_time();
+        }
+      public:
+        static inline TickCount now()
+        { return TickCount(); }
+
+        TickCount operator-(const TickCount& rhs) const
+        {
+          return m_data - rhs.m_data;
+        }
+
+        double seconds() const
+        {
+          ::mach_timebase_info_data_t tb;
+          ::mach_timebase_info(&tb);
+          double v = (double)m_data * tb.numer / tb_denom;
+          return v * (1.0E-9);
+        }
+      };
+#else
+      class TickCount
+      {
+        struct timespec m_data;
+
+        TickCount(struct timespec data) : m_data(data) {}
+        TickCount()
+        {
+          ::clock_gettime(CLOCK_REALIME, &m_data);
+        }
+      public:
+        static inline TickCount now()
+        { return TickCount(); }
+
+        TickCount operator-(const TickCount& rhs) const
+        {
+          struct timespec data;
+          data.tv_sec = m_data.tv_sec - rhs.m_data.tv_sec;
+          if( m_data.tv_nsec >= rhs.m_data.tv_nsec )
+            data.tv_nsec = m_data.tv_nsec - rhs.m_data.tv_nsec;
+          else
+          {
+            data.tv_sec -= 1;
+            data.tv_nsec = 1000000000 + m_data.tv_nsec - rhs.m_data.tv_nsec;
+          }
+          return data;
+        }
+
+        double seconds() const
+        {
+          return (double)data.tv_sec + (double)data.tv_nsec / 1.0E-9;
+        }
+      };
+#endif
+
+#if defined(_MSC_VER)
+      class Semaphore
+      {
+        HANDLE m_sem;
+        Semaphore( const Semaphore & );
+        Semaphore & operator = ( const Semaphore & );
+      public:
+        Semaphore(int count = 0) 
+        {
+          m_sem = ::CreateSemaphore(NULL, (std::numeric_limits<int>::max)(), count, NULL);
+        }
+        ~Semaphore()
+        {
+          ::CloseHandle( m_sem );
+        }
+        bool wait()
+        {
+          return WAIT_OBJECT_0 == ::WaitForSingleObject( m_sem, INFINITE );
+        }
+        bool try_wait()
+        {
+          return WAIT_OBJECT_0 == ::WaitForSingleObject( m_sem, 0L );
+        }
+        bool post()
+        {
+          return ::ReleaseSemaphore(m_sem, 1, NULL) != 0;
+        }
+      };
+#else
+      class Semaphore
+      {
+        sem_t m_sem;
+        Semaphore( const Semaphore & );
+        Semaphore & operator = ( const Semaphore & );
+      public:
+        Semaphore( int count = 0 ) 
+        {
+          ::sem_init( &m_sem, 0, count );
+        }
+        ~Semaphore()
+        {
+          ::sem_destroy( &m_sem );
+        }
+        bool wait()
+        {
+          return 0 == ::sem_wait( &m_sem );
+        }
+        bool try_wait()
+        {
+          return 0 == ::sem_trywait( &m_sem );
+        }
+        bool post()
+        {
+          return 0 == ::sem_post( &m_sem );
+        }
+      };
+#endif
+
+#if defined(_MSC_VER)
+      static inline void SchedYield() { ::SwitchToThread(); }
+#else
+      static inline void SchedYield() { ::sched_yield(); }
+#endif
+    }; // Sys
+
 #if defined(__GNUC__) && defined(__x86_64__)
     class IntBase {
       protected:
@@ -449,16 +615,16 @@ namespace FIX
       public:
       static inline int PURE_DECL HEAVYUSE numDigits( int32_t i )
       {
-	register int32_t z = 0;
-	register uint32_t log2;
-	if (i < 0) i = -i;
-	__asm__ __volatile__ (
-		"bsr %1, %0;"  \
-		"cmovz %2, %0;"\
-		: "=r" (log2)  \
-		: "rm" (i), "r"(z));
-	register const Log2& e = m_digits[log2];
-	return e.m_count + ( i > e.m_threshold );
+        register int32_t z = 0;
+        register uint32_t log2;
+        if (i < 0) i = -i;
+        __asm__ __volatile__ (
+	            "bsr %1, %0;"  \
+	            "cmovz %2, %0;"\
+	            : "=r" (log2)  \
+	            : "rm" (i), "r"(z));
+        register const Log2& e = m_digits[log2];
+        return e.m_count + ( i > e.m_threshold );
       }
     };
     class PositiveInt : public IntBase {
@@ -510,55 +676,55 @@ namespace FIX
       public:
       static inline int PURE_DECL HEAVYUSE numDigits( int32_t i )
       {
-	if (i < 0)  i = -i;
-	if              (i < 100000) {
-	    if          (i < 1000) {
-	        if      (i < 10)         return 1;
-	        else if (i < 100)        return 2;
-	        else                     return 3;
-	    } else {
-	        if      (i < 10000)      return 4;
-	        else                     return 5;
-	    }
-	} else {
-	    if          (i < 10000000) {
-	        if      (i < 1000000)    return 6;
-	        else                     return 7;
-	    } else {
-	        if      (i < 100000000)  return 8;
-	        else if (i < 1000000000) return 9;
-	        else                     return 10;
-	    }
-	}
+        if (i < 0)  i = -i;
+        if              (i < 100000) {
+            if          (i < 1000) {
+                if      (i < 10)         return 1;
+                else if (i < 100)        return 2;
+                else                     return 3;
+            } else {
+                if      (i < 10000)      return 4;
+                else                     return 5;
+            }
+        } else {
+            if          (i < 10000000) {
+                if      (i < 1000000)    return 6;
+                else                     return 7;
+            } else {
+                if      (i < 100000000)  return 8;
+                else if (i < 1000000000) return 9;
+                else                     return 10;
+            }
+        }
       }
     };
     class PositiveInt {
       public:
       static inline int PURE_DECL HEAVYUSE numDigits( int32_t i )
       {
-	if              (i < 100000) {
-	    if          (i < 1000) {
-	        if      (i < 10)         return 1;
-	        else if (i < 100)        return 2;
-	        else                     return 3;
-	    } else {
-	        if      (i < 10000)      return 4;
-	        else                     return 5;
-	    }
-	} else {
-	    if          (i < 10000000) {
-	        if      (i < 1000000)    return 6;
-	        else                     return 7;
-	    } else {
-	        if      (i < 100000000)  return 8;
-	        else if (i < 1000000000) return 9;
-	        else                     return 10;
-	    }
-	}
+        if              (i < 100000) {
+            if          (i < 1000) {
+                if      (i < 10)         return 1;
+                else if (i < 100)        return 2;
+                else                     return 3;
+            } else {
+                if      (i < 10000)      return 4;
+                else                     return 5;
+            }
+        } else {
+            if          (i < 10000000) {
+                if      (i < 1000000)    return 6;
+                else                     return 7;
+            } else {
+                if      (i < 100000000)  return 8;
+                else if (i < 1000000000) return 9;
+                else                     return 10;
+            }
+        }
       }
       static inline short PURE_DECL HEAVYUSE checkSum(int n)
       {
-	short csum = 0;
+        short csum = 0;
         do
         {
           csum += (int)'0' + n % 10;
@@ -572,10 +738,10 @@ namespace FIX
       {
         int r = 1;
         if (v < 0) v = -v;
-	if (v >= 10000000000000000LL)
+        if (v >= 10000000000000000LL)
         {
-	  r += 16;
-	  v /= 10000000000000000LL;
+          r += 16;
+          v /= 10000000000000000LL;
         }
         if (v >= 100000000)
         {
@@ -923,15 +1089,15 @@ namespace FIX
       BitSet NOTHROW_PRE & NOTHROW_POST reset( int bit )
       {
 #if defined(__GNUC__) && (defined(__x86_64__) || defined(__i386__))
- 	__asm__ __volatile__ (
-        "btr %1, %0; "
-        : "+m" (*(volatile word_type*)m_bits)
-        : "Ir" (bit)
-        : "cc", "memory");   
+ 	    __asm__ __volatile__ (
+                "btr %1, %0; "
+                : "+m" (*(volatile word_type*)m_bits)
+                : "Ir" (bit)
+                : "cc", "memory");   
 #elif defined(_MSC_VER)
         _bittestandreset( (long*)m_bits, bit );
 #else
-	m_bits[bit >> word_shift] &= ~((word_type)1 << (bit & (word_size - 1)));
+        m_bits[bit >> word_shift] &= ~((word_type)1 << (bit & (word_size - 1)));
 #endif
         return *this;
       }
@@ -949,11 +1115,11 @@ namespace FIX
       inline BitSet NOTHROW_PRE & NOTHROW_POST set( int bit )
       {
 #if defined(__GNUC__) && (defined(__x86_64__) || defined(__i386__))
- 	__asm__ __volatile__ (
-        "bts %1, %0; "
-        : "+m" (*(volatile word_type*)m_bits)
-        : "Ir" (bit)
-        : "cc", "memory");   
+        __asm__ __volatile__ (
+                "bts %1, %0; "
+                : "+m" (*(volatile word_type*)m_bits)
+                : "Ir" (bit)
+                : "cc", "memory");   
 #elif defined(_MSC_VER)
         _bittestandset( (long*)m_bits, bit );
 #else
@@ -971,11 +1137,11 @@ namespace FIX
         unsigned char nRet;
 #if defined(__GNUC__) && (defined(__x86_64__) || defined(__i386__))
         __asm__ __volatile__ (
-        "bt %1, %2; "
-        "setc %b0 "                                     
-        : "=r" (nRet)                                   
-        : "Ir" (bit), "m"(*(volatile word_type*)m_bits) 
-        : "cc");
+                "bt %1, %2; "
+                "setc %b0 "                                     
+                : "=r" (nRet)                                   
+                : "Ir" (bit), "m"(*(volatile word_type*)m_bits) 
+                : "cc");
         return nRet;
 #elif defined(_MSC_VER)
         nRet = _bittest( (long*)m_bits, bit );
@@ -1063,7 +1229,7 @@ namespace FIX
       BitSet NOTHROW_PRE & NOTHROW_POST reset() { m_bits = 0; return *this; }
       BitSet NOTHROW_PRE & NOTHROW_POST reset( int bit )
       { 
-	m_bits &= ~((word_type)1 << bit);
+        m_bits &= ~((word_type)1 << bit);
         return *this;
       }
 
@@ -1103,9 +1269,6 @@ namespace FIX
 
       std::size_t size() const { return sizeof(word_type) << 3; }
     };
-
-    // Debugging aid
-    bool checkpoint();
 
   } // namespace FIX::Util
 

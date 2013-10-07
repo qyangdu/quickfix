@@ -21,9 +21,9 @@
 
 #pragma once
 
-using namespace System;
-
 #include "quickfix_net.h"
+
+using namespace System;
 
 namespace QuickFix
 {

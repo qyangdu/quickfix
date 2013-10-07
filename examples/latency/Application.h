@@ -22,9 +22,6 @@
 #ifndef LATENCY_APPLICATION_H
 #define LATENCY_APPLICATION_H
 
-#include <time.h>
-#include <semaphore.h>
-
 #include <queue>
 #include <iostream>
 
@@ -42,17 +39,17 @@
 class Application
       : public FIX::Application
 {
-  struct timespec  tick_;
-  size_t	   num_spans_;
-  uint64_t*	   spans_;
-  uint64_t	   totalNsec_;
-  sem_t		   ready_;
+  FIX::Util::Sys::TickCount tick_;
+  std::size_t  num_spans_;
+  double*	   spans_;
+  double	   totalSec_;
+  FIX::Util::Sys::Semaphore ready_;
   FIX::AtomicCount logonCount_;
   FIX::AtomicCount receiveCount_;
 
 public:
-  Application(uint64_t NumSpans);
-  virtual ~Application() { sem_destroy(&ready_); delete [] spans_; }
+    Application(std::size_t NumSpans);
+  virtual ~Application() { delete [] spans_; }
 
   // Application overloads
   void onCreate( const FIX::SessionID& ) {}
@@ -68,21 +65,20 @@ public:
 
   bool initialized() const { return logonCount_ == 2; }
   void acquire() {
-    sem_wait(&ready_);
-    clock_gettime(CLOCK_REALTIME, &tick_);
+    ready_.wait();
+    tick_ = FIX::Util::Sys::TickCount::now();
   }
   void release(int seq) {
-    struct timespec tock;
-    clock_gettime(CLOCK_REALTIME, &tock); 
-    uint64_t span = (tock.tv_sec - tick_.tv_sec) * 1000000000 + (tock.tv_nsec - tick_.tv_nsec);
+    FIX::Util::Sys::TickCount tock = FIX::Util::Sys::TickCount::now();
+    double span = (tock - tick_).seconds();
     spans_[seq] = span;
-    totalNsec_ += span;
-    sem_post(&ready_);
+    totalSec_ += span;
+    ready_.post();
   } 
   FIX::AtomicCount::value_type received() const { return receiveCount_; }
-  uint64_t elapsed() const { return totalNsec_; }
+  double elapsed() const { return totalSec_; }
 
-  uint64_t* spans() {
+  double* spans() {
     std::sort(spans_, spans_ + num_spans_);
     return spans_;
   }

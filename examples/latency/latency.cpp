@@ -74,22 +74,22 @@ int main( int argc, char** argv )
       initiator.start();
   
       while( !application.initialized()) {
-  	sched_yield();
+          FIX::Util::Sys::SchedYield();
       }
   
       for (size_t i = 0; i < NumberOfMessages; ++i)
       {
-  	application.acquire();
-  	ps->send(msg);
+        application.acquire();
+        ps->send(msg);
       }
       application.acquire();
   
       std::cout << std::endl << std::endl << "received " << application.received() << ", in "
-		<< (double)application.elapsed() / 1000000000 << " sec, stopping..." << std::endl;
-      uint64_t* spans = application.spans();
-      std::cout << "min: " << (double)spans[0] / 1000 << " usec";
-      std::cout << ", max: " << (double)spans[NumberOfMessages - 1] / 1000 << " usec";
-      std::cout << ", median: " << (double)spans[NumberOfMessages / 2] / 1000 << " usec" << std::endl;
+		<< application.elapsed() << " sec, stopping..." << std::endl;
+      double* spans = application.spans();
+      std::cout << "min: " << spans[0] * 1000000 << " usec";
+      std::cout << ", max: " << spans[NumberOfMessages - 1] * 1000000 << " usec";
+      std::cout << ", median: " << spans[NumberOfMessages / 2] * 1000000 << " usec" << std::endl;
   
       initiator.stop();
     }

@@ -21,7 +21,6 @@
 
 #pragma once
 
-using namespace System;
 
 #include "quickfix_net.h"
 
@@ -31,7 +30,8 @@ using namespace System;
 #include "SessionSettings.h"
 #include "quickfix/FileStore.h"
 #include "quickfix/Settings.h"
-#include "vcclr.h"
+
+using namespace System;
 
 namespace QuickFix
 {

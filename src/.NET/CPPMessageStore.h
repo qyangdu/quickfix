@@ -21,16 +21,15 @@
 
 #pragma once
 
-using namespace System;
-using namespace System::Threading;
-
 #include "quickfix_net.h"
 
 #include "MessageStore.h"
 #include "MessageStoreFactory.h"
 #include "SessionID.h"
 #include "SessionSettings.h"
-#include "vcclr.h"
+
+using namespace System;
+using namespace System::Threading;
 
 namespace QuickFix
 {

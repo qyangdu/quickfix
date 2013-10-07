@@ -1,7 +1,7 @@
 ﻿<Project DefaultTargets="Build" ToolsVersion="3.5" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <PropertyGroup>
     <ProjectType>Local</ProjectType>
-    <ProductVersion>9.0.21022</ProductVersion>
+    <ProductVersion>9.0.30729</ProductVersion>
     <SchemaVersion>2.0</SchemaVersion>
     <ProjectGuid>{30A02EEB-AF70-4B20-8B97-0AFF2485EFB9}</ProjectGuid>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
@@ -73,6 +73,25 @@
     <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
     <WarningLevel>4</WarningLevel>
     <DebugType>none</DebugType>
+    <ErrorReport>prompt</ErrorReport>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'DebugBoost|AnyCPU' ">
+    <DebugSymbols>true</DebugSymbols>
+    <OutputPath>bin\DebugBoost\</OutputPath>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <BaseAddress>285212672</BaseAddress>
+    <FileAlignment>4096</FileAlignment>
+    <DebugType>full</DebugType>
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <ErrorReport>prompt</ErrorReport>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'ReleaseBoost|AnyCPU' ">
+    <OutputPath>bin\ReleaseBoost\</OutputPath>
+    <DefineConstants>TRACE</DefineConstants>
+    <BaseAddress>285212672</BaseAddress>
+    <Optimize>true</Optimize>
+    <FileAlignment>4096</FileAlignment>
+    <PlatformTarget>AnyCPU</PlatformTarget>
     <ErrorReport>prompt</ErrorReport>
   </PropertyGroup>
   <ItemGroup>
@@ -1869,8 +1888,14 @@
     <PreBuildEvent>
     </PreBuildEvent>
     <PostBuildEvent>set CONFIGURATION_NAME=$(ConfigurationName)
+
 if "%25CONFIGURATION_NAME%25" == "Release" xcopy "$(TargetPath)" /Y "$(SolutionDir)lib"
+
 if "%25CONFIGURATION_NAME%25" == "Debug" xcopy "$(TargetPath)" /Y "$(SolutionDir)lib\debug"
+
+if "%25CONFIGURATION_NAME%25" == "ReleaseBoost" xcopy "$(TargetPath)" /Y "$(SolutionDir)lib\release.boost"
+
+if "%25CONFIGURATION_NAME%25" == "DebugBoost" xcopy "$(TargetPath)" /Y "$(SolutionDir)lib\debug.boost"
 </PostBuildEvent>
   </PropertyGroup>
 </Project>

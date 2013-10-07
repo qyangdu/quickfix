@@ -6,7 +6,7 @@
 
 #include "../config_windows.h"
 
-#define _WINSOCK2API_
+#define _WINSOCKAPI_
 #include <windows.h>
 #undef ABSOLUTE
 #undef TRUE
@@ -14,4 +14,9 @@
 #undef DELETE
 #undef ERROR
 #using <mscorlib.dll>
+
+#ifdef HAVE_BOOST
+#define BOOST_USE_WINDOWS_H
+#endif
+
 

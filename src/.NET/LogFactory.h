@@ -21,14 +21,13 @@
 
 #pragma once
 
-using namespace System;
-
 #include "quickfix_net.h"
 
 #include "Log.h"
 #include "SessionID.h"
 #include "quickfix/Log.h"
-#include "vcclr.h"
+
+using namespace System;
 
 namespace QuickFix
 {

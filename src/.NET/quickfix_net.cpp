@@ -20,6 +20,7 @@
 #include "stdafx.h"
 
 #include "quickfix_net.h"
+
 #include "DataDictionary.h"
 #include "DataDictionaryProvider.h"
 #include "SessionSettings.h"
@@ -30,6 +31,8 @@
 #include "ThreadedSocketInitiator.h"
 #include "ThreadedSocketAcceptor.h"
 #include "MessageFactory.h"
+
+using namespace System;
 
 namespace QuickFix
 {
