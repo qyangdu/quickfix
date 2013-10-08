@@ -56,8 +56,8 @@ Message::Message()
   m_trailer( get_allocator(), message_order( message_order::trailer ) ),
   m_status( 0 ) {}
 
-Message::Message( bool hintSerializeOnce )
-: FieldMap( FieldMap::create_allocator() ),
+Message::Message( bool hintSerializeOnce, int hintFieldCount )
+: FieldMap( FieldMap::create_allocator( hintFieldCount ) ),
   m_header( get_allocator(), message_order( message_order::header ) ),
   m_trailer( get_allocator(), message_order( message_order::trailer ) ),
   m_status( createStatus(hint_no_reuse, hintSerializeOnce) ) {}

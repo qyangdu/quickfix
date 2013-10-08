@@ -218,8 +218,8 @@ protected:
 public:
   Message();
 
-  /// Construct a message with a hint whether it will be reused
-  Message( bool hintSerializeOnce );
+  /// Construct a message with hints
+  Message( bool hintSerializeOnce, int hintFieldCount = ItemStore::DefaultCapacity );
 
   /// Construct a message from a string
   Message( const std::string& string, bool validate = true )
