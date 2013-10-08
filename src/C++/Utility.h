@@ -108,7 +108,7 @@ typedef int socklen_t;
 #include <errno.h>
 #include <time.h>
 #include <stdlib.h>
-#ifdef (__MACH__)
+#if defined(__MACH__)
 #include <mach/mach_time.h>
 #endif
 /////////////////////////////////////////////
