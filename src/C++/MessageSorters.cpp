@@ -28,11 +28,11 @@
 namespace FIX
 {
 message_order::message_order( int first, ... )
-: m_mode( group ), m_delim( 0 ), m_largest( 0 )
+: m_mode( group ), m_largest( 0 )
 {
   int field = first;
   int size = 0;
-  m_largest = m_delim = first;
+  m_largest = first;
 
   va_list arguments;
   va_start( arguments, first );
@@ -61,20 +61,19 @@ message_order::message_order( int first, ... )
   else
   {
     m_largest = 0;
-    m_delim = 0;
   }
 
   va_end( arguments );
 }
 
 message_order::message_order( const int order[] )
-: m_mode( group ), m_delim( 0 ), m_largest( 0 )
+: m_mode( group ), m_largest( 0 )
 {
   int size = 0;
   while( order[size] != 0 ) { ++size; }
   if ( size )
   {
-    m_largest = m_delim = order[0];
+    m_largest = order[0];
 
     // collect all fields and find the largest field number
     for (int i = 1; i < size; ++i )

@@ -23,6 +23,7 @@
 #include "config.h"
 #endif
 
+#include "Parser.h"
 #include "Session.h"
 #include "Values.h"
 #include <algorithm>
@@ -130,11 +131,6 @@ Message::admin_trait Session::fill( Header& header, int num, UtcTimeStamp now )
   insertSendingTime( header, now );
 
   return trait;
-}
-
-void Session::next()
-{
-  next( UtcTimeStamp() );
 }
 
 void Session::next( const UtcTimeStamp& timeStamp )
@@ -1243,17 +1239,20 @@ bool Session::nextQueued( int num, const UtcTimeStamp& timeStamp )
   return false;
 }
 
-void Session::next( const std::string& msg, const UtcTimeStamp& timeStamp, bool queued )
+void Session::next( Sg::sg_buf_t buf, const UtcTimeStamp& timeStamp, bool queued )
 {
+  const char* msg = Sg::data<const char*>(buf);
   try
   {
-    m_state.SessionState::onIncoming( timeStamp, msg );
     const DataDictionary& sessionDD = 
       m_dataDictionaryProvider.getSessionDataDictionary(m_sessionID.getBeginString());
+
+    m_state.onIncoming( &buf, 1 );
     m_rcvAllocator.clear();
-    if (LIKELY(!m_sessionID.isFIXT()))
+
+    if( LIKELY(!m_sessionID.isFIXT()) )
     {
-      next( Message( msg,
+      next( Message( msg, Sg::size(buf),
                      sessionDD,
                      m_rcvAllocator,
                      m_validateLengthAndChecksum ),
@@ -1263,7 +1262,7 @@ void Session::next( const std::string& msg, const UtcTimeStamp& timeStamp, bool 
     {
       const DataDictionary& applicationDD =
         m_dataDictionaryProvider.getApplicationDataDictionary(m_senderDefaultApplVerID);
-      next( Message( msg,
+      next( Message( msg, Sg::size(buf),
                      sessionDD,
                      applicationDD,
                      m_rcvAllocator,
@@ -1277,7 +1276,7 @@ void Session::next( const std::string& msg, const UtcTimeStamp& timeStamp, bool 
 
     try
     {
-      if( identifyType(msg) == MsgType_Logon )
+      if( identifyType( msg, Sg::size(buf) ) == MsgType_Logon )
       {
         m_state.onEvent( "Logon message is not valid" );
         disconnect();
@@ -1293,20 +1292,19 @@ void HEAVYUSE Session::next( const Message& message, const DataDictionary& sessi
 
   try
   {
-    if ( LIKELY(checkSessionTime(timeStamp)) )
+    if( LIKELY(checkSessionTime(timeStamp)) )
     {
       const BeginString& beginString = FIELD_GET_REF( header, BeginString );
-      if ( beginString == m_sessionID.getBeginString() )
+      if( beginString == m_sessionID.getBeginString() )
       {
         const MsgType& msgType = FIELD_GET_REF( header, MsgType );
         const char* msgTypeValue = msgType.forString( String::CstrFunc() );
-        char msgChar = msgTypeValue[0];
     
-        if ( LIKELY( msgChar != 'A' && msgChar < '0' && msgChar > '5' ) ||
-             LIKELY( msgChar && msgTypeValue[1] ) )
+        if( LIKELY(!Message::isAdminMsgTypeValue(msgTypeValue)) )
         {
-          if ( LIKELY(!m_sessionID.isFIXT()) )
-            sessionDD.validate( message, beginString, &sessionDD, &sessionDD );
+          if( LIKELY(!m_sessionID.isFIXT()) )
+            sessionDD.validate( message, beginString, msgType,
+                                &sessionDD, &sessionDD );
           else
           {
             ApplVerID applVerID = m_targetDefaultApplVerID;
@@ -1314,16 +1312,16 @@ void HEAVYUSE Session::next( const Message& message, const DataDictionary& sessi
               header.getField(applVerID);
             const DataDictionary& applicationDataDictionary = 
               m_dataDictionaryProvider.getApplicationDataDictionary(applVerID);
-            DataDictionary::validate( message, beginString,
+            DataDictionary::validate( message, beginString, msgType,
       				&sessionDD, &applicationDataDictionary );
           }
-          if ( !verify( message, timeStamp, header,
+          if( !verify( message, timeStamp, header,
                                  msgTypeValue, true, true ) ) return ;
           m_state.incrNextTargetMsgSeqNum();
         } 
         else
         {
-          if ( msgType == MsgType_Logon )			// "A"
+          if( msgType == MsgType_Logon )			// "A"
           {
             if( m_sessionID.isFIXT() )
             {
@@ -1334,12 +1332,14 @@ void HEAVYUSE Session::next( const Message& message, const DataDictionary& sessi
             {
               setTargetDefaultApplVerID(Message::toApplVerID(beginString));
             }
-            sessionDD.validate( message, beginString, &sessionDD, &sessionDD );
+            sessionDD.validate( message, beginString, msgType,
+                                &sessionDD, &sessionDD );
             nextLogon( message, timeStamp );
           }
           else
           {
-            sessionDD.validate( message, beginString, &sessionDD, &sessionDD );
+            sessionDD.validate( message, beginString, msgType,
+                                &sessionDD, &sessionDD );
             if ( msgType == MsgType_Heartbeat )		// "0"
               nextHeartbeat( message, timeStamp );
             else if ( msgType == MsgType_TestRequest )	// "1"
@@ -1531,6 +1531,28 @@ Session* Session::lookupSession( const std::string& string, bool reverse )
                           targetCompID ) );
   }
   catch ( FieldNotFound& ) { return 0; }
+}
+
+Session* Session::lookupSession( Sg::sg_buf_t buf, bool reverse )
+{
+  Sg::sg_buf_t begin = Parser::findBeginString( buf );
+  if( LIKELY(NULL != Sg::data<const char*>(begin)) )
+  {
+    Sg::split( buf, begin );
+    Sg::sg_buf_t sender = Parser::findSenderCompID( buf );
+    if( LIKELY(NULL != Sg::data<const char*>(sender)) )
+    {
+      Sg::sg_buf_t target = Parser::findTargetCompID( buf );
+      if( LIKELY(NULL != Sg::data<const char*>(target)) )
+      {
+        if ( reverse )
+          return lookupSession( SessionID( begin, target, sender ) );
+        else
+          return lookupSession( SessionID( begin, sender, target ) );
+      }
+    }
+  }
+  return NULL;
 }
 
 bool Session::isSessionRegistered( const SessionID& sessionID )

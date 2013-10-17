@@ -501,13 +501,15 @@ public:
 
   /// Validate a message.
   static void validate( const Message& message,
-			const BeginString& beginString,
+                        const BeginString& beginString,
+                        const MsgType& msgType,
                         const DataDictionary* const pSessionDD,
                         const DataDictionary* const pAppID )
   throw( FIX::Exception );
 
   void validate( const Message& message, bool bodyOnly ) const
   throw( FIX::Exception );
+
   void validate( const Message& message ) const
   throw( FIX::Exception )
   { validate( message, false ); }

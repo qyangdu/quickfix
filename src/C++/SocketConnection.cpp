@@ -88,7 +88,7 @@ bool SocketConnection::send( Sg::sg_buf_ptr bufs, int n )
           {
             std::string s( (const char*)IOV_BUF(bufs[i]) + sent, l - sent);
             while( ++i < n )
-              s.append( (const char*)IOV_BUF(bufs[i]), IOV_LEN(bufs[i]));
+              String::append( s, bufs[i] );
             return send( s );
           }
           sent -= l;
@@ -155,28 +155,29 @@ bool SocketConnection::read( SocketConnector& s )
 
 bool SocketConnection::read( SocketAcceptor& a, SocketServer& s )
 {
-  std::string msg;
   try
   {
     readFromSocket();
 
     if ( !m_pSession )
     {
-      if ( !readMessage( msg ) ) return false;
-      m_pSession = Session::lookupSession( msg, true );
+      Sg::sg_buf_t buf;
+      if ( !readMessage( buf ) ) return false;
+
+      m_pSession = Session::lookupSession( buf, true );
       if( !isValidSession() )
       {
         m_pSession = 0;
         if( a.getLog() )
         {
-          a.getLog()->onEvent( "Session not found for incoming message: " + msg );
-          a.getLog()->onIncoming( msg );
+          a.getLog()->onEvent( "Session not found for incoming message: " + Sg::toString(buf) );
+          a.getLog()->onIncoming( &buf, 1 );
         }
       }
       if( m_pSession )
-        m_pSession = a.getSession( msg, *this );
+        m_pSession = a.getSession( buf, *this );
       if( m_pSession )
-        m_pSession->next( msg, UtcTimeStamp() );
+        m_pSession->next( buf, UtcTimeStamp() );
       if( !m_pSession )
       {
         s.getMonitor().drop( m_socket );
@@ -215,29 +216,35 @@ bool SocketConnection::isValidSession()
 void SocketConnection::readFromSocket()
 throw( SocketRecvFailed )
 {
-  int size = recv( m_socket, m_buffer, sizeof(m_buffer), 0 );
+  Sg::sg_buf_t buf = m_parser.buffer();
+  int size = recv( m_socket, IOV_BUF(buf), IOV_LEN(buf), 0 );
   if( size <= 0 ) throw SocketRecvFailed( size );
-  m_parser.addToStream( m_buffer, size );
+  m_parser.advance( size );
 }
 
-static int parse_errors = 0;
-
-bool SocketConnection::readMessage( std::string& msg )
+bool SocketConnection::readMessage( Sg::sg_buf_t& msg )
 {
-  try
+  while( true )
   {
-    return m_parser.readFixMessage( msg );
+    try
+    {
+      if( m_parser.parse() )
+      {
+        m_parser.retrieve( msg );
+        return true;
+      }
+      break;
+    }
+    catch ( MessageParseError& e ) {}
   }
-  catch ( MessageParseError& )
-  { parse_errors++; }
-  return true;
+  return false;
 }
 
 void SocketConnection::readMessages( SocketMonitor& s )
 {
   if( !m_pSession ) return;
 
-  std::string msg;
+  Sg::sg_buf_t msg;
   while( readMessage( msg ) )
   {
     try

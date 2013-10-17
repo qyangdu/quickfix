@@ -114,6 +114,20 @@ namespace FIX
        return sink.append(r);
      }
 
+     template <typename S, typename B>
+     static S NOTHROW_PRE & NOTHROW_POST
+     append( S& s, B buf )
+     {
+       return s.append( (const char*)IOV_BUF(buf), IOV_LEN(buf) );
+     }
+
+     template <typename S>
+     static Sg::sg_buf_t NOTHROW toBuffer( const S& s )
+     {
+       Sg::sg_buf_t buf = { (char*)c_str(s), length(s) };
+       return buf;
+     }
+
 #ifdef ENABLE_SSO
 
      /// Class optimized for short strings with a subset of std::string methods

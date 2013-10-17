@@ -29,6 +29,37 @@ namespace FIX
 /// Unique session id consists of BeginString, SenderCompID and TargetCompID.
 class SessionID
 {
+  static inline std::string toString( Sg::sg_buf_t beginString,
+                                      Sg::sg_buf_t senderCompID,
+                                      Sg::sg_buf_t targetCompID,
+                                      Sg::sg_buf_ptr sessionQualifier )
+  {
+    std::string str;
+    str.reserve( Sg::size(beginString) + 1 +
+                 Sg::size(senderCompID) + 2 +
+                 Sg::size(targetCompID) +
+               ( sessionQualifier ? (Sg::size(*sessionQualifier) + 1) :  0 ) );
+    String::append(
+      String::append(
+        String::append(
+          str,
+          beginString
+        ).append(":", 1),
+        senderCompID
+      ).append("->", 2),
+      targetCompID
+    );
+    if( sessionQualifier )
+      String::append( str.append(":", 1), *sessionQualifier );
+    return str;
+  }
+
+  static inline bool toFIXT( Sg::sg_buf_t beginString )
+  {
+    Util::CharBuffer::Fixed<4> tag = { { 'F', 'I', 'X', 'T' } };
+    return NULL != Util::CharBuffer::find( tag, Sg::data<const char*>(beginString), 4 );
+  }
+
 public:
   SessionID()
   {
@@ -39,17 +70,28 @@ public:
              const std::string& senderCompID,
              const std::string& targetCompID,
              const std::string& sessionQualifier = "" )
-  : m_sessionQualifier( sessionQualifier ),
+  : m_beginString( String::c_str(beginString), String::length(beginString) ),
+    m_senderCompID( String::c_str(senderCompID), String::length(senderCompID) ),
+    m_targetCompID( String::c_str(targetCompID), String::length(targetCompID) ),
+    m_sessionQualifier( sessionQualifier ),
     m_isFIXT(false)
   {
-    m_beginString.setPacked( BeginString::Pack(beginString.data(), beginString.size()) );
-    m_senderCompID.setPacked( SenderCompID::Pack(senderCompID.data(), senderCompID.size()) );
-    m_targetCompID.setPacked( TargetCompID::Pack(targetCompID.data(), targetCompID.size()) );
-    
     toString(m_frozenString);
     if( beginString.substr(0, 4) == "FIXT" )
       m_isFIXT = true;
   }
+
+  SessionID( Sg::sg_buf_t beginString,
+             Sg::sg_buf_t senderCompID,
+             Sg::sg_buf_t targetCompID,
+             Sg::sg_buf_ptr sessionQualifier = NULL )
+  : m_beginString( Sg::toString(beginString) ),
+    m_senderCompID( Sg::toString(senderCompID) ),
+    m_targetCompID( Sg::toString(targetCompID) ),
+    m_sessionQualifier( sessionQualifier ? Sg::toString(*sessionQualifier) : std::string() ),
+    m_isFIXT( toFIXT( beginString ) ),
+    m_frozenString( toString(beginString, senderCompID, targetCompID, sessionQualifier) )
+  {}
 
   const BeginString& getBeginString() const
     { return m_beginString; }
@@ -112,11 +154,12 @@ public:
   /// Get a string representation without making a copy
   std::string& toString( std::string& str ) const
   {
-    str = getBeginString().dupString() + ":" +
-          getSenderCompID().dupString() + "->" +
-          getTargetCompID().dupString();
-    if( m_sessionQualifier.size() )
-      str += ":" + m_sessionQualifier;
+    Sg::sg_buf_t beginStringBuf = m_beginString.getSgBuf();
+    Sg::sg_buf_t senderCompIDBuf = m_senderCompID.getSgBuf();
+    Sg::sg_buf_t targetCompIDBuf = m_targetCompID.getSgBuf();
+    Sg::sg_buf_t qualifier = String::toBuffer( m_sessionQualifier );
+    str = toString( beginStringBuf, senderCompIDBuf, targetCompIDBuf,
+                    Sg::size( qualifier ) ? &qualifier : NULL );
     return str;
   }
 
@@ -128,10 +171,11 @@ public:
 
   SessionID operator~() const
   {
-    return SessionID( m_beginString.dupString(),
-                      SenderCompID( m_targetCompID.dupString() ),
-                      TargetCompID( m_senderCompID.dupString() ),
-                      m_sessionQualifier );
+    Sg::sg_buf_t qualifier = String::toBuffer( m_sessionQualifier );
+    return SessionID( m_beginString.getSgBuf(),
+                      m_targetCompID.getSgBuf(),
+                      m_senderCompID.getSgBuf(),
+                      Sg::size( qualifier ) ? &qualifier : NULL );
   }
 
 private:

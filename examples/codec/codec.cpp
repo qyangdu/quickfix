@@ -35,7 +35,7 @@ int main(int argc, char *argv[])
     double tt = 0;
     for(int i = 0 ; i < 1000000; ++i)
     {
-        FIX::Message msg(true);
+        FIX::Message msg(FIX::Message::SerializedOnce);
         msg.getHeader().setField( FIX::BeginString::Pack( "FIX.4.4" ) );
         msg.getHeader().setField( FIX::MsgType::Pack( FIX::MsgType_NewOrderSingle ) );
         msg.getHeader().setField( FIX::MsgSeqNum::Pack(78));

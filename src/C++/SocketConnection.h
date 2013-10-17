@@ -80,7 +80,7 @@ private:
 
   bool isValidSession();
   void readFromSocket() throw( SocketRecvFailed );
-  bool readMessage( std::string& msg );
+  bool readMessage( Sg::sg_buf_t& msg );
   void readMessages( SocketMonitor& s );
 
   bool send( const std::string& );

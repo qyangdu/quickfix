@@ -43,6 +43,8 @@
 #include "../C++/Acceptor.h"
 #include "../C++/SocketAcceptor.h"
 #include "../C++/DataDictionary.h"
+typedef FIX::TYPE::Type Type;
+typedef FIX::String String;
 typedef FIX::UtcTimeStamp UtcTimeStamp;
 typedef FIX::UtcDate UtcDate;
 typedef FIX::UtcTimeOnly UtcTimeOnly;

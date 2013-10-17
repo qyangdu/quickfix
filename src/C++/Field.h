@@ -148,6 +148,14 @@ public:
   int getField() const
     { return m_tag; }
 
+  /// Get iovec for the fields value
+  Sg::sg_buf_t getSgBuf() const
+  {
+    Sg::sg_buf_t v = { (char*)String::c_str(m_string),
+                              String::length(m_string) };
+    return v;
+  }
+
   /// Get the string representation of the fields value.
   const std::string& getString() const
     { return m_string; }
@@ -213,7 +221,7 @@ public:
   }
 
   /// Checks whether field data is valid for the type
-  bool isValidType( TYPE::Type ) const;
+  bool isValidType( FIX::TYPE::Type ) const;
 
   friend std::ostream& operator << ( std::ostream&, const FieldBase& );
 
@@ -225,6 +233,15 @@ protected:
     , m_tagChecksum(FieldTag::Traits<Field>::checksum)
     , m_tagLength(FieldTag::Traits<Field>::length)
     , m_calculated(C_NONE)
+    {}
+
+  template <int Field>
+  explicit FieldBase( FieldTag::Traits<Field>, const char* p, std::size_t n)
+    : m_tag(Field)
+    , m_tagChecksum(FieldTag::Traits<Field>::checksum)
+    , m_tagLength(FieldTag::Traits<Field>::length)
+    , m_calculated(C_NONE)
+    , m_string(p, n)
     {}
 
   template <int Field>
@@ -300,7 +317,7 @@ struct FieldTag::TraitsDetail<0>
   };
 };
 
-inline bool FieldBase::isValidType( TYPE::Type type ) const
+inline bool FieldBase::isValidType( FIX::TYPE::Type type ) const
 {
   bool valid = true;
   switch ( type )
@@ -443,6 +460,10 @@ protected:
   : FieldBase( t ) {}
 
   template <int Field>
+  explicit StringField( FieldTag::Traits<Field> t, const char* data, std::size_t n)
+  : FieldBase( t, data, n) {}
+
+  template <int Field>
   explicit StringField( FieldTag::Traits<Field> t, const char* data)
   : FieldBase( t, data) {}
 
@@ -471,6 +492,8 @@ public:
 
   explicit StringField( int field, const std::string& data )
 : FieldBase( field, data ) {}
+  explicit StringField( int field, const char* data, std::size_t n )
+: FieldBase( Pack( field, data, n ) ) {}
   explicit StringField( int field, const char* data )
 : FieldBase( Pack( field, data ) ) {}
   StringField( int field )
@@ -1299,6 +1322,7 @@ DEFINE_FIELD_TIMECLASS_NUM(NAME, TOK, TYPE, DEPRECATED_FIELD::NAME)
 class NAME : public TOK##Field { public: \
 typedef TOK##Field::Packed<NUM> Pack; \
 NAME() : TOK##Field( FieldTag::Traits<NUM>()) {} \
+NAME(const char* value, std::size_t n) : TOK##Field( FieldTag::Traits<NUM>(), value, n) {} \
 NAME(const char* value) : TOK##Field( FieldTag::Traits<NUM>(), value) {} \
 NAME(const TYPE& value) : TOK##Field( FieldTag::Traits<NUM>(), value) {} \
 }

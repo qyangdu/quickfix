@@ -59,9 +59,9 @@ public:
   bool read();
 
 private:
-  bool readMessage( std::string& msg ) throw( SocketRecvFailed );
+  bool readMessage( Sg::sg_buf_t& msg );
   void processStream();
-  bool setSession( const std::string& msg );
+  bool setSession( Sg::sg_buf_t& msg );
 
   bool send( const std::string& );
   bool send( Sg::sg_buf_ptr bufs, int n );

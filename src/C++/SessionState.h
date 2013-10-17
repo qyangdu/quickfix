@@ -249,9 +249,9 @@ public:
     if ( LIKELY(!(m_LogCaps & Log::LC_INCOMING)) ) return ;
     Locker l( m_mutex ); m_pLog->onIncoming( string );
   }
-  void onIncoming( const UtcTimeStamp& when, const std::string& string ) {
-    if ( LIKELY(!(m_LogCaps & Log::LC_INCOMING)) ) return ;
-    Locker l( m_mutex ); m_pLog->onIncoming( when, string );
+  void onIncoming( Sg::sg_buf_ptr b, int n ) {
+    if ( LIKELY(!(m_LogCaps & Log::LC_OUTGOING)) ) return ;
+    Locker l( m_mutex ); m_pLog->onIncoming( b, n );
   }
   void onOutgoing( const std::string& string ) {
     if ( LIKELY(!(m_LogCaps & Log::LC_OUTGOING)) ) return ;

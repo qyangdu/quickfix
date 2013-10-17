@@ -672,12 +672,15 @@ class FieldBase(_object):
     def setField(self, *args): return _quickfix.FieldBase_setField(self, *args)
     def setString(self, *args): return _quickfix.FieldBase_setString(self, *args)
     def getField(self): return _quickfix.FieldBase_getField(self)
+    def getSgBuf(self): return _quickfix.FieldBase_getSgBuf(self)
     def getString(self): return _quickfix.FieldBase_getString(self)
+    def dupString(self): return _quickfix.FieldBase_dupString(self)
     def getFixString(self): return _quickfix.FieldBase_getFixString(self)
-    def pushValue(self, *args): return _quickfix.FieldBase_pushValue(self, *args)
     def getLength(self): return _quickfix.FieldBase_getLength(self)
     def getTotal(self): return _quickfix.FieldBase_getTotal(self)
     def __lt__(self, *args): return _quickfix.FieldBase___lt__(self, *args)
+    def pushValue(self, *args): return _quickfix.FieldBase_pushValue(self, *args)
+    def isValidType(self, *args): return _quickfix.FieldBase_isValidType(self, *args)
     def __str__(self): return _quickfix.FieldBase___str__(self)
 FieldBase_swigregister = _quickfix.FieldBase_swigregister
 FieldBase_swigregister(FieldBase)
@@ -694,6 +697,7 @@ class StringField(FieldBase):
         this = _quickfix.new_StringField(*args)
         try: self.this.append(this)
         except: self.this = this
+    def hasValue(self): return _quickfix.StringField_hasValue(self)
     def setValue(self, *args): return _quickfix.StringField_setValue(self, *args)
     def getValue(self): return _quickfix.StringField_getValue(self)
     def __lt__(self, *args): return _quickfix.StringField___lt__(self, *args)
@@ -941,6 +945,8 @@ class Message(FieldMap):
     for _s in [FieldMap]: __swig_getmethods__.update(getattr(_s,'__swig_getmethods__',{}))
     __getattr__ = lambda self, name: _swig_getattr(self, Message, name)
     __repr__ = _swig_repr
+    KeepFieldChecksum = _quickfix.Message_KeepFieldChecksum
+    SerializedOnce = _quickfix.Message_SerializedOnce
     def __init__(self, *args): 
         this = _quickfix.new_Message(*args)
         try: self.this.append(this)
@@ -967,12 +973,10 @@ class Message(FieldMap):
     def isApp(self): return _quickfix.Message_isApp(self)
     def isEmpty(self): return _quickfix.Message_isEmpty(self)
     def clear(self): return _quickfix.Message_clear(self)
-    __swig_getmethods__["isAdminMsgType"] = lambda x: _quickfix.Message_isAdminMsgType
-    if _newclass:isAdminMsgType = staticmethod(_quickfix.Message_isAdminMsgType)
     __swig_getmethods__["isAdminMsgTypeValue"] = lambda x: _quickfix.Message_isAdminMsgTypeValue
     if _newclass:isAdminMsgTypeValue = staticmethod(_quickfix.Message_isAdminMsgTypeValue)
-    __swig_getmethods__["isAdminMsg"] = lambda x: _quickfix.Message_isAdminMsg
-    if _newclass:isAdminMsg = staticmethod(_quickfix.Message_isAdminMsg)
+    __swig_getmethods__["isAdminMsgType"] = lambda x: _quickfix.Message_isAdminMsgType
+    if _newclass:isAdminMsgType = staticmethod(_quickfix.Message_isAdminMsgType)
     __swig_getmethods__["toApplVerID"] = lambda x: _quickfix.Message_toApplVerID
     if _newclass:toApplVerID = staticmethod(_quickfix.Message_toApplVerID)
     __swig_getmethods__["toBeginString"] = lambda x: _quickfix.Message_toBeginString
@@ -995,17 +999,13 @@ def Message_InitializeXML(*args):
   return _quickfix.Message_InitializeXML(*args)
 Message_InitializeXML = _quickfix.Message_InitializeXML
 
-def Message_isAdminMsgType(*args):
-  return _quickfix.Message_isAdminMsgType(*args)
-Message_isAdminMsgType = _quickfix.Message_isAdminMsgType
-
 def Message_isAdminMsgTypeValue(*args):
   return _quickfix.Message_isAdminMsgTypeValue(*args)
 Message_isAdminMsgTypeValue = _quickfix.Message_isAdminMsgTypeValue
 
-def Message_isAdminMsg(*args):
-  return _quickfix.Message_isAdminMsg(*args)
-Message_isAdminMsg = _quickfix.Message_isAdminMsg
+def Message_isAdminMsgType(*args):
+  return _quickfix.Message_isAdminMsgType(*args)
+Message_isAdminMsgType = _quickfix.Message_isAdminMsgType
 
 def Message_toApplVerID(*args):
   return _quickfix.Message_toApplVerID(*args)

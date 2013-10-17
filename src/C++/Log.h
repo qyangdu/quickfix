@@ -95,7 +95,7 @@ public:
   virtual void clear() = 0;
   virtual void backup() = 0;
   virtual void onIncoming( const std::string& ) = 0;
-  virtual void onIncoming( const UtcTimeStamp&, const std::string& msg) { onIncoming(msg); }
+  virtual void onIncoming( Sg::sg_buf_ptr b, int n) { onIncoming( Sg::toString(b, n) ); }
   virtual void onOutgoing( const std::string& ) = 0;
   virtual void onOutgoing( Sg::sg_buf_ptr b, int n ) { onOutgoing( Sg::toString(b, n)); }
   virtual void onEvent( const std::string& ) = 0;
@@ -116,10 +116,10 @@ class NullLog : public Log
 public:
   void clear() {}
   void backup() {}
-  void onIncoming( const std::string& ) {}
-  void onIncoming( const UtcTimeStamp&, const std::string& ) {}
-  void onOutgoing( const std::string& ) {}
-  void onOutgoing( Sg::sg_buf_ptr, int n ) {}
+  virtual void onIncoming( const std::string& ) {}
+  virtual void onIncoming( Sg::sg_buf_ptr b, int n ) {}
+  virtual void onOutgoing( const std::string& ) {}
+  virtual void onOutgoing( Sg::sg_buf_ptr, int n ) {}
   void onEvent( const std::string& ) {}
 };
 
@@ -144,12 +144,11 @@ public:
   void backup() {}
 
   void onIncoming( const std::string& value )
-  { onIncoming( UtcTimeStamp(), value ); }
-  void onIncoming( const UtcTimeStamp& when, const std::string& value )
   {
     if ( !m_incoming ) return ;
     Locker l( s_mutex );
-    std::cout << "<" << UtcTimeStampConvertor::convert(when, m_millisecondsInTimeStamp)
+    m_time.setCurrent();
+    std::cout << "<" << UtcTimeStampConvertor::convert(m_time, m_millisecondsInTimeStamp)
               << ", " << m_prefix
               << ", " << "incoming>" << std::endl
               << "  (" << value << ")" << std::endl;

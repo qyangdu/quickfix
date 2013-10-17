@@ -56,11 +56,11 @@ Message::Message()
   m_trailer( get_allocator(), message_order( message_order::trailer ) ),
   m_status( 0 ) {}
 
-Message::Message( bool hintSerializeOnce, int hintFieldCount )
-: FieldMap( FieldMap::create_allocator( hintFieldCount ) ),
+Message::Message( SerializationHint hint, int fieldCountEstimate )
+: FieldMap( FieldMap::create_allocator( fieldCountEstimate ) ),
   m_header( get_allocator(), message_order( message_order::header ) ),
   m_trailer( get_allocator(), message_order( message_order::trailer ) ),
-  m_status( createStatus(hint_no_reuse, hintSerializeOnce) ) {}
+  m_status( createStatus(serialized_once, hint == SerializedOnce) ) {}
 
 Message::Message( const std::string& string, bool validate )
 throw( InvalidMessage )
@@ -84,20 +84,6 @@ throw( InvalidMessage )
   setString( string, validate, &dataDictionary, &dataDictionary );
 }
 
-Message::Message( const std::string& string,
-                  const DataDictionary& dataDictionary,
-                  FieldMap::allocator_type& a, 
-                  bool validate )
-throw( InvalidMessage )
-: FieldMap(a),
-  m_header( a, message_order( message_order::header ) ),
-  m_trailer( a, message_order( message_order::trailer ) ),
-  m_status( 0 )
-{
-
-  setString( string, validate, &dataDictionary, &dataDictionary );
-}
-
 HEAVYUSE Message::Message( const std::string& string,
                   const DataDictionary& sessionDataDictionary,
                   const DataDictionary& applicationDataDictionary,
@@ -106,23 +92,6 @@ throw( InvalidMessage )
 : FieldMap( FieldMap::create_allocator() ),
   m_header( get_allocator(), message_order( message_order::header ) ),
   m_trailer( get_allocator(), message_order( message_order::trailer ) ),
-  m_status( 0 )
-{
-  if( isAdminMsg( string ) )
-    setString( string, validate, &sessionDataDictionary, &sessionDataDictionary );
-  else
-    setString( string, validate, &sessionDataDictionary, &applicationDataDictionary );
-}
-
-Message::Message( const std::string& string,
-                  const DataDictionary& sessionDataDictionary,
-                  const DataDictionary& applicationDataDictionary,
-                  FieldMap::allocator_type& a, 
-                  bool validate )
-throw( InvalidMessage )
-: FieldMap(a),
-  m_header( a, message_order( message_order::header ) ),
-  m_trailer( a, message_order( message_order::trailer ) ),
   m_status( 0 )
 {
   if( isAdminMsg( string ) )
@@ -254,7 +223,7 @@ Message::toString( const FieldCounter& c, std::string& str ) const
   str.clear();
   str.reserve(l);
 
-  if( getStatusBit( hint_no_reuse ) && checkSumField == FIELD::CheckSum )
+  if( getStatusBit( serialized_once ) && checkSumField == FIELD::CheckSum )
   {
     FieldBase& f = m_trailer.setField(CheckSumField::Pack(checkSumField, 0));
 
@@ -388,10 +357,11 @@ static const DataDictionary::FieldToGroup::key_type group_key_trailer_ =
 static const DataDictionary::FieldToGroup::key_type group_key_null_trailer_ =
        std::make_pair(0, String::value_type() );
 
-void HEAVYUSE Message::setString( const std::string& str,
-                         bool doValidation,
-                         const DataDictionary* pSessionDataDictionary,
-                         const DataDictionary* pApplicationDataDictionary )
+void HEAVYUSE
+Message::setString( const char* data, std::size_t length,
+                    bool doValidation,
+                    const DataDictionary* pSessionDataDictionary,
+                    const DataDictionary* pApplicationDataDictionary )
 throw( InvalidMessage )
 {
   DataDictionary::FieldToGroup::key_type header_key ( pSessionDataDictionary
@@ -401,7 +371,7 @@ throw( InvalidMessage )
   DataDictionary::FieldToGroup::key_type msg_key;
   const BodyLength* pBodyLength = NULL;
   const FieldBase* p;
-  FieldReader reader(str);
+  FieldReader reader( data, length );
 
   clear();
 

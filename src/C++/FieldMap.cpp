@@ -36,21 +36,32 @@ FieldMap::~FieldMap()
 
 FieldMap& FieldMap::operator=( const FieldMap& rhs )
 {
+/*
   clear();
+*/
 
+  m_order = rhs.m_order;
   m_fields = rhs.m_fields;
 
-  Groups::const_iterator i;
-  for ( i = rhs.m_groups.begin(); i != rhs.m_groups.end(); ++i )
+  Groups::const_iterator i, end = m_groups.end();
+  for ( i = m_groups.begin(); i != end; ++i )
+  {
+    GroupItem::const_iterator j, jend = i->second.end();
+    for ( j = i->second.begin(); j != jend; ++j )
+      delete *j;
+  }
+  m_groups.clear();
+
+  end = rhs.m_groups.end();
+  for ( i = rhs.m_groups.begin(); i != end; ++i )
   {
     GroupItem::const_iterator j, jend = i->second.end();
     for ( j = i->second.begin(); j != jend; ++j )
     {
-      FieldMap * pGroup = new FieldMap( **j );
+      FieldMap * pGroup = new FieldMap( FieldMap::create_allocator(), **j );
       m_groups[ i->first ].push_back( pGroup );
     }
   }
-
   return *this;
 }
 

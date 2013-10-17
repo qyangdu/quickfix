@@ -39,7 +39,7 @@ namespace FIX
 /// Sorts fields in correct header order.
 struct header_order
 {
-  static inline bool NOTHROW compare( const int x, const int y )
+  static inline bool PURE_DECL NOTHROW compare( const int x, const int y )
   {
     int orderedX = getOrderedPosition( x );
     int orderedY = getOrderedPosition( y );
@@ -47,7 +47,7 @@ struct header_order
     return orderedX < orderedY;
   }
 
-  static inline int NOTHROW getOrderedPosition( const int field )
+  static inline int PURE_DECL NOTHROW getOrderedPosition( const int field )
   {
     int s = -3 * (field == FIX::FIELD::BeginString) |
             -2 * (field == FIX::FIELD::BodyLength) |
@@ -59,7 +59,7 @@ struct header_order
 /// Sorts fields in correct trailer order.
 struct trailer_order
 {
-  static inline bool NOTHROW compare( const int x, const int y )
+  static inline bool PURE_DECL NOTHROW compare( const int x, const int y )
   {
     return ((x < y) || (y == FIELD::CheckSum)) && (x != FIELD::CheckSum);
   }
@@ -68,7 +68,7 @@ struct trailer_order
 /// Sorts fields in correct group order
 struct group_order
 {
-  static inline bool NOTHROW compare( const int x, const int y, int* order, int largest )
+  static inline bool PURE_DECL NOTHROW compare( const int x, const int y, const int* order, int largest )
   {
     int iX = (x <= largest) ? order[x] : x;
     int iY = (y <= largest) ? order[y] : y;
@@ -87,6 +87,7 @@ typedef std::less < int > normal_order;
  */
 struct message_order
 {
+  /// Order array with reference-counted storage
   class group_order_array
   {
     class storage
@@ -191,17 +192,16 @@ public:
   enum cmp_mode { header, trailer, normal, group };
 
   message_order( cmp_mode mode = normal )
-  : m_mode( mode ), m_delim ( 0 ), m_largest( 0 ) {}
+  : m_mode( mode ), m_largest( 0 ) {}
   message_order( int first, ... );
   message_order( const int order[] );
   message_order( const message_order& copy )
   : m_mode( copy.m_mode )
-  , m_delim( copy.m_delim )
   , m_largest( copy.m_largest )
   , m_groupOrder( copy.m_groupOrder )
   {}
 
-  inline bool NOTHROW operator() ( const int x, const int y ) const
+  inline bool PURE_DECL NOTHROW operator() ( const int x, const int y ) const
   {
     switch ( m_mode )
     {
@@ -220,7 +220,6 @@ public:
   operator=( const message_order& rhs )
   {
     m_mode = rhs.m_mode;
-    m_delim = rhs.m_delim;
     m_largest = rhs.m_largest;
     m_groupOrder = rhs.m_groupOrder;
     return *this;
@@ -228,9 +227,55 @@ public:
 
   operator bool() const { return !m_groupOrder.empty(); }
 
+  /// Compare functor, lifetime must be less than that
+  /// of the parent message_order object.
+  class comparator
+  {
+  public:
+    comparator()
+    : m_mode( normal ), m_largest( 0 ), m_groupOrder( NULL )
+    {}
+
+    comparator( const message_order& order )
+    : m_mode( order.m_mode ), m_largest( order.m_largest ),
+      m_groupOrder( order.m_groupOrder ) {}
+
+    comparator( const comparator& copy )
+    : m_mode( copy.m_mode ), m_largest( copy.m_largest ),
+      m_groupOrder( copy.m_groupOrder ) {}
+
+    inline comparator NOTHROW_PRE & NOTHROW_POST
+    operator=( const comparator& rhs )
+    {
+      m_mode = rhs.m_mode;
+      m_largest = rhs.m_largest;
+      m_groupOrder = rhs.m_groupOrder;
+      return *this;
+    }
+
+    inline bool PURE_DECL NOTHROW operator() ( const int x, const int y ) const
+    {
+      switch ( m_mode )
+      {
+        case header:
+        return header_order::compare( x, y );
+        case trailer:
+        return trailer_order::compare( x, y );
+        case group:
+        return group_order::compare( x, y, m_groupOrder, m_largest );
+        case normal: default:
+        return x < y;
+      }
+    }
+
+  private:
+    cmp_mode m_mode;
+    int m_largest;
+    int* m_groupOrder;
+  };
+
 private:
   cmp_mode m_mode;
-  int m_delim;
   int m_largest;
   group_order_array m_groupOrder;
 };

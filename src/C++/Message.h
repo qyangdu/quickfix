@@ -58,7 +58,7 @@ class Message : public FieldMap
   friend class DataDictionary;
   friend class Session;
 
-  enum status_type { invalid_field, hint_no_reuse };
+  enum status_type { invalid_field, serialized_once };
 
   enum field_type { header, body, trailer };
 
@@ -100,6 +100,14 @@ class Message : public FieldMap
 
   public:
     typedef String::value_type result_type;
+
+    FieldReader ( const char* s, const char* e )
+    : m_field(0), m_pos(0), m_length(0), m_csum(0),
+      m_start(s), m_end(e) {}
+
+    FieldReader ( const char* p, std::size_t n )
+    : m_field(0), m_pos(0), m_length(0), m_csum(0),
+      m_start(p), m_end(p + n) {}
 
     FieldReader ( const std::string& s )
     : m_field(0), m_pos(0), m_length(0), m_csum(0),
@@ -201,7 +209,70 @@ class Message : public FieldMap
 
   };
 
+  static inline bool isAdminMsg( const char* msg, std::size_t size )
+  {
+    if ( size > 5 )
+    {
+      Util::CharBuffer::Fixed<8> b = { { '0', '1', '3', '2', '4', '5', 'A', '\0' } };
+      Util::CharBuffer::Fixed<4> const v = { { '\001', '3', '5', '=' } };
+      const char* p = Util::CharBuffer::find( v, msg, size );
+      return p && p[5] == '\001' && Util::CharBuffer::find( p[4], b ) < 7;
+    }
+    throw InvalidMessage();
+  }
+
+  static inline bool isAdminMsg( const std::string& msg )
+  { return isAdminMsg( String::c_str(msg), String::size(msg) ); }
+
+  void setString( const char* s, std::size_t n, bool validate,
+                  const FIX::DataDictionary* pSessionDataDictionary,
+                  const FIX::DataDictionary* pApplicationDataDictionary )
+  throw( InvalidMessage );
+
+  Message( const char* p, std::size_t n,
+           const DataDictionary& dataDictionary,
+           FieldMap::allocator_type& a,
+           bool validate )
+  throw( InvalidMessage )
+  : FieldMap(a),
+    m_header( a, message_order( message_order::header ) ),
+    m_trailer( a, message_order( message_order::trailer ) ),
+    m_status( 0 )
+  {
+    setString( p, n, validate, &dataDictionary, &dataDictionary );
+  }
+
+  Message( const char* p, std::size_t n,
+           const DataDictionary& sessionDataDictionary,
+           const DataDictionary& applicationDataDictionary,
+           FieldMap::allocator_type& a,
+           bool validate )
+  throw( InvalidMessage )
+  : FieldMap(a),
+    m_header( a, message_order( message_order::header ) ),
+    m_trailer( a, message_order( message_order::trailer ) ),
+    m_status( 0 )
+  {
+    if( isAdminMsg( p, n ) )
+      setString( p, n, validate, &sessionDataDictionary, &sessionDataDictionary );
+    else
+      setString( p, n, validate, &sessionDataDictionary, &applicationDataDictionary );
+  }
+
   std::string& toString( const FieldCounter&, std::string& ) const;
+
+  template <typename S> typename S::buffer_type& toBuffer( S& s ) const
+  {
+    FieldCounter c( *this );
+    int bodyLength = c.getBodyLength() + c.getBeginStringLength() + 
+	  m_header.setField(BodyLength::Pack(c.getBodyLength())).getLength();
+    return m_trailer.serializeTo(
+             FieldMap::serializeTo(
+               m_header.serializeTo(
+                 s.buffer(bodyLength +
+                   m_trailer.setField(CheckSum::Pack(checkSum())).getLength()
+                 ) ) ) );
+  }
 
 protected:
   /// Constructor for derived classes
@@ -216,10 +287,17 @@ protected:
   }
 
 public:
+
+  enum SerializationHint
+  {
+    KeepFieldChecksum,
+    SerializedOnce
+  };
+
   Message();
 
   /// Construct a message with hints
-  Message( bool hintSerializeOnce, int hintFieldCount = ItemStore::DefaultCapacity );
+  Message( SerializationHint, int hintFieldCount = ItemStore::DefaultCapacity );
 
   /// Construct a message from a string
   Message( const std::string& string, bool validate = true )
@@ -228,9 +306,6 @@ public:
   /// Construct a message from a string using a data dictionary
   Message( const std::string& string, const FIX::DataDictionary& dataDictionary,
            bool validate = true )
-  throw( InvalidMessage );
-  Message( const std::string& string, const FIX::DataDictionary& dataDictionary,
-           FieldMap::allocator_type& allocator, bool validate = true )
   throw( InvalidMessage );
 
   /// Construct a message from a string using a session and application data dictionary
@@ -317,20 +392,6 @@ public:
     return str;
   }
 
-  /// Serialize to a buffer in wire format
-  template <typename S> typename S::buffer_type& toBuffer( S& s ) const
-  {
-    FieldCounter c( *this );
-	int bodyLength = c.getBodyLength() + c.getBeginStringLength() + 
-	  m_header.setField(BodyLength::Pack(c.getBodyLength())).getLength();
-    return m_trailer.serializeTo(
-             FieldMap::serializeTo(
-               m_header.serializeTo(
-                 s.buffer(bodyLength +
-                   m_trailer.setField(CheckSum::Pack(checkSum())).getLength()
-                 ) ) ) );
-  }
-
   /// Get a XML representation of the message
   std::string toXML() const;
   /// Get a XML representation without making a copy
@@ -350,20 +411,32 @@ public:
    * on failure.
    */
   void setString( const std::string& string )
-  { setString(string, true); }
+  {
+    setString( String::c_str(string), String::length(string),
+               true, 0, 0 );
+  }
   void setString( const std::string& string, bool validate )
-  { setString(string, validate, 0); }
+  {
+    setString( String::c_str(string), String::length(string),
+               validate, 0, 0 );
+  }
   void setString( const std::string& string,
                   bool validate,
                   const FIX::DataDictionary* pDataDictionary )
   throw( InvalidMessage )
-  { setString(string, validate, pDataDictionary, pDataDictionary); }
-
+  {
+    setString( String::c_str(string), String::length(string),
+               validate, pDataDictionary, pDataDictionary );
+  }
   void setString( const std::string& string,
                   bool validate,
                   const FIX::DataDictionary* pSessionDataDictionary,
                   const FIX::DataDictionary* pApplicationDataDictionary )
-  throw( InvalidMessage );
+  throw( InvalidMessage )
+  {
+    setString( String::c_str(string), String::length(string),
+               validate, pSessionDataDictionary, pApplicationDataDictionary );
+  }
 
   void setGroup( const std::string& msg, const FieldBase& field,
                  const std::string& string, std::string::size_type& pos,
@@ -436,29 +509,16 @@ public:
     m_trailer.clear();
   }
 
-  static inline bool NOTHROW isAdminMsgType( const MsgType& msgType )
-  {
-    return isAdminMsgTypeValue( msgType.forString( String::CstrFunc() ) );
-  }
-
-  static inline bool NOTHROW isAdminMsgTypeValue( const char* value )
+  static inline bool isAdminMsgTypeValue( const char* value )
   {
     Util::CharBuffer::Fixed<8> b = { { '0', '1', '3', '2', '4', '5', 'A', '\0' } };
     char sym = value[0];
     return sym && value[1] == '\0' && Util::CharBuffer::find( sym, b ) < 7;
   }
 
-  static inline bool isAdminMsg( const std::string& msg )
+  static inline bool NOTHROW isAdminMsgType( const MsgType& msgType )
   {
-    std::string::size_type size = String::size(msg);
-    if ( size > 5 )
-    {
-      Util::CharBuffer::Fixed<8> b = { { '0', '1', '3', '2', '4', '5', 'A', '\0' } };
-      Util::CharBuffer::Fixed<4> const v = { { '\001', '3', '5', '=' } };
-      const char* p = Util::CharBuffer::find( v, String::c_str(msg), size );
-      return p && p[5] == '\001' && Util::CharBuffer::find( p[4], b ) < 7;
-    }
-    throw MessageParseError();
+    return isAdminMsgTypeValue( msgType.forString( String::CstrFunc() ) );
   }
 
   static ApplVerID toApplVerID(const BeginString& value)
@@ -709,6 +769,18 @@ throw( MessageParseError )
 
   std::string value = message.substr( startValue, soh - startValue );
   return MsgType( value );
+}
+inline MsgType identifyType( const char* message, std::size_t length )
+throw( MessageParseError )
+{
+  const char* p = Util::CharBuffer::memmem( message, length, "\00135=", 4 );
+  if ( p == NULL ) throw MessageParseError();
+
+  p += 4;
+  const char* e = (const char*)::memchr( p, '\001', length - (p - message) );
+  if ( e == NULL ) throw MessageParseError();
+
+  return MsgType( p, e - p );
 }
 }
 

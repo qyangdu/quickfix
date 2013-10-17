@@ -108,53 +108,87 @@ DataDictionary& DataDictionary::operator=( const DataDictionary& rhs )
   return *this;
 }
 
-void DataDictionary::validate( const Message& message, bool bodyOnly ) const
+
+void HEAVYUSE DataDictionary::validate( const Message& message, bool bodyOnly ) const
 throw( FIX::Exception )
 {
-  validate( message, FIELD_GET_REF( message.getHeader(), BeginString ),
-            bodyOnly ? (DataDictionary*)NULL : this, this );
+  const Header& header = message.getHeader();
+  FieldMap::iterator it = header.begin();
+  FieldMap::iterator end = header.end();
+  if( it != end && it->first == FIELD::BeginString )
+  {
+    const BeginString& beginString = (const BeginString&) it->second;
+    if( ++it != end )
+    {
+      if( it->first == FIELD::MsgType )
+      {
+        validate( message, beginString, (const MsgType&) it->second,
+              bodyOnly ? (DataDictionary*)NULL : this, this );
+        return;
+      }
+      if( ++it != end && it->first == FIELD::MsgType)
+      {
+        validate( message, beginString, (const MsgType&) it->second,
+              bodyOnly ? (DataDictionary*)NULL : this, this );
+        return;
+      }
+    }
+    throw FieldNotFound( FIELD::MsgType );
+  }
+  throw FieldNotFound( FIELD::BeginString );
 }
 
 void HEAVYUSE DataDictionary::validate( const Message& message,
-			       const BeginString& beginString,
+                               const BeginString& beginString,
+                               const MsgType& msgType,
                                const DataDictionary* const pSessionDD,
                                const DataDictionary* const pAppDD )
 throw( FIX::Exception )
 {
-  if ( pSessionDD != 0 && pSessionDD->m_hasVersion )
+  unsigned session_checks, app_checks;
+
+  if( pSessionDD != 0 )
   {
-    if( pSessionDD->getVersion() != beginString )
+    if( pSessionDD->m_hasVersion )
     {
-      throw UnsupportedVersion();
+      if( pSessionDD->getVersion() != beginString )
+      {
+        throw UnsupportedVersion();
+      }
     }
+    session_checks = pSessionDD->m_checks;
   }
+  else
+    session_checks = 0;
 
-  unsigned session_checks = pSessionDD ? pSessionDD->m_checks : 0;
-  unsigned app_checks = pAppDD ? pAppDD->m_checks : 0;
-
+  app_checks = pAppDD ? pAppDD->m_checks : 0;
   session_checks |= app_checks;
+
   if( session_checks ) 
   {
+    const Header& header = message.getHeader();
     int field = 0;
+
     if( isChecked(FieldsOutOfOrder, session_checks) )
     {
       if ( !message.hasValidStructure(field) )
         throw TagOutOfOrder(field);
     }
   
-    const MsgType& msgType = FIELD_GET_REF( message.getHeader(), MsgType );
+    const Trailer& trailer = message.getTrailer();
+
     if ( pAppDD != 0 && pAppDD->m_hasVersion )
     {
       if( isChecked(UnknownMsgType, app_checks) )
         pAppDD->checkMsgType( msgType );
       if( isChecked(RequiredFields, app_checks) )
-        pAppDD->checkHasRequired( message.getHeader(), message, message.getTrailer(), msgType );
+        pAppDD->checkHasRequired( header, message, trailer, msgType );
     }
   
     if( pSessionDD != 0 )
     {
-      pSessionDD->iterate( message.getHeader(), msgType );
-      pSessionDD->iterate( message.getTrailer(), msgType );
+      pSessionDD->iterate( header, msgType );
+      pSessionDD->iterate( trailer, msgType );
     }
   
     if( pAppDD != 0 )

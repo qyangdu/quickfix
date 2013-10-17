@@ -435,6 +435,7 @@ namespace FIX
       public:
         type(T* p = NULL) : p_(p) {}
         T* get() const { return p_; }
+        void reset(T* p = NULL) { if (p_) delete [] p_; p_ = p; }
         ~type() { if (p_) delete [] p_; }
       };
     };
@@ -1342,6 +1343,29 @@ namespace FIX
     }
 
     template <typename B>
+    static std::size_t NOTHROW size( const B& buf )
+    {
+      return IOV_LEN(buf);
+    }
+
+    template <typename P, typename B>
+    static P NOTHROW data( B buf )
+    {
+      return (P)IOV_BUF(buf);
+    }
+
+    template <typename B>
+    static B split( B& buf, B by )
+    {
+      char* pe = (char*)IOV_BUF(by) + IOV_LEN(by);
+      IOV_BUF(by) = IOV_BUF(buf);
+      IOV_LEN(buf) -= pe - (char*)IOV_BUF(buf);
+      IOV_BUF(buf) = pe;
+      IOV_LEN(by) = pe - (char*)IOV_BUF(by);
+      return by;
+    }
+
+    template <typename B>
     static std::string toString( const B bufs, int n )
     {
       std::string s;
@@ -1349,7 +1373,13 @@ namespace FIX
        	s.append((const char*)IOV_BUF(bufs[i]), IOV_LEN(bufs[i]));
       return s;
     }
-  
+
+    template <typename B>
+    static std::string toString( B buf )
+    {
+      return std::string( (const char*)IOV_BUF(buf), IOV_LEN(buf) );
+    }
+
   }; // struct Sg
 
 } // namespace FIX

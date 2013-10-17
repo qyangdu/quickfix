@@ -70,6 +70,18 @@ private:
 class FileLog : public Log
 {
   static const std::size_t BufSize = 1024;
+  void store( std::ofstream& s, Sg::sg_buf_ptr b, int n )
+  {
+    std::filebuf* p = s.rdbuf();
+    m_timeStamp.clear();
+    UtcTimeStampConvertor::generate(m_timeStamp, UtcTimeStamp(), m_millisecondsInTimeStamp);
+    p->sputn(m_timeStamp.c_str(), m_timeStamp.size());
+    p->sputn(" : ", 3);
+    for (int i = 0; i < n; i++) p->sputn((char*)IOV_BUF(b[i]), IOV_LEN(b[i]));
+    p->sputc('\n');
+    p->pubsync();
+  }
+
 public:
   FileLog( const std::string& path );
   FileLog( const std::string& path, const SessionID& sessionID );
@@ -80,51 +92,29 @@ public:
   void backup();
 
   void onIncoming( const std::string& value )
-  { onIncoming( UtcTimeStamp(), value ); }
-  void onIncoming( const UtcTimeStamp& when, const std::string& value )
   {
-    std::filebuf* b = m_messages.rdbuf();
-    m_timeStamp.clear();
-    UtcTimeStampConvertor::generate(m_timeStamp, when, m_millisecondsInTimeStamp);
-    b->sputn(m_timeStamp.c_str(), m_timeStamp.size());
-    b->sputn(" : ", 3);
-    b->sputn(value.c_str(), value.size());
-    b->sputc('\n');
-    b->pubsync();
+    Sg::sg_buf_t b = { (void*)String::c_str(value), String::length(value) };
+    store( m_messages, &b, 1 );
   }
+  void onIncoming( Sg::sg_buf_ptr b, int n )
+  {
+    store( m_messages, b, n );
+  }
+
   void onOutgoing( const std::string& value )
   {
-    std::filebuf* b = m_messages.rdbuf();
-    m_timeStamp.clear();
-    UtcTimeStampConvertor::generate(m_timeStamp, UtcTimeStamp(), m_millisecondsInTimeStamp);
-    b->sputn(m_timeStamp.c_str(), m_timeStamp.size());
-    b->sputn(" : ", 3);
-    b->sputn(value.c_str(), value.size());
-    b->sputc('\n');
-    b->pubsync();
+    Sg::sg_buf_t b = { (void*)String::c_str(value), String::length(value) };
+    store( m_messages, &b, 1 );
   }
   void onOutgoing( Sg::sg_buf_ptr b, int n )
   {
-    std::filebuf* p = m_messages.rdbuf();
-    m_timeStamp.clear();
-    UtcTimeStampConvertor::generate(m_timeStamp, UtcTimeStamp(), m_millisecondsInTimeStamp);
-    p->sputn(m_timeStamp.c_str(), m_timeStamp.size());
-    p->sputn(" : ", 3);
-    for (int i = 0; i < n; i++) p->sputn((char*)IOV_BUF(b[i]), IOV_LEN(b[i]));
-    p->sputc('\n');
-    p->pubsync();
+    store( m_messages, b, n );
   }
 
   void onEvent( const std::string& value )
   {
-    std::filebuf* b = m_event.rdbuf();
-    m_timeStamp.clear();
-    UtcTimeStampConvertor::generate(m_timeStamp, UtcTimeStamp(), m_millisecondsInTimeStamp);
-    b->sputn(m_timeStamp.c_str(), m_timeStamp.size());
-    b->sputn(" : ", 3);
-    b->sputn(value.c_str(), value.size());
-    b->sputc('\n');
-    b->pubsync();
+    Sg::sg_buf_t b = { (void*)String::c_str(value), String::length(value) };
+    store( m_event, &b, 1 );
   }
 
   unsigned queryLogCapabilities() const { return LC_CLEAR | LC_BACKUP |

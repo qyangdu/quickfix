@@ -50,11 +50,11 @@ namespace FIX
 class FieldMap
 {
 #ifdef HAVE_BOOST
-  typedef boost::container::multimap < int, FieldBase, message_order, 
+  typedef boost::container::multimap < int, FieldBase, message_order::comparator, 
                           ItemAllocator < std::pair<const int, FieldBase> > > Fields;
   static const std::size_t AllocationUnit = sizeof(Fields::stored_allocator_type::value_type);
 #else
-  typedef std::multimap < int, FieldBase, message_order, 
+  typedef std::multimap < int, FieldBase, message_order::comparator, 
                           ItemAllocator < std::pair<const int, FieldBase> > > Fields;
   static const std::size_t AllocationUnit;
   static std::size_t init_allocation_unit();
@@ -75,14 +75,14 @@ public:
 
   FieldMap( const message_order& order =
             message_order( message_order::normal ) )
-  : m_fields( order ) {}
+  : m_order( order ), m_fields( order ) {}
 
   FieldMap( const allocator_type& a, const message_order& order =
             message_order( message_order::normal ) )
-  : m_fields( order, a ) {}
+  : m_order( order ), m_fields( order, a ) {}
 
   FieldMap( const int order[] )
-  : m_fields( message_order(order) ) {}
+  : m_order( order ), m_fields( m_order ) {}
 
   FieldMap( const FieldMap& copy )
   : m_fields( copy.m_fields.key_comp() )
@@ -362,6 +362,7 @@ public:
   } 
 
 private:
+  message_order m_order; // must be first
   Fields m_fields;
   Groups m_groups;
 };

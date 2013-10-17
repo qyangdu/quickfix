@@ -98,7 +98,9 @@ public:
   static std::set<SessionID> getSessions();
   static bool doesSessionExist( const SessionID& );
   static Session* lookupSession( const SessionID& );
+  static Session* lookupSession( Sg::sg_buf_t, bool reverse = false );
   static Session* lookupSession( const std::string&, bool reverse = false );
+  
   static bool isSessionRegistered( const SessionID& );
   static Session* registerSession( const SessionID& );
   static void unregisterSession( const SessionID& );
@@ -211,9 +213,18 @@ public:
   void next( const Message&, const DataDictionary& sessionDD, const UtcTimeStamp& timeStamp, bool queued );
   void next( const Message& msg, const UtcTimeStamp& timeStamp, bool queued = false )
   { next( msg, m_dataDictionaryProvider.getSessionDataDictionary(m_sessionID.getBeginString()), timeStamp, queued ); }
-  void next( const std::string&, const UtcTimeStamp& timeStamp, bool queued = false );
+
+  void next( Sg::sg_buf_t buf, const UtcTimeStamp& timeStamp, bool queued = false );
+  void next( const std::string& message, const UtcTimeStamp& timeStamp, bool queued = false )
+  {
+    Sg::sg_buf_t buf = { (void*)String::c_str(message), String::length(message) };
+    next( buf, timeStamp, queued );
+  }
+
   void next( const UtcTimeStamp& timeStamp );
-  void next();
+  void next()
+  { next( UtcTimeStamp() ); }
+
   void disconnect();
 
   long getExpectedSenderNum() { return m_state.getNextSenderMsgSeqNum(); }

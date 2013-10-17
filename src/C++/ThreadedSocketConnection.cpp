@@ -103,6 +103,57 @@ void ThreadedSocketConnection::disconnect()
   epoll_ctl( m_poll, EPOLL_CTL_DEL, m_socket, NULL );
 #endif
   socket_close( m_socket );
+  m_parser.reset();
+}
+
+inline bool HEAVYUSE ThreadedSocketConnection::readMessage( Sg::sg_buf_t& msg )
+{
+  while( true )
+  {
+    try
+    {
+      if( m_parser.parse() )
+      {
+        m_parser.retrieve( msg );
+        return true;
+      }
+      break;
+    }
+    catch ( MessageParseError& e )
+    {
+      if( m_pLog )
+      {
+        m_pLog->onEvent( e.what() );
+      }
+    }
+  }
+  return false;
+}
+
+inline void HEAVYUSE ThreadedSocketConnection::processStream()
+{
+  Sg::sg_buf_t buf;
+  while( readMessage( buf ) )
+  {
+    if ( !m_pSession )
+    {
+      if ( !setSession( buf ) )
+      { disconnect(); break; }
+    }
+    try
+    {
+      m_ts.setCurrent();
+      m_pSession->next( buf, m_ts );
+    }
+    catch( InvalidMessage& )
+    {
+      if( !m_pSession->isLoggedOn() )
+      {
+        disconnect();
+        return;
+      }
+    }
+  }
 }
 
 bool HEAVYUSE ThreadedSocketConnection::read()
@@ -126,9 +177,15 @@ bool HEAVYUSE ThreadedSocketConnection::read()
     if( result > 0 ) // Something to read
     {
       // We can read without blocking
-      int size = recv( m_socket, m_buffer, sizeof(m_buffer), 0 );
-      if ( size <= 0 ) { throw SocketRecvFailed( size ); }
-      m_parser.addToStream( m_buffer, size );
+      Sg::sg_buf_t buf = m_parser.buffer();
+      int size = recv( m_socket, IOV_BUF(buf), IOV_LEN(buf), 0 );
+      if ( LIKELY(size > 0) )
+      {
+        m_parser.advance( size );
+        processStream();
+      }
+      else
+        throw SocketRecvFailed( size );
     }
     else if( result == 0 && m_pSession ) // Timeout
     {
@@ -138,8 +195,6 @@ bool HEAVYUSE ThreadedSocketConnection::read()
     {
       throw SocketRecvFailed( result );
     }
-
-    processStream();
     return true;
   }
   catch ( SocketRecvFailed& e )
@@ -161,51 +216,15 @@ bool HEAVYUSE ThreadedSocketConnection::read()
   }
 }
 
-bool HEAVYUSE ThreadedSocketConnection::readMessage( std::string& msg )
-throw( SocketRecvFailed )
-{
-  try
-  {
-    return m_parser.readFixMessage( msg );
-  }
-  catch ( MessageParseError& ) {}
-  return true;
-}
-
-void HEAVYUSE ThreadedSocketConnection::processStream()
-{
-  while( readMessage( m_msg ) )
-  {
-    if ( !m_pSession )
-    {
-      if ( !setSession( m_msg ) )
-      { disconnect(); continue; }
-    }
-    try
-    {
-      m_ts.setCurrent();
-      m_pSession->next( m_msg, m_ts );
-    }
-    catch( InvalidMessage& )
-    {
-      if( !m_pSession->isLoggedOn() )
-      {
-        disconnect();
-        return;
-      }
-    }
-  }
-}
-
-bool ThreadedSocketConnection::setSession( const std::string& msg )
+bool ThreadedSocketConnection::setSession( Sg::sg_buf_t& msg )
 {
   m_pSession = Session::lookupSession( msg, true );
   if ( !m_pSession ) 
   {
     if( m_pLog )
     {
-      m_pLog->onEvent( "Session not found for incoming message: " + msg );
-      m_pLog->onIncoming( msg );
+      m_pLog->onEvent( "Session not found for incoming message: " + Sg::toString(msg) );
+      m_pLog->onIncoming( &msg, 1 );
     }
     return false;
   }

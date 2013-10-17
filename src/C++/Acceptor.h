@@ -76,6 +76,7 @@ public:
   bool isLoggedOn();
 
   Session* getSession( const std::string& msg, Responder& );
+  Session* getSession( Sg::sg_buf_t msg, Responder& );
 
   const std::set<SessionID>& getSessions() const { return m_sessionIDs; }
   Session* getSession( const SessionID& sessionID ) const;
