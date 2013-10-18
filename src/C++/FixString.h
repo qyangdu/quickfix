@@ -124,7 +124,7 @@ namespace FIX
      template <typename S>
      static Sg::sg_buf_t NOTHROW toBuffer( const S& s )
      {
-       Sg::sg_buf_t buf = { (char*)c_str(s), length(s) };
+       Sg::sg_buf_t buf = IOV_BUF_INITIALIZER( c_str(s), length(s) );
        return buf;
      }
 

@@ -93,7 +93,8 @@ public:
 
   void onIncoming( const std::string& value )
   {
-    Sg::sg_buf_t b = { (void*)String::c_str(value), String::length(value) };
+    Sg::sg_buf_t b = IOV_BUF_INITIALIZER( String::c_str(value), 
+                                          String::length(value) );
     store( m_messages, &b, 1 );
   }
   void onIncoming( Sg::sg_buf_ptr b, int n )
@@ -103,7 +104,8 @@ public:
 
   void onOutgoing( const std::string& value )
   {
-    Sg::sg_buf_t b = { (void*)String::c_str(value), String::length(value) };
+    Sg::sg_buf_t b = IOV_BUF_INITIALIZER( String::c_str(value),
+                                          String::length(value) );
     store( m_messages, &b, 1 );
   }
   void onOutgoing( Sg::sg_buf_ptr b, int n )
@@ -113,7 +115,8 @@ public:
 
   void onEvent( const std::string& value )
   {
-    Sg::sg_buf_t b = { (void*)String::c_str(value), String::length(value) };
+    Sg::sg_buf_t b = IOV_BUF_INITIALIZER( String::c_str(value), 
+                                          String::length(value) );
     store( m_event, &b, 1 );
   }
 

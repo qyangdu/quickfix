@@ -151,8 +151,8 @@ public:
   /// Get iovec for the fields value
   Sg::sg_buf_t getSgBuf() const
   {
-    Sg::sg_buf_t v = { (char*)String::c_str(m_string),
-                              String::length(m_string) };
+    Sg::sg_buf_t v = IOV_BUF_INITIALIZER( String::c_str(m_string),
+                                          String::length(m_string) );
     return v;
   }
 

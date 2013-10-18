@@ -217,7 +217,8 @@ public:
   void next( Sg::sg_buf_t buf, const UtcTimeStamp& timeStamp, bool queued = false );
   void next( const std::string& message, const UtcTimeStamp& timeStamp, bool queued = false )
   {
-    Sg::sg_buf_t buf = { (void*)String::c_str(message), String::length(message) };
+    Sg::sg_buf_t buf = IOV_BUF_INITIALIZER( String::c_str(message),
+                                            String::length(message) );
     next( buf, timeStamp, queued );
   }
 

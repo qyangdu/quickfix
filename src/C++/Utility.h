@@ -1281,6 +1281,7 @@ namespace FIX
     typedef LPWSABUF sg_buf_ptr;
     typedef CHAR*    sg_ptr_t;
 
+#define IOV_BUF_INITIALIZER(ptr, len) { (ULONG)(len), (CHAR*)(ptr) }
 #define IOV_BUF(b) ((b).buf)
 #define IOV_LEN(b) ((b).len)
 
@@ -1315,6 +1316,7 @@ namespace FIX
     typedef struct iovec* sg_buf_ptr;
     typedef void*         sg_ptr_t;
 
+#define IOV_BUF_INITIALIZER(ptr, len) { (void*)(ptr), (size_t)(len) }
 #define IOV_BUF(b) ((b).iov_base)
 #define IOV_LEN(b) ((b).iov_len)
 

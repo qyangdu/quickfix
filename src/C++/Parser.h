@@ -274,7 +274,8 @@ public:
         }
       }
     }
-    Sg::sg_buf_t buf = { m_buffer + m_pos, m_bufferSize - m_pos };
+    Sg::sg_buf_t buf = IOV_BUF_INITIALIZER( m_buffer + m_pos, 
+                                            m_bufferSize - m_pos );
     return buf;
   }
 
