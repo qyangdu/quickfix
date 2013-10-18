@@ -235,7 +235,10 @@ bool SocketConnection::readMessage( Sg::sg_buf_t& msg )
       }
       break;
     }
-    catch ( MessageParseError& e ) {}
+    catch ( MessageParseError& e ) {
+      if( m_pSession )
+        m_pSession->getLog()->onEvent( e.what() );
+    }
   }
   return false;
 }
