@@ -45,45 +45,32 @@
 #include "fix42/NewOrderSingle.h"
 #include "fix42/QuoteRequest.h"
 
-int testIntegerToString( int );
-int testStringToInteger( int );
-int testDoubleToString( int );
-int testStringToDouble( int );
-int testCreateHeartbeat( int );
-int testIdentifyType( int );
-int testSerializeToStringHeartbeat( int );
-int testSerializeFromStringHeartbeat( int );
-int testCreateNewOrderSingle( int );
-int testCreateNewOrderSinglePacked( int );
-int testSerializeToStringNewOrderSingle( int );
-int testSerializeFromStringNewOrderSingle( int );
-int testCreateQuoteRequest( int );
-int testCreateQuoteRequestPacked( int );
-int testCreateQuoteRequestPackedInplace( int );
-int testReadFromQuoteRequest( int );
-int testSerializeToStringQuoteRequest( int );
-int testSerializeFromStringQuoteRequest( int );
-int testFileStoreNewOrderSingle( int );
-int testValidateNewOrderSingle( int );
-int testValidateDictNewOrderSingle( int );
-int testValidateQuoteRequest( int );
-int testValidateDictQuoteRequest( int );
-int testSendOnSocket( int, short );
-int testSendOnThreadedSocket( int, short );
-void report( int, int );
-
-#ifndef _MSC_VER
-#include <sys/time.h>
-long GetTickCount()
-{
-  timeval tv;
-  gettimeofday( &tv, 0 );
-  long millsec = tv.tv_sec * 1000;
-  millsec += ( long ) tv.tv_usec / ( 1000 );
-
-  return ( long ) millsec;
-}
-#endif
+double testIntegerToString( int );
+double testStringToInteger( int );
+double testDoubleToString( int );
+double testStringToDouble( int );
+double testCreateHeartbeat( int );
+double testIdentifyType( int );
+double testSerializeToStringHeartbeat( int );
+double testSerializeFromStringHeartbeat( int );
+double testCreateNewOrderSingle( int );
+double testCreateNewOrderSinglePacked( int );
+double testSerializeToStringNewOrderSingle( int );
+double testSerializeFromStringNewOrderSingle( int );
+double testCreateQuoteRequest( int );
+double testCreateQuoteRequestPacked( int );
+double testCreateQuoteRequestPackedInplace( int );
+double testReadFromQuoteRequest( int );
+double testSerializeToStringQuoteRequest( int );
+double testSerializeFromStringQuoteRequest( int );
+double testFileStoreNewOrderSingle( int );
+double testValidateNewOrderSingle( int );
+double testValidateDictNewOrderSingle( int );
+double testValidateQuoteRequest( int );
+double testValidateDictQuoteRequest( int );
+double testSendOnSocket( int, short );
+double testSendOnThreadedSocket( int, short );
+void report( double, int );
 
 int main( int argc, char** argv )
 {
@@ -187,124 +174,123 @@ int main( int argc, char** argv )
   return 0;
 }
 
-void report( int time, int count )
+void report( double seconds, int count )
 {
-  double seconds = ( double ) time / 1000;
   double num_per_second = count / seconds;
   std::cout << std::endl << "    num: " << count
   << ", seconds: " << seconds
   << ", num_per_second: " << num_per_second << std::endl;
 }
 
-int testIntegerToString( int count )
+double testIntegerToString( int count )
 {
   count = count - 1;
 
-  int start = GetTickCount();
+  FIX::Util::Sys::TickCount start = FIX::Util::Sys::TickCount::now();
   for ( int i = 0; i <= count; ++i )
   {
     FIX::IntConvertor::convert( 1234 );
   }
-  return GetTickCount() - start;
+  return (FIX::Util::Sys::TickCount::now() - start).seconds();
 }
 
-int testStringToInteger( int count )
+double testStringToInteger( int count )
 {
   FIX::String::value_type value( "1234" );
   count = count - 1;
 
-  int start = GetTickCount();
+  FIX::Util::Sys::TickCount start = FIX::Util::Sys::TickCount::now();
   for ( int i = 0; i <= count; ++i )
   {
     FIX::IntConvertor::convert( value );
   }
-  return GetTickCount() - start;
+  return (FIX::Util::Sys::TickCount::now() - start).seconds();
 }
 
-int testDoubleToString( int count )
+double testDoubleToString( int count )
 {
   count = count - 1;
 
-  int start = GetTickCount();
+  FIX::Util::Sys::TickCount start = FIX::Util::Sys::TickCount::now();
   for ( int i = 0; i <= count; ++i )
   {
     FIX::DoubleConvertor::convert( 123.45 );
   }
-  return GetTickCount() - start;
+  return (FIX::Util::Sys::TickCount::now() - start).seconds();
 }
 
-int testStringToDouble( int count )
+double testStringToDouble( int count )
 {
   FIX::String::value_type value( "123.45" );
   count = count - 1;
 
-  int start = GetTickCount();
+  FIX::Util::Sys::TickCount start = FIX::Util::Sys::TickCount::now();
   for ( int i = 0; i <= count; ++i )
   {
     FIX::DoubleConvertor::convert( value );
   }
-  return GetTickCount() - start;
+  return (FIX::Util::Sys::TickCount::now() - start).seconds();
 }
 
-int testCreateHeartbeat( int count )
+double testCreateHeartbeat( int count )
 {
   count = count - 1;
 
-  int start = GetTickCount();
+  FIX::Util::Sys::TickCount start = FIX::Util::Sys::TickCount::now();
   for ( int i = 0; i <= count; ++i )
   {
     FIX42::Heartbeat();
   }
 
-  return GetTickCount() - start;
+  return (FIX::Util::Sys::TickCount::now() - start).seconds();
 }
 
-int testIdentifyType( int count )
+double testIdentifyType( int count )
 {
   FIX42::Heartbeat message;
   std::string messageString = message.toString();
 
   count = count - 1;
 
-  int start = GetTickCount();
+  FIX::Util::Sys::TickCount start = FIX::Util::Sys::TickCount::now();
   for ( int i = 0; i <= count; ++i )
   {
     FIX::identifyType( messageString );
   }
 
-  return GetTickCount() - start;
+  return (FIX::Util::Sys::TickCount::now() - start).seconds();
 }
 
-int testSerializeToStringHeartbeat( int count )
+double testSerializeToStringHeartbeat( int count )
 {
   FIX42::Heartbeat message;
   count = count - 1;
 
-  int start = GetTickCount();
+  FIX::Util::Sys::TickCount start = FIX::Util::Sys::TickCount::now();
   for ( int i = 0; i <= count; ++i )
   {
     message.toString();
   }
-  return GetTickCount() - start;
+  return (FIX::Util::Sys::TickCount::now() - start).seconds();
 }
 
-int testSerializeFromStringHeartbeat( int count )
+double testSerializeFromStringHeartbeat( int count )
 {
   FIX42::Heartbeat message;
   std::string string = message.toString();
   count = count - 1;
 
-  int start = GetTickCount();
+  FIX::Util::Sys::TickCount start = FIX::Util::Sys::TickCount::now();
   for ( int i = 0; i <= count; ++i )
   {
     message.setString( string );
   }
-  return GetTickCount() - start;
+  return (FIX::Util::Sys::TickCount::now() - start).seconds();
 }
 
-int testCreateNewOrderSingle( int count )
+double testCreateNewOrderSingle( int count )
 {
-  int start = GetTickCount();
+  FIX::Util::Sys::TickCount start = FIX::Util::Sys::TickCount::now();
   for ( int i = 0; i <= count; ++i )
   {
     FIX::ClOrdID clOrdID( "ORDERID" );
@@ -316,12 +302,12 @@ int testCreateNewOrderSingle( int count )
     FIX42::NewOrderSingle( clOrdID, handlInst, symbol, side, transactTime, ordType );
   }
 
-  return GetTickCount() - start;
+  return (FIX::Util::Sys::TickCount::now() - start).seconds();
 }
 
-int testCreateNewOrderSinglePacked( int count )
+double testCreateNewOrderSinglePacked( int count )
 {
-  int start = GetTickCount();
+  FIX::Util::Sys::TickCount start = FIX::Util::Sys::TickCount::now();
   for ( int i = 0; i <= count; ++i )
   {
     FIX42::NewOrderSingle o;
@@ -333,10 +319,10 @@ int testCreateNewOrderSinglePacked( int count )
     o.set( FIX::OrdType::Pack( FIX::OrdType_MARKET ) );
   }
 
-  return GetTickCount() - start;
+  return (FIX::Util::Sys::TickCount::now() - start).seconds();
 }
 
-int testSerializeToStringNewOrderSingle( int count )
+double testSerializeToStringNewOrderSingle( int count )
 {
   FIX::ClOrdID clOrdID( "ORDERID" );
   FIX::HandlInst handlInst( '1' );
@@ -349,15 +335,15 @@ int testSerializeToStringNewOrderSingle( int count )
 
   count = count - 1;
 
-  int start = GetTickCount();
+  FIX::Util::Sys::TickCount start = FIX::Util::Sys::TickCount::now();
   for ( int i = 0; i <= count; ++i )
   {
     message.toString();
   }
-  return GetTickCount() - start;
+  return (FIX::Util::Sys::TickCount::now() - start).seconds();
 }
 
-int testSerializeFromStringNewOrderSingle( int count )
+double testSerializeFromStringNewOrderSingle( int count )
 {
   FIX::ClOrdID clOrdID( "ORDERID" );
   FIX::HandlInst handlInst( '1' );
@@ -371,19 +357,19 @@ int testSerializeFromStringNewOrderSingle( int count )
 
   count = count - 1;
 
-  int start = GetTickCount();
+  FIX::Util::Sys::TickCount start = FIX::Util::Sys::TickCount::now();
   for ( int i = 0; i <= count; ++i )
   {
     message.setString( string );
   }
-  return GetTickCount() - start;
+  return (FIX::Util::Sys::TickCount::now() - start).seconds();
 }
 
-int testCreateQuoteRequest( int count )
+double testCreateQuoteRequest( int count )
 {
   count = count - 1;
 
-  int start = GetTickCount();
+  FIX::Util::Sys::TickCount start = FIX::Util::Sys::TickCount::now();
   FIX::Symbol symbol;
   FIX::MaturityMonthYear maturityMonthYear;
   FIX::PutOrCall putOrCall;
@@ -421,14 +407,14 @@ int testCreateQuoteRequest( int count )
     }
   }
 
-  return GetTickCount() - start;
+  return (FIX::Util::Sys::TickCount::now() - start).seconds();
 }
 
-int testCreateQuoteRequestPacked( int count )
+double testCreateQuoteRequestPacked( int count )
 {
   count = count - 1;
 
-  int start = GetTickCount();
+  FIX::Util::Sys::TickCount start = FIX::Util::Sys::TickCount::now();
 
   for ( int i = 0; i <= count; ++i )
   {
@@ -450,14 +436,14 @@ int testCreateQuoteRequestPacked( int count )
     }
   }
 
-  return GetTickCount() - start;
+  return (FIX::Util::Sys::TickCount::now() - start).seconds();
 }
 
-int testCreateQuoteRequestPackedInplace( int count )
+double testCreateQuoteRequestPackedInplace( int count )
 {
   count = count - 1;
 
-  int start = GetTickCount();
+  FIX::Util::Sys::TickCount start = FIX::Util::Sys::TickCount::now();
 
   for ( int i = 0; i <= count; ++i )
   {
@@ -480,10 +466,10 @@ int testCreateQuoteRequestPackedInplace( int count )
     massQuote.set( FIX::QuoteReqID::Pack("1") );
   }
 
-  return GetTickCount() - start;
+  return (FIX::Util::Sys::TickCount::now() - start).seconds();
 }
 
-int testSerializeToStringQuoteRequest( int count )
+double testSerializeToStringQuoteRequest( int count )
 {
   FIX42::QuoteRequest message( FIX::QuoteReqID("1") );
   FIX42::QuoteRequest::NoRelatedSym noRelatedSym;
@@ -503,15 +489,15 @@ int testSerializeToStringQuoteRequest( int count )
 
   count = count - 1;
 
-  int start = GetTickCount();
+  FIX::Util::Sys::TickCount start = FIX::Util::Sys::TickCount::now();
   for ( int j = 0; j <= count; ++j )
   {
     message.toString();
   }
-  return GetTickCount() - start;
+  return (FIX::Util::Sys::TickCount::now() - start).seconds();
 }
 
-int testSerializeFromStringQuoteRequest( int count )
+double testSerializeFromStringQuoteRequest( int count )
 {
   FIX42::QuoteRequest message( FIX::QuoteReqID("1") );
   FIX42::QuoteRequest::NoRelatedSym noRelatedSym;
@@ -532,15 +518,15 @@ int testSerializeFromStringQuoteRequest( int count )
 
   count = count - 1;
 
-  int start = GetTickCount();
+  FIX::Util::Sys::TickCount start = FIX::Util::Sys::TickCount::now();
   for ( int j = 0; j <= count; ++j )
   {
     message.setString( string );
   }
-  return GetTickCount() - start;
+  return (FIX::Util::Sys::TickCount::now() - start).seconds();
 }
 
-int testReadFromQuoteRequest( int count )
+double testReadFromQuoteRequest( int count )
 {
   count = count - 1;
 
@@ -561,7 +547,7 @@ int testReadFromQuoteRequest( int count )
   }
   group.clear();
 
-  int start = GetTickCount();
+  FIX::Util::Sys::TickCount start = FIX::Util::Sys::TickCount::now();
   for ( int j = 0; j <= count; ++j )
   {
     FIX::QuoteReqID quoteReqID;
@@ -598,10 +584,10 @@ int testReadFromQuoteRequest( int count )
     }
   }
 
-  return GetTickCount() - start;
+  return (FIX::Util::Sys::TickCount::now() - start).seconds();
 }
 
-int testFileStoreNewOrderSingle( int count )
+double testFileStoreNewOrderSingle( int count )
 {
   FIX::BeginString beginString( FIX::BeginString_FIX42 );
   FIX::SenderCompID senderCompID( "SENDER" );
@@ -623,17 +609,17 @@ int testFileStoreNewOrderSingle( int count )
   store.reset();
   count = count - 1;
 
-  int start = GetTickCount();
+  FIX::Util::Sys::TickCount start = FIX::Util::Sys::TickCount::now();
   for ( int i = 0; i <= count; ++i )
   {
     store.set( ++i, messageString );
   }
-  int end = GetTickCount();
+  double ticks = (FIX::Util::Sys::TickCount::now() - start).seconds();
   store.reset();
-  return end - start;
+  return ticks;
 }
 
-int testValidateNewOrderSingle( int count )
+double testValidateNewOrderSingle( int count )
 {
   FIX::ClOrdID clOrdID( "ORDERID" );
   FIX::HandlInst handlInst( '1' );
@@ -650,15 +636,15 @@ int testValidateNewOrderSingle( int count )
   FIX::DataDictionary dataDictionary;
   count = count - 1;
 
-  int start = GetTickCount();
+  FIX::Util::Sys::TickCount start = FIX::Util::Sys::TickCount::now();
   for ( int i = 0; i <= count; ++i )
   {
     dataDictionary.validate( message );
   }
-  return GetTickCount() - start;
+  return (FIX::Util::Sys::TickCount::now() - start).seconds();
 }
 
-int testValidateDictNewOrderSingle( int count )
+double testValidateDictNewOrderSingle( int count )
 {
   FIX::ClOrdID clOrdID( "ORDERID" );
   FIX::HandlInst handlInst( '1' );
@@ -675,15 +661,15 @@ int testValidateDictNewOrderSingle( int count )
   FIX::DataDictionary dataDictionary( "../spec/FIX42.xml" );
   count = count - 1;
 
-  int start = GetTickCount();
+  FIX::Util::Sys::TickCount start = FIX::Util::Sys::TickCount::now();
   for ( int i = 0; i <= count; ++i )
   {
     dataDictionary.validate( message );
   }
-  return GetTickCount() - start;
+  return (FIX::Util::Sys::TickCount::now() - start).seconds();
 }
 
-int testValidateQuoteRequest( int count )
+double testValidateQuoteRequest( int count )
 {
   FIX42::QuoteRequest message( FIX::QuoteReqID("1") );
   FIX42::QuoteRequest::NoRelatedSym noRelatedSym;
@@ -704,15 +690,15 @@ int testValidateQuoteRequest( int count )
   FIX::DataDictionary dataDictionary;
   count = count - 1;
 
-  int start = GetTickCount();
+  FIX::Util::Sys::TickCount start = FIX::Util::Sys::TickCount::now();
   for ( int j = 0; j <= count; ++j )
   {
     dataDictionary.validate( message );
   }
-  return GetTickCount() - start;
+  return (FIX::Util::Sys::TickCount::now() - start).seconds();
 }
 
-int testValidateDictQuoteRequest( int count )
+double testValidateDictQuoteRequest( int count )
 {
   FIX42::QuoteRequest message( FIX::QuoteReqID("1") );
   FIX42::QuoteRequest::NoRelatedSym noRelatedSym;
@@ -733,12 +719,12 @@ int testValidateDictQuoteRequest( int count )
   FIX::DataDictionary dataDictionary( "../spec/FIX42.xml" );
   count = count - 1;
 
-  int start = GetTickCount();
+  FIX::Util::Sys::TickCount start = FIX::Util::Sys::TickCount::now();
   for ( int j = 0; j <= count; ++j )
   {
     dataDictionary.validate( message );
   }
-  return GetTickCount() - start;
+  return (FIX::Util::Sys::TickCount::now() - start).seconds();
 }
 
 class TestApplication : public FIX::NullApplication
@@ -758,7 +744,7 @@ private:
   int m_count;
 };
 
-int testSendOnSocket( int count, short port )
+double testSendOnSocket( int count, short port )
 {
   std::stringstream stream;
   stream
@@ -805,7 +791,7 @@ int testSendOnSocket( int count, short port )
 
   FIX::process_sleep( 1 );
 
-  int start = GetTickCount();
+  FIX::Util::Sys::TickCount start = FIX::Util::Sys::TickCount::now();
 
   for ( int i = 0; i <= count; ++i )
     FIX::Session::sendToTarget( message, sessionID );
@@ -813,7 +799,7 @@ int testSendOnSocket( int count, short port )
   while( application.getCount() < count )
     FIX::process_sleep( 0.1 );
 
-  int ticks = GetTickCount() - start;
+  double ticks = (FIX::Util::Sys::TickCount::now() - start).seconds();
 
   initiator.stop();
   acceptor.stop();
@@ -821,7 +807,7 @@ int testSendOnSocket( int count, short port )
   return ticks;
 }
 
-int testSendOnThreadedSocket( int count, short port )
+double testSendOnThreadedSocket( int count, short port )
 {
   std::stringstream stream;
   stream
@@ -867,14 +853,14 @@ int testSendOnThreadedSocket( int count, short port )
 
   FIX::process_sleep( 1 );
 
-  int start = GetTickCount();
+  FIX::Util::Sys::TickCount start = FIX::Util::Sys::TickCount::now();
   for ( int i = 0; i <= count; ++i )
     FIX::Session::sendToTarget( message, sessionID );
 
   while( application.getCount() < count )
     FIX::process_sleep( 0.1 );
 
-  int ticks = GetTickCount() - start;
+  double ticks = (FIX::Util::Sys::TickCount::now() - start).seconds();
 
   initiator.stop();
   acceptor.stop();
