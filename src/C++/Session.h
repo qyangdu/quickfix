@@ -218,7 +218,7 @@ public:
   void next( const std::string& message, const UtcTimeStamp& timeStamp, bool queued = false )
   {
     Sg::sg_buf_t buf = IOV_BUF_INITIALIZER( String::c_str(message),
-                                            String::length(message) );
+                                            String::length(message) ); 
     next( buf, timeStamp, queued );
   }
 
@@ -429,7 +429,7 @@ private:
 			public:
 
 			SgBuffer() : sz_(UIO_ARENA_SIZE), n_(0) {
-				ALIGNED_ALLOC(IOV_BUF(sg_[0]), sz_ + 8, 16);
+				ALIGNED_ALLOC(IOV_BUF(sg_[0]), sz_ + 16, 16);
 				IOV_LEN(sg_[0]) = 0;
 			}
 			~SgBuffer() {
@@ -459,11 +459,11 @@ private:
 				}
 				return *this;
 			}
-			SgBuffer& append(int field, const char* s, std::size_t l) {
+			SgBuffer& append(int field, int sz, const char* s, std::size_t l) {
 				Sg::sg_buf_ptr e = sg_ + n_;
 				char* p = (char*)IOV_BUF(*e);
 				p += IOV_LEN(*e);
-				std::size_t sz = IntConvertor::generate(p, field);
+				Util::Tag::generate(p, field, sz);
 				p[sz] = '=';
 				IOV_LEN(*e) += sz + 1;
 				append(s, l);
@@ -477,7 +477,7 @@ private:
 			SgBuffer& reset(std::size_t sz) {
 				if (sz > sz_) {
 					ALIGNED_FREE(IOV_BUF(sg_[0]));
-					ALIGNED_ALLOC(IOV_BUF(sg_[0]), sz_ + 8, 16);
+					ALIGNED_ALLOC(IOV_BUF(sg_[0]), sz_ + 16, 16);
 					sz_ = sz;
 				}
 				n_ = 0;

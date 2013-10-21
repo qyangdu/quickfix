@@ -199,10 +199,9 @@ public:
   template <typename S> S& pushValue(S& sink) const
   {
     return ( m_calculated & C_DATA)
-           ? sink.append(String::c_str(m_data),
-                         String::length(m_data))
-           : sink.append(m_tag, String::c_str(m_string),
-                                String::length(m_string));
+           ? sink.append(String::c_str(m_data), String::length(m_data))
+           : sink.append(m_tag, m_tagLength - 1,
+                         String::c_str(m_string), String::length(m_string));
   }
 
   /// Push the string representation of the Field into a string buffer
@@ -212,7 +211,7 @@ public:
       sink.append(m_data);
     else
     {
-      IntConvertor::generate(sink, m_tag);
+      Util::Tag::generate(sink, m_tag, m_tagLength - 1);
       sink.push_back('=');
       String::append(sink, m_string);
       sink.push_back('\001');
@@ -287,7 +286,7 @@ private:
   
       m_data.clear();
       m_data.reserve(m_length);
-      IntConvertor::generate(m_data, m_tag);
+      Util::Tag::generate(m_data, m_tag, m_tagLength - 1);
       m_data.push_back('=');
       String::append(m_data, m_string);
       m_data.push_back('\001');

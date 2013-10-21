@@ -123,7 +123,6 @@ typedef int socklen_t;
 
 #ifdef HAVE_BOOST
 #include <boost/spirit/include/qi_real.hpp>
-#include <boost/spirit/include/karma.hpp>
 #include <boost/thread/recursive_mutex.hpp>
 #include <boost/scoped_array.hpp>
 #include <boost/range.hpp>
@@ -1008,16 +1007,121 @@ namespace FIX
 
 #endif
   
-    struct Tag {
+    class Tag
+    {
+      /* NOTE: Allow for tag value range of 1-99999999. */
 
-      /* NOTE: Current tag value range is 1-39999, may not contain leading zeroes */
+#if defined(__GNUC__) && defined(__x86_64__)
+      static struct ConvBits
+      { 
+        uint32_t div_10000[2];
+        uint32_t mul_10000[2];
+        uint16_t mul_10[8];
+        uint16_t div_const[8];
+        uint16_t shl_const[8];
+        uint8_t  to_ascii[16];
+      } s_Bits;
+#endif
+
+      class Convertor
+      {
+        static const std::size_t MaxValueSize = 8;
+
+        int m_value;
+
+        void NOTHROW HEAVYUSE generate(char* buffer) const {
+          char* p=buffer + MaxValueSize - 1;
+          int v, value = m_value;
+          do { v = value / 10; *p-- = (char)('0' + (value - v * 10)); } while( (value = v) );
+        }
+
+      public:
+        Convertor(int value) : m_value(value) {}
+
+        void NOTHROW HEAVYUSE append_to(char* buf, int digits) const
+        {
+          generate(buf + digits - MaxValueSize);
+        }
+
+        template <typename S> void HEAVYUSE append_to(S& s, int digits) const
+        {
+          char buf[MaxValueSize];
+
+#if defined(__GNUC__) && defined(__x86_64__)
+          int v, x = m_value;
+
+          if( x <= 999 )
+          {
+            if( x > 99 )
+            {
+              v = x / 100;
+              buf[MaxValueSize - 3] = '0' + v;
+              x -= v * 100;
+            }
+            v = x / 10;
+            buf[MaxValueSize - 2] = '0' + v;
+            buf[MaxValueSize - 1] = '0' + x - 10 * v;
+          }
+          else
+          {
+              /* Based on utoa32_sse_2 routine by Wojciech Mula
+               * http://wm.ite.pl/articles/sse-itoa.html
+               */
+            __asm__ __volatile__ (
+              "movd           %0, %%xmm1             \n"
+              "movq           %2, %%xmm0             \n"
+              "movq           %3, %%xmm3             \n"
+              "pmuludq        %%xmm1, %%xmm0         \n"
+              "psrlq          $45, %%xmm0            \n"
+              "pmuludq        %%xmm3, %%xmm0         \n"
+              "paddd          %%xmm1, %%xmm0         \n"
+              "psllq          $2, %%xmm0             \n"
+              "punpcklwd      %%xmm0, %%xmm0         \n"
+              "movdqa         %4, %%xmm1             \n"
+              "pshufd         $5, %%xmm0, %%xmm0     \n"
+              "pmulhuw        %5, %%xmm0             \n"
+              "pmulhuw        %6, %%xmm0             \n"
+              "pmullw         %%xmm0, %%xmm1         \n"
+              "psllq          $16, %%xmm1            \n"
+              "movdqa         %7, %%xmm3             \n"
+              "pxor           %%xmm2, %%xmm2         \n"
+              "psubw          %%xmm1, %%xmm0         \n"
+              "packuswb       %%xmm2, %%xmm0         \n"
+              "paddb          %%xmm3, %%xmm0         \n"
+              "movq           %%xmm0, (%1)           \n"
+              : 
+              : "r" (x), "r" (buf), "m"(*s_Bits.div_10000),
+                "m"(*s_Bits.mul_10000), "m"(*s_Bits.mul_10), "m"(*s_Bits.div_const),
+                "m"(*s_Bits.shl_const), "m"(*s_Bits.to_ascii)
+              : "xmm0", "xmm1", "xmm2", "xmm3"
+            );
+          }
+#else
+          generate(buf);
+#endif
+          s.append(buf + MaxValueSize - digits, digits);
+        }
+      };
+
+    public:
+
+      template <typename S> static void generate(S& result, int value, int digits)
+      {
+        Convertor(value).append_to(result, digits);
+      }
+
+      static void NOTHROW generate(char* result, int value, int digits)
+      {
+        Convertor(value).append_to(result, digits);
+      }
 
       static inline const char NOTHROW_PRE * PURE_DECL HEAVYUSE NOTHROW_POST delimit(const char* p, unsigned len)
       {
         uintptr_t b = ~(uintptr_t)p + 1;
         switch (len)
         {
-          default: b = (p[7] == '=') ? 7 : b;
+          default: b = (p[8] == '=') ? 8 : b;
+          case 8:  b = (p[7] == '=') ? 7 : b;
           case 7:  b = (p[6] == '=') ? 6 : b;
           case 6:  b = (p[5] == '=') ? 5 : b;
           case 5:  b = (p[4] == '=') ? 4 : b;
@@ -1281,7 +1385,7 @@ namespace FIX
     typedef LPWSABUF sg_buf_ptr;
     typedef CHAR*    sg_ptr_t;
 
-#define IOV_BUF_INITIALIZER(ptr, len) { (ULONG)(len), (CHAR*)(ptr) }
+#define IOV_BUF_INITIALIZER(ptr, len) { (ULONG)(len), (CHAR*)(ptr) } 
 #define IOV_BUF(b) ((b).buf)
 #define IOV_LEN(b) ((b).len)
 
@@ -1316,7 +1420,7 @@ namespace FIX
     typedef struct iovec* sg_buf_ptr;
     typedef void*         sg_ptr_t;
 
-#define IOV_BUF_INITIALIZER(ptr, len) { (void*)(ptr), (size_t)(len) }
+#define IOV_BUF_INITIALIZER(ptr, len) { (void*)(ptr), (size_t)(len) } 
 #define IOV_BUF(b) ((b).iov_base)
 #define IOV_LEN(b) ((b).iov_len)
 

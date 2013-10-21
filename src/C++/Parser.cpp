@@ -47,7 +47,7 @@ throw( MessageParseError )
         int length = 0;
         std::size_t endPos = p - msg;
     
-        if( UnsignedConvertor::parse(msg + startPos, p, length) )
+        if( PositiveIntConvertor::parse(msg + startPos, p, length) )
           return endPos + 1 + length;
 
         msg += startPos;

@@ -45,6 +45,39 @@ ALIGN_DECL_DEFAULT const int detail::bitop_base::Mod67Position[] = {
   7, 48, 35, 6, 34, 33, 0
 };
 
+#if defined(__GNUC__) && defined(__x86_64__)
+// cacheline aligned block of magic constants
+ALIGN_DECL(64) Util::Tag::ConvBits Util::Tag::s_Bits =
+{
+  { // div_10000
+    0xd1b71759, 0xd1b71759
+  },
+  { // mul_10000
+    10000, 10000
+  },
+  { // mul_10
+   10, 10, 10, 10, 10, 10, 10, 10
+  },
+  { // div_const
+    8389, 5243, 13108, 0x8000, 8389, 5243, 13108, 0x8000
+  },
+  { // shl_const
+    1 << (16 - (23 + 2 - 16)),
+    1 << (16 - (19 + 2 - 16)),
+    1 << (16 - 1 - 2),
+    1 << (15),
+    1 << (16 - (23 + 2 - 16)),
+    1 << (16 - (19 + 2 - 16)),
+    1 << (16 - 1 - 2),
+    1 << (15)
+  },
+  { // to_ascii 
+    '0', '0', '0', '0', '0', '0', '0', '0', 
+    '0', '0', '0', '0', '0', '0', '0', '0'
+  }
+};
+#endif
+
 #if defined(__GNUC__) && (defined(__x86_64__) || defined(__i386__))
 ALIGN_DECL_DEFAULT Util::IntBase::Log2 Util::IntBase::m_digits[32] = 
 {

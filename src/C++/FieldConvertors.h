@@ -36,27 +36,10 @@ namespace FIX
 {
 
 #ifdef HAVE_BOOST
-  namespace karma {
-    using namespace boost::spirit::karma;
-  }
   namespace qi {
     using namespace boost::spirit::qi;
   }
 #endif
-
-template<class T>
-inline int number_of_symbols_in( T value )
-{
-  int symbols = value > 0 ? 0 : 1;
-
-  while ( value )
-  {
-    ++symbols;
-    value /= 10;
-  }
-
-  return symbols;
-}
 
 /// String convertor is a no-op.
 struct StringConvertor
@@ -98,85 +81,80 @@ struct StringConvertor
   { return true; }
 };
 
-/// Converts integer to/from a string
+/// Converts integer/long to/from a string
 struct IntConvertor
 {
   public:
 
   typedef long value_type;
+  typedef unsigned long unsigned_value_type;
 
-  static const std::size_t MaxValueSize = std::numeric_limits<long>::digits10 + 2;
+  static const std::size_t MaxValueSize = std::numeric_limits<value_type>::digits10 + 2;
   static std::size_t RequiredSize(value_type v = 0) { return MaxValueSize; }
 
   class Proxy {
 	value_type m_value;
 
-	int generate(char* buffer) const {
-		char* p=buffer;
-		value_type v, value = m_value;
-		int not_negative = (int)(value >= 0);
-		value *= (not_negative << 1) - 1;
-		do { v = value / 10; *p++ = (char)('0' + (value - v * 10)); } while( (value = v) );
-		*p = '-';
-		return ((p - buffer) + (1 - not_negative));
+#ifdef _MSC_VER
+	inline int generate(char* buffer) const
+    {
+      char* p=buffer + MaxValueSize - 1;
+      value_type value = m_value;
+      unsigned_value_type v, u = value < 0 ? ~value + 1 : value;
+      do { v = value / 10; *p-- = (char)('0' + (value - v * 10)); } while( (value = v) );
+      *p = '-';
+      return p - buffer + (value >= 0);
 	}
+#else
+    inline int generate(char* buffer) const
+    {
+      char* p=buffer;
+      value_type value = m_value;
+      unsigned_value_type v, u = value < 0 ? ~value + 1 : value;
+      do { v = u / 10; *p++ = (char)('0' + (u - v * 10)); } while( (u = v) );
+      *p = '-';
+      return ((p - buffer) + (value < 0));
+    }
+#endif
 
     public:
 	Proxy(value_type value) : m_value(value) {}
 
 	template <typename S> S convert_to() const
 	{
-		char buf[MaxValueSize];
-#ifdef HAVE_BOOST
-		return S(boost::rbegin(buf) + (MaxValueSize - generate(buf)), boost::rend(buf));
+	  char buf[MaxValueSize];
+#ifdef _MSC_VER
+      int offt = generate(buf);
+	  return S(buf + offt, MaxValueSize - offt);
 #else
-		return S(Util::CharBuffer::reverse_iterator(buf + generate(buf)),
-			 Util::CharBuffer::reverse_iterator((char*)buf));
+#ifdef HAVE_BOOST
+      return S(boost::rbegin(buf) + (MaxValueSize - generate(buf)), boost::rend(buf));
+#else
+      return S(Util::CharBuffer::reverse_iterator(buf + generate(buf)),
+               Util::CharBuffer::reverse_iterator((char*)buf));
+#endif
 #endif
 	}
 	template <typename S> void append_to(S& s) const
-        {
-		char buf[MaxValueSize];
-#ifdef HAVE_BOOST
-		s.append(boost::rbegin(buf) + (MaxValueSize - generate(buf)), boost::rend(buf));
+    {
+	  char buf[MaxValueSize];
+#if _MSC_VER
+      int offt = generate(buf);
+	  s.append(buf + offt, MaxValueSize - offt);
 #else
-		s.append(Util::CharBuffer::reverse_iterator(buf + generate(buf)),
-			 Util::CharBuffer::reverse_iterator((char*)buf));
+#ifdef HAVE_BOOST
+      s.append(boost::rbegin(buf) + (MaxValueSize - generate(buf)), boost::rend(buf));
+#else
+      s.append(Util::CharBuffer::reverse_iterator(buf + generate(buf)),
+               Util::CharBuffer::reverse_iterator((char*)buf));
+#endif
 #endif
 	}
   };
 
   template <typename S> static void generate(S& result, long value)
   {
-#ifdef HAVE_BOOST
-    std::back_insert_iterator<S> sink(result);
-    karma::generate(sink, value);
-#else
     Proxy(value).append_to(result);
-#endif
-  }
-
-  template <typename S> static void generate(S& result, int value)
-  {
-#ifdef HAVE_BOOST
-    std::back_insert_iterator<S> sink(result);
-    karma::generate(sink, value);
-#else
-    Proxy(value).append_to(result);
-#endif
-  }
-
-  /// Returns converted length (no trailing zero),
-  /// buffer must be at least 12 characters long. 
-  static size_t generate(char* result, int value)
-  {
-#ifdef HAVE_BOOST
-    char*  p = result;
-    karma::generate(p, value);
-    return p - result;
-#else
-    return STRING_SNPRINTF( result, 12, "%d", value );
-#endif
   }
 
   template <typename T>
@@ -247,8 +225,8 @@ struct IntConvertor
   }
 };
 
-/// Converts unsigned integer
-struct UnsignedConvertor
+/// Converts positive integer
+struct PositiveIntConvertor
 {
   template <typename T>
   static bool parse( const char* str, const char* end, T& result )
@@ -282,7 +260,6 @@ struct UnsignedConvertor
     result = x;
     return true;
   }
-
 };
 
 /// Converts checksum to/from a string
@@ -325,12 +302,12 @@ struct CheckSumConvertor
 
   static bool parse( const char* str, const char* end, long& result)
   {
-    return UnsignedConvertor::parse( str, end, result );
+    return PositiveIntConvertor::parse( str, end, result );
   }
 
   template <typename S> static bool parse( const S& value, long& result )
   {
-    return UnsignedConvertor::parse( value, result );
+    return PositiveIntConvertor::parse( value, result );
   }
 
   static std::string convert( long value )
@@ -362,7 +339,7 @@ struct CheckSumConvertor
   throw( FieldConvertError )
   {
     long result = 0;
-    if( UnsignedConvertor::parse( value, result ) )
+    if( PositiveIntConvertor::parse( value, result ) )
       return result;
     throw FieldConvertError();
   }
