@@ -37,3 +37,16 @@ OPTIONAL DEPENDENCIES FOR EXTRA PERFORMANCE
             TBB installed in /opt/intel/tbb
 
             ./configure --with-boost=/usr/local/boost --with-sparsehash=/usr/local --with-tbb=/opt/intel/tbb --with-tbb-arch=intel64/gcc4.4
+
+PLATFORM-SPECIFIC NOTES
+
+        Use --with-sso configure option to enable short string optimization on platforms which use GLIBC for extra 10-15% improvement.
+
+        Recommended environment for G++ on Nehalem and above:
+        CXXFLAGS="-O3 -march=core2 -msse4.2 -falign-functions=16 -falign-jumps=16"
+
+        There is a 15-20% performance regression with g++ 4.7.x compared to 4.4.x.
+
+        G++ builds enable use of custom SSE2 assembly code which is not yet compatible with -mavx. 
+
+        Visual Studio builds need to use /Ox optimization level for best performance.
