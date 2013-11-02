@@ -101,7 +101,7 @@ struct IntConvertor
       char* p=buffer + MaxValueSize - 1;
       value_type value = m_value;
       unsigned_value_type v, u = value < 0 ? ~value + 1 : value;
-      do { v = value / 10; *p-- = (char)('0' + (value - v * 10)); } while( (value = v) );
+      do { v = u / 10; *p-- = (char)('0' + (u - v * 10)); } while( (u = v) );
       *p = '-';
       return p - buffer + (value >= 0);
 	}
