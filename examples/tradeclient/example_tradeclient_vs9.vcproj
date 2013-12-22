@@ -4,6 +4,7 @@
 	Version="9.00"
 	Name="example_tradeclient_vs9"
 	ProjectGUID="{760375AB-01FD-4E38-A778-FAA2A27F8C41}"
+	RootNamespace="example_tradeclient_vs9"
 	TargetFrameworkVersion="131072"
 	>
 	<Platforms>
@@ -202,7 +203,7 @@
 			OutputDirectory="$(SolutionDir)\bin\debug.boost\tradeclient"
 			IntermediateDirectory="debug.boost\vs9"
 			ConfigurationType="1"
-			InheritedPropertySheets="$(VCInstallDir)VCProjectDefaults\UpgradeFromVC71.vsprops;..\..\OptionalSettings.vsprops"
+			InheritedPropertySheets="$(VCInstallDir)VCProjectDefaults\UpgradeFromVC71.vsprops;..\..\OptionalSettings_vs9.vsprops"
 			UseOfMFC="0"
 			ATLMinimizesCRunTimeLibraryUsage="false"
 			CharacterSet="2"
@@ -292,7 +293,7 @@
 			OutputDirectory="$(SolutionDir)\bin\release.boost\tradeclient"
 			IntermediateDirectory="release.boost/vs9"
 			ConfigurationType="1"
-			InheritedPropertySheets="$(VCInstallDir)VCProjectDefaults\UpgradeFromVC71.vsprops;..\..\OptionalSettings.vsprops"
+			InheritedPropertySheets="$(VCInstallDir)VCProjectDefaults\UpgradeFromVC71.vsprops;..\..\OptionalSettings_vs9.vsprops"
 			UseOfMFC="0"
 			ATLMinimizesCRunTimeLibraryUsage="false"
 			CharacterSet="2"
