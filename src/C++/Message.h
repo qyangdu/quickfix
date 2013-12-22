@@ -85,7 +85,7 @@ class Message : public FieldMap
     }
   };
 
-  static HeaderFieldSet headerFieldSet;
+  static ALIGN_DECL_DEFAULT HeaderFieldSet headerFieldSet;
 
   class FieldReader {
 

@@ -647,7 +647,7 @@ struct UtcConvertorBase {
     uint16_t u;
   };
 
-  static NumberRange padded_numbers[100]; /* string representations of "00" to "99" */
+  static ALIGN_DECL_DEFAULT NumberRange padded_numbers[100]; /* string representations of "00" to "99" */
 
   static inline bool parse_date(const unsigned char*& p, int& year, int& mon, int& mday)
   {

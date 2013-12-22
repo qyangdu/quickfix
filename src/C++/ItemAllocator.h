@@ -63,12 +63,12 @@ namespace FIX
 
       static Buffer* buffer(std::size_t size, unsigned short referenced = 0)
       {
-	Buffer* h = (Buffer*)
-		(ALLOCATOR<unsigned char>().allocate(size + sizeof(Buffer)));
+        Buffer* h = (Buffer*)
+        (ALLOCATOR<unsigned char>().allocate(size + sizeof(Buffer)));
         h->m_shared = referenced + 1;
-	h->m_item_size = 0;
-	h->m_size = size;
-	return h;
+        h->m_item_size = 0;
+        h->m_size = size;
+        return h;
       }
 
    protected:
@@ -131,14 +131,14 @@ restart:
             if ( LIKELY(0 != m_buffer->m_item_size) )
             {
 mapped:
-              if ( LIKELY(m_buffer->m_item_size >= sizeof(value_type)) )
+              if ( LIKELY(m_buffer->m_item_size == sizeof(value_type)) )
               {
                 Buffer::Bitmap& bitmap = m_buffer->m_bitmap;
                 unsigned char slot = bitmap._Find_first();
                 if ( LIKELY(slot != bitmap.size()) )
                 {
                   bitmap.reset(slot);
-	          return (value_type*)(arena[slot]);
+                  return (value_type*)(arena[slot]);
                 }
               }
             }
@@ -148,7 +148,7 @@ mapped:
               if ( elements )
               {
                 Buffer::Bitmap& bitmap = m_buffer->m_bitmap;
-		elements = (std::min)(elements, (unsigned)bitmap.size());
+                elements = (std::min)(elements, (unsigned)bitmap.size());
                 bitmap.set();
                 bitmap >>= (bitmap.size() - elements);
                 m_buffer->m_item_size = sizeof(value_type);

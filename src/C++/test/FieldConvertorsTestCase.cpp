@@ -52,11 +52,12 @@ USER_DEFINE_DAYOFMONTH( TestField17, 17 );
 USER_DEFINE_UTCDATE( TestField18, 18 );
 USER_DEFINE_UTCTIMEONLY( TestField19, 19 );
 
-TEST(countIntegerSymbols)
+TEST(countIntegerDigits)
 {
     CHECK_EQUAL(1, FIX::Util::Int::numDigits( 0 ));
-    CHECK_EQUAL(2, FIX::Util::Int::numDigits( -1 ));
+    CHECK_EQUAL(1, FIX::Util::Int::numDigits( 1 ));
     CHECK_EQUAL(3, FIX::Util::Int::numDigits( 926 ));
+	CHECK_EQUAL(10, FIX::Util::Int::numDigits( 2147483647 ));
 }
 
 TEST(emptyConvert)
@@ -94,6 +95,11 @@ TEST(doubleConvertTo)
   CHECK_EQUAL( "-12.2345", DoubleConvertor::convert( -12.2345, 2) );
   CHECK_EQUAL( "-0.00001", DoubleConvertor::convert( -0.00001, 5) );
   CHECK_EQUAL( "0.0", DoubleConvertor::convert( 0.0, 1) );
+
+  CHECK_EQUAL( "1.500", DoubleConvertor::convert( 1.49999, 3, true) );
+  CHECK_EQUAL( "1.500", DoubleConvertor::convert( 1.50001, 3, true) );
+  CHECK_EQUAL( "-12.2345", DoubleConvertor::convert( -12.2344998, 4, true) );
+  CHECK_EQUAL( "-12.2345", DoubleConvertor::convert( -12.2345001, 4, true) );
 }
 
 TEST(doubleConvertFrom)
