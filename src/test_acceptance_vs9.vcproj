@@ -4,6 +4,7 @@
 	Version="9.00"
 	Name="test_acceptance_vs9"
 	ProjectGUID="{63CC102A-A3CD-43CC-9535-A91E67256360}"
+	RootNamespace="test_acceptance_vs9"
 	TargetFrameworkVersion="131072"
 	>
 	<Platforms>
@@ -200,7 +201,7 @@
 			OutputDirectory="$(SolutionDir)\test\debug.boost\at"
 			IntermediateDirectory="debug.boost/vs9"
 			ConfigurationType="1"
-			InheritedPropertySheets="$(VCInstallDir)VCProjectDefaults\UpgradeFromVC71.vsprops;..\OptionalSettings.vsprops"
+			InheritedPropertySheets="$(VCInstallDir)VCProjectDefaults\UpgradeFromVC71.vsprops;..\OptionalSettings_vs9.vsprops"
 			UseOfMFC="0"
 			ATLMinimizesCRunTimeLibraryUsage="false"
 			CharacterSet="2"
@@ -291,7 +292,7 @@
 			OutputDirectory="$(SolutionDir)\test\release.boost\at"
 			IntermediateDirectory="release.boost\vs9"
 			ConfigurationType="1"
-			InheritedPropertySheets="$(VCInstallDir)VCProjectDefaults\UpgradeFromVC71.vsprops;..\OptionalSettings.vsprops"
+			InheritedPropertySheets="$(VCInstallDir)VCProjectDefaults\UpgradeFromVC71.vsprops;..\OptionalSettings_vs9.vsprops"
 			UseOfMFC="0"
 			ATLMinimizesCRunTimeLibraryUsage="false"
 			CharacterSet="2"

@@ -189,7 +189,7 @@
 			OutputDirectory="$(SolutionDir)\bin\release.boost\codec"
 			IntermediateDirectory="release.boost\vs9"
 			ConfigurationType="1"
-			InheritedPropertySheets="..\..\OptionalSettings.vsprops"
+			InheritedPropertySheets="..\..\OptionalSettings_vs9.vsprops"
 			CharacterSet="2"
 			WholeProgramOptimization="1"
 			>
@@ -277,7 +277,7 @@
 			OutputDirectory="$(SolutionDir)\bin\debug.boost\codec"
 			IntermediateDirectory="debug.boost\vs9"
 			ConfigurationType="1"
-			InheritedPropertySheets="..\..\OptionalSettings.vsprops"
+			InheritedPropertySheets="..\..\OptionalSettings_vs9.vsprops"
 			CharacterSet="2"
 			>
 			<Tool
