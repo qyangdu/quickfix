@@ -259,7 +259,7 @@
 				OutputFile="$(OutDir)\tradeclient.exe"
 				LinkIncremental="2"
 				SuppressStartupBanner="true"
-				AdditionalLibraryDirectories="&quot;$(SolutionDir)\lib\debug&quot;;$(BOOST_LIB);$(TBB_LIB)"
+				AdditionalLibraryDirectories="&quot;$(SolutionDir)\lib\debug.boost&quot;;$(BOOST_LIB);$(TBB_LIB)"
 				GenerateDebugInformation="true"
 				ProgramDatabaseFile=".\DebugBoost/tradeclient_debug.pdb"
 				SubSystem="1"

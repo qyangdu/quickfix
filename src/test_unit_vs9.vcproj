@@ -267,7 +267,7 @@
 				OutputFile="$(OutDir)\ut.exe"
 				LinkIncremental="1"
 				SuppressStartupBanner="true"
-				AdditionalLibraryDirectories="$(SolutionDir)\lib\debug;$(BOOST_LIB);$(TBB_LIB)"
+				AdditionalLibraryDirectories="$(SolutionDir)\lib\debug.boost;$(BOOST_LIB);$(TBB_LIB)"
 				GenerateDebugInformation="true"
 				ProgramDatabaseFile=".\DebugBoost/ut.pdb"
 				SubSystem="1"
