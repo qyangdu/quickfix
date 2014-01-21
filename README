@@ -29,9 +29,9 @@ OPTIONAL DEPENDENCIES FOR EXTRA PERFORMANCE
         Intel Threading Building Blocks (www.threadingbuildingblocks.org)
 
 
-	LINUX
+    LINUX
 
-     ./configure --with-boost=<path> --with-sparsehash=<path> 
+        ./configure --with-boost=<path> --with-sparsehash=<path> 
            --with-tbb=<path> --with-tbb-arch=<library subdir>
 
         Example:
@@ -45,11 +45,14 @@ OPTIONAL DEPENDENCIES FOR EXTRA PERFORMANCE
                --with-tbb=/opt/intel/tbb
                --with-tbb-arch=intel64/gcc4.4
 
-     WINDOWS
+    WINDOWS
 
-     Configure Boost, TBB and Sparsehash settings by changing User Macros defined in OptionalSettings_vs9.vsprops for Visual Studio 2008 or OptionalSettings_vs11.props for Visual Studio 2012 via Property Manager or manually. 
+        Configure Boost, TBB and Sparsehash settings by changing User Macros
+        defined in OptionalSettings_vs9.vsprops for Visual Studio 2008 or 
+        OptionalSettings_vs11.props for Visual Studio 2012 via Property Manager
+        or manually. 
 
-	   Example:
+        Example:
 
         BOOST_INCLUDE      C:\boost
         TBB_INCLUDE        C:\tbb42_20130725oss\include
@@ -61,16 +64,19 @@ OPTIONAL DEPENDENCIES FOR EXTRA PERFORMANCE
         WITH_TBB           HAVE_TBB=1
         WITH_SPARSEHASH    HAVE_SPARSEHASH=1
 
-Then continue with the build using DebugBoost or ReleaseBoost build targets.
+        Then continue with the build using DebugBoost or ReleaseBoost build targets.
 
 PLATFORM-SPECIFIC NOTES
 
-        Use --with-sso configure option to enable short string optimization on platforms which use GLIBC for extra 10-15% improvement. This does not apply to Visual Studio builds as string implementation shipped with it already employs this optimization.
+        Use --with-sso configure option to enable short string optimization on platforms
+        which use GLIBC for extra 10-15% improvement. This does not apply to Visual Studio
+        builds as string implementation shipped with it already employs this optimization.
 
         Recommended environment for G++ on Nehalem and above:
         CXXFLAGS="-O3 -march=core2 -msse4.2 -falign-functions=16 -falign-jumps=16"
 
-        There is a 15-20% performance regression with g++ 4.7.x compared to 4.4.x. There is a 10-15% performance increase when going from Visual Studio 2008 to 2012.
+        There is a 15-20% performance regression with g++ 4.7.x compared to 4.4.x.
+        There is a 10-15% performance increase when going from Visual Studio 2008 to 2012.
 
         G++ builds enable use of custom SSE2 assembly code which is not yet compatible with -mavx. 
 
