@@ -354,6 +354,16 @@ int socket_setsockopt( int s, int opt, int optval )
     level = IPPROTO_TCP;
 
 #ifdef _MSC_VER
+  if( opt == TCP_NODELAY )
+  {
+	  DWORD numBytes;
+#ifdef SIO_LOOPBACK_FAST_PATH
+	  int siopt = SIO_LOOPBACK_FAST_PATH;
+#else
+	  int siopt = (-1744830448);
+#endif
+	  WSAIoctl(s, siopt, &optval, sizeof(optval), NULL, 0, &numBytes, 0, 0);
+  }
   return ::setsockopt( s, level, opt,
                        ( char* ) & optval, sizeof( optval ) );
 #else
