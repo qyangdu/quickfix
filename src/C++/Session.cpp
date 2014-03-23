@@ -232,8 +232,7 @@ void Session::nextLogon( const Message& logon, const UtcTimeStamp& timeStamp )
   }
 
   ResetSeqNumFlag resetSeqNumFlag(false);
-  if( logon.isSetField(resetSeqNumFlag) )
-    logon.getField( resetSeqNumFlag );
+  logon.getFieldIfSet( resetSeqNumFlag );
   m_state.receivedReset( resetSeqNumFlag );
 
   if( m_state.receivedReset() )
@@ -259,8 +258,7 @@ void Session::nextLogon( const Message& logon, const UtcTimeStamp& timeStamp )
   if ( !m_state.initiate() 
        || (m_state.receivedReset() && !m_state.sentReset()) )
   {
-    if( logon.isSetField(m_state.heartBtInt()) )
-      logon.getField( m_state.heartBtInt() );
+    logon.getFieldIfSet( m_state.heartBtInt() );
     m_state.onEvent( "Received logon request" );
     generateLogon( logon );
     m_state.onEvent( "Responding to logon request" );
@@ -331,19 +329,14 @@ void Session::nextSequenceReset( const Message& sequenceReset, const UtcTimeStam
 {
   bool isGapFill = false;
   GapFillFlag gapFillFlag;
-  if ( sequenceReset.isSetField( gapFillFlag ) )
-  {
-    sequenceReset.getField( gapFillFlag );
+  if ( sequenceReset.getFieldIfSet( gapFillFlag ) )
     isGapFill = gapFillFlag;
-  }
 
   if ( !verify( sequenceReset, isGapFill, isGapFill ) ) return ;
 
   NewSeqNo newSeqNo;
-  if ( sequenceReset.isSetField( newSeqNo ) )
+  if ( sequenceReset.getFieldIfSet( newSeqNo ) )
   {
-    sequenceReset.getField( newSeqNo );
-
     m_state.onEvent( "Received SequenceReset FROM: "
                      + IntConvertor::convert( getExpectedTargetNum() ) +
                      " TO: " + IntConvertor::convert( newSeqNo ) );
@@ -405,9 +398,7 @@ void Session::nextResendRequest( const Message& resendRequest, const UtcTimeStam
     {
       msg.setStringHeader(*i);
       ApplVerID applVerID;
-      if( msg.getHeader().isSetField(applVerID) )
-        msg.getHeader().getField(applVerID);
-      else
+      if( !msg.getHeader().getFieldIfSet(applVerID) )
         applVerID = m_senderDefaultApplVerID;
 
       const DataDictionary& applicationDD =
@@ -489,24 +480,23 @@ bool Session::sendRaw( Message& message, int num )
 
       if( trait == Message::admin_logon && !m_state.receivedReset() )
       {
-        ResetSeqNumFlag resetSeqNumFlag( false );
-        if( message.isSetField(resetSeqNumFlag) )
-          message.getField( resetSeqNumFlag );
-        if( resetSeqNumFlag )
+        ResetSeqNumFlag resetSeqNumFlag;
+        if( message.getFieldIfSet(resetSeqNumFlag) && resetSeqNumFlag )
         {
           m_state.reset();
           header.setField( MsgSeqNum::Pack(getExpectedSenderNum()) );
-        }
-        m_state.sentReset( resetSeqNumFlag );
+		  m_state.sentReset( true );
+        } 
+		else
+		  m_state.sentReset( false );
       }
 
       if( m_pResponder )
       {
-	const SgBufferFactory::SgBuffer& s =
+		const SgBufferFactory::SgBuffer& s =
                        message.toBuffer( sg_buffer_factory );
-
-	if( !num )
-	  persist( message, s.iovec(), s.elements() );
+		if( !num )
+		  persist( message, s.iovec(), s.elements() );
 
         if ( isLoggedOn() ||
            ( trait & ( Message::admin_logon | Message::admin_status ) ) )
@@ -532,16 +522,16 @@ bool Session::sendRaw( Message& message, int num )
       {
         m_application.toApp( message, m_sessionID );
 
-	if( m_pResponder )
+		if( m_pResponder )
         {
-	  const SgBufferFactory::SgBuffer& s =
+		  const SgBufferFactory::SgBuffer& s =
                          message.toBuffer( sg_buffer_factory );
 
-	  if( !num )
-	    persist( message, s.iovec(), s.elements() );
+		if( !num )
+		  persist( message, s.iovec(), s.elements() );
 
-	  if ( isLoggedOn() )
-	    tx ( s.iovec(), s.elements() );
+		if ( isLoggedOn() )
+		  tx ( s.iovec(), s.elements() );
         }
         else
         {
@@ -758,9 +748,8 @@ void Session::generateReject( const Message& message, int err, int field )
   MsgType msgType;
 
   message.getHeader().getField( msgType );
-  if( message.getHeader().isSetField( msgSeqNum ) )
+  if( message.getHeader().getFieldIfSet( msgSeqNum ) )
   {
-    message.getHeader().getField( msgSeqNum );
     if( msgSeqNum.forString( String::SizeFunc() ) )
       reject.setField( RefSeqNum( msgSeqNum ) );
   }
@@ -1156,14 +1145,11 @@ bool Session::doPossDup( const Message& msg )
 bool Session::doTargetTooLow( const Message& msg )
 {
   const Header & header = msg.getHeader();
-  PossDupFlag possDupFlag(false);
-  MsgSeqNum msgSeqNum;
-  if( header.isSetField(possDupFlag) )
-    header.getField( possDupFlag );
-  header.getField( msgSeqNum );
-
-  if ( !possDupFlag )
+  PossDupFlag possDupFlag;
+  if ( !header.getFieldIfSet(possDupFlag) || !possDupFlag )
   {
+    MsgSeqNum msgSeqNum;
+    header.getField( msgSeqNum );
     std::stringstream stream;
     stream << "MsgSeqNum too low, expecting " << getExpectedTargetNum()
            << " but received " << msgSeqNum;
@@ -1307,9 +1293,9 @@ void HEAVYUSE Session::next( const Message& message, const DataDictionary& sessi
                                 &sessionDD, &sessionDD );
           else
           {
-            ApplVerID applVerID = m_targetDefaultApplVerID;
-            if( header.isSetField(FIELD::ApplVerID) )
-              header.getField(applVerID);
+            ApplVerID applVerID;
+            if( !header.getFieldIfSet(applVerID) )
+              applVerID = m_targetDefaultApplVerID;
             const DataDictionary& applicationDataDictionary = 
               m_dataDictionaryProvider.getApplicationDataDictionary(applVerID);
             DataDictionary::validate( message, beginString, msgType,

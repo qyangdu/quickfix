@@ -100,6 +100,22 @@ throw( InvalidMessage )
     setString( string, validate, &sessionDataDictionary, &applicationDataDictionary );
 }
 
+HEAVYUSE Message::Message( const std::string& string,
+                  const FIX::DataDictionary& sessionDataDictionary,
+                  const FIX::DataDictionary& applicationDataDictionary,
+                  FieldMap::allocator_type& allocator, bool validate )
+  throw( InvalidMessage )
+: FieldMap( allocator ),
+  m_header( allocator, message_order( message_order::header ) ),
+  m_trailer( allocator, message_order( message_order::trailer ) ),
+  m_status( 0 )
+{
+  if( isAdminMsg( string ) )
+    setString( string, validate, &sessionDataDictionary, &sessionDataDictionary );
+  else
+    setString( string, validate, &sessionDataDictionary, &applicationDataDictionary );
+}
+
 bool Message::InitializeXML( const std::string& url )
 {
   try
@@ -124,9 +140,8 @@ void Message::reverseRoute( const Header& header )
   m_header.removeField( senderCompID.getField() );
   m_header.removeField( targetCompID.getField() );
 
-  if( header.isSetField( beginString ) )
+  if( header.getFieldIfSet( beginString ) )
   {
-    header.getField( beginString );
     if( beginString.hasValue() )
       m_header.setField( beginString );
 
@@ -138,32 +153,28 @@ void Message::reverseRoute( const Header& header )
 
     if( beginString >= BeginString_FIX41 )
     {
-      if( header.isSetField( onBehalfOfLocationID ) )
+      if( header.getFieldIfSet( onBehalfOfLocationID ) )
       {
-        header.getField( onBehalfOfLocationID );
         if( onBehalfOfLocationID.hasValue() )
           m_header.setField( DeliverToLocationID( onBehalfOfLocationID ) );
       }
 
-      if( header.isSetField( deliverToLocationID ) )
+      if( header.getFieldIfSet( deliverToLocationID ) )
       {
-        header.getField( deliverToLocationID );
         if( deliverToLocationID.hasValue() )
           m_header.setField( OnBehalfOfLocationID( deliverToLocationID ) );
       }
     }
   }
 
-  if( header.isSetField( senderCompID ) )
+  if( header.getFieldIfSet( senderCompID ) )
   {
-    header.getField( senderCompID );
     if( senderCompID.hasValue() )
       m_header.setField( TargetCompID( senderCompID ) );
   }
 
-  if( header.isSetField( targetCompID ) )
+  if( header.getFieldIfSet( targetCompID ) )
   {
-    header.getField( targetCompID );
     if( targetCompID.hasValue() )
       m_header.setField( SenderCompID( targetCompID ) );
   }
@@ -179,30 +190,26 @@ void Message::reverseRoute( const Header& header )
   m_header.removeField( deliverToCompID.getField() );
   m_header.removeField( deliverToSubID.getField() );
 
-  if( header.isSetField( onBehalfOfCompID ) )
+  if( header.getFieldIfSet( onBehalfOfCompID ) )
   {
-    header.getField( onBehalfOfCompID );
     if( onBehalfOfCompID.hasValue() )
       m_header.setField( DeliverToCompID( onBehalfOfCompID ) );
   }
 
-  if( header.isSetField( onBehalfOfSubID ) )
+  if( header.getFieldIfSet( onBehalfOfSubID ) )
   {
-    header.getField( onBehalfOfSubID );
     if( onBehalfOfSubID.hasValue() )
       m_header.setField( DeliverToSubID( onBehalfOfSubID ) );
   }
 
-  if( header.isSetField( deliverToCompID ) )
+  if( header.getFieldIfSet( deliverToCompID ) )
   {
-    header.getField( deliverToCompID );
     if( deliverToCompID.hasValue() )
       m_header.setField( OnBehalfOfCompID( deliverToCompID ) );
   }
 
-  if( header.isSetField( deliverToSubID ) )
+  if( header.getFieldIfSet( deliverToSubID ) )
   {
-    header.getField( deliverToSubID );
     if( deliverToSubID.hasValue() )
       m_header.setField( OnBehalfOfSubID( deliverToSubID ) );
   }
@@ -328,18 +335,18 @@ inline void HEAVYUSE Message::extractField ( Message::FieldReader& reader,
   {
     // length field is 1 less except for Signature
     long lenField = (field != FIELD::Signature) ? (field - 1) : FIELD::SignatureLength;
-    
-    if ( pGroup && pGroup->isSetField( lenField ) )
+    const FieldBase* fieldPtr;
+    if ( pGroup && NULL != (fieldPtr = pGroup->getFieldPtrIfSet( lenField ) ) )
     {
-      const std::string& fieldLength = pGroup->getField( lenField );
+      const FieldBase::string_type& fieldLength = fieldPtr->getRawString();
       if ( !IntConvertor::parse( fieldLength, lenField ) )
         throw InvalidMessage("Malformed field length for field " +
                                    IntConvertor::convert(field) );
       reader.pos( lenField );
     }
-    else if ( isSetField( lenField ) )
+    else if ( NULL != (fieldPtr = getFieldPtrIfSet( lenField ) ) )
     {
-      const std::string& fieldLength = getField( lenField );
+      const FieldBase::string_type& fieldLength = fieldPtr->getRawString();
       if ( !IntConvertor::parse( fieldLength, lenField ) )
         throw InvalidMessage("Malformed field length for field " +
                                    IntConvertor::convert(field) );

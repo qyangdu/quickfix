@@ -136,9 +136,6 @@ void FileStore::open( bool deleteFile )
 
 void FileStore::populateCache()
 {
-  std::string msg;
-  Message message;
-
   FILE* headerFile;
   headerFile = file_fopen( m_headerFileName.c_str(), "r+" );
   if ( headerFile )

@@ -198,6 +198,16 @@ public:
     i->second.setString( value );
   }
 
+  /// Get a field if set
+  bool getFieldIfSet( FieldBase& field ) const
+  {
+    Fields::const_iterator iter = m_fields.find( field.getField() );
+    if ( iter == m_fields.end() )
+      return false;
+    field = iter->second;
+    return true;
+  }
+
   /// Get a field without type checking
   FieldBase& getField( FieldBase& field )
   const throw( FieldNotFound )
@@ -217,7 +227,7 @@ public:
   }
 
   /// Get direct access to a field through a reference
-  inline const FieldBase& getFieldRef( int tag )
+  const FieldBase& getFieldRef( int tag )
   const throw( FieldNotFound )
   {
     Fields::const_iterator iter = m_fields.find( tag );
@@ -231,6 +241,13 @@ public:
   const throw( FieldNotFound )
   {
     return &getFieldRef( tag );
+  }
+
+  /// Get direct access to a field through a pointer
+  const FieldBase* const getFieldPtrIfSet( int tag ) const
+  {
+    Fields::const_iterator iter = m_fields.find( tag );
+    return ( iter != m_fields.end() ) ? &iter->second : NULL;
   }
 
   /// Check to see if a field is set
@@ -377,7 +394,9 @@ void set( const FIELD& field )            \
 void set( const FIELD::Pack& packed )     \
 { (MAP).setField(packed); }               \
 FIELD& get( FIELD& field ) const          \
-{ return (FIELD&)(MAP).getField(field); }
+{ return (FIELD&)(MAP).getField(field); } \
+bool getIfSet( FIELD& field ) const       \
+{ return (MAP).getFieldIfSet(field); }
 
 #define FIELD_GET_PTR( MAP, FLD ) \
 (const FIX::FLD*)MAP.getFieldPtr( FIX::FIELD::FLD )
