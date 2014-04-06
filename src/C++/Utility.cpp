@@ -53,7 +53,7 @@ ALIGN_DECL(64) Util::Tag::ConvBits Util::Tag::s_Bits =
     0xd1b71759, 0xd1b71759
   },
   { // mul_10000
-    10000, 10000
+    55536, 55536
   },
   { // mul_10
    10, 10, 10, 10, 10, 10, 10, 10
