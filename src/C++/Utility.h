@@ -122,7 +122,6 @@ typedef int socklen_t;
 #include <cstdlib>
 
 #ifdef HAVE_BOOST
-#include <boost/spirit/include/qi_real.hpp>
 #include <boost/thread/recursive_mutex.hpp>
 #include <boost/scoped_array.hpp>
 #include <boost/range.hpp>
@@ -509,7 +508,7 @@ namespace FIX
         TickCount(struct timespec data) : m_data(data) {}
         TickCount()
         {
-          ::clock_gettime(CLOCK_REALIME, &m_data);
+          ::clock_gettime(CLOCK_REALTIME, &m_data);
         }
       public:
         static inline TickCount now()
@@ -799,6 +798,13 @@ namespace FIX
       }
     };
 
+    struct Char
+    {
+      static inline bool isspace( char x ) { return x == ' '; }
+      static inline bool isdigit( char x ) { return (unsigned int)( x - '0' ) < 10; }
+      static inline char toupper( char x ) { return ((x) >= 'a' && ((x) <= 'z') ? ((x)-('a'-'A')):(x)); }
+    };
+
     struct CharBuffer
     {
       class reverse_iterator : public std::iterator<std::input_iterator_tag, char>
@@ -849,7 +855,50 @@ namespace FIX
 
         if (n >= 8)
               __asm__ __volatile (
-              " cmpl $16, %2;             \n\t"
+              " cmpl $16, %2;                      \n\t"
+#ifdef __AVX__
+              " vpxor %%xmm0, %%xmm0, %%xmm0;      \n\t"
+              " vpxor %%xmm2, %%xmm2, %%xmm2;      \n\t"
+              " jl 1f;                \n\t"
+              " vmovq %3, %%xmm1;                  \n\t"
+              " vpunpcklbw %%xmm0, %%xmm1, %%xmm1; \n\t"
+              " .p2align 4,,10;                    \n\t"
+              " .p2align 3;                        \n\t"
+              // loop over 16-byte blocks
+              "0:;                    \n\t"
+              " vlddqu (%1), %%xmm4;               \n\t"
+              " addl $-16, %2;                     \n\t"
+              " vpunpcklbw %%xmm2, %%xmm4, %%xmm3; \n\t"
+              " addq $16, %1;                      \n\t"
+              " vpmaddwd %%xmm1, %%xmm3, %%xmm3;   \n\t"
+              " cmpl $16, %2;                      \n\t"
+              " vpunpckhbw %%xmm2, %%xmm4, %%xmm4; \n\t"
+              " vpaddd %%xmm3, %%xmm0, %%xmm0;     \n\t"
+              " vpmaddwd %%xmm1, %%xmm4, %%xmm4;   \n\t"
+              " vpaddd %%xmm4, %%xmm0, %%xmm0;     \n\t"
+              " jge 0b;               \n\t"
+              " cmpl $4, %2;                       \n\t"
+              " jl 2f;                \n\t"
+              " .p2align 4,,10;                    \n\t"
+              " .p2align 3;                        \n\t"
+              // loop over 4-byte blocks
+              "1:                     \n\t"
+              " vmovd (%1), %%xmm3;                \n\t"
+              " addq $4, %1;                       \n\t"
+              " vpunpcklbw %%xmm2, %%xmm3, %%xmm3; \n\t"
+              " addl $-4, %2;                      \n\t"
+              " vpunpcklwd %%xmm2, %%xmm3, %%xmm3; \n\t"
+              " cmpl $4, %2;                       \n\t"
+              " vpaddd %%xmm3, %%xmm0, %%xmm0;     \n\t"
+              " jge 1b;               \n\t"
+              // accumulate
+              "2:;                    \n\t"
+              " vpsrldq $8, %%xmm0, %%xmm1;        \n\t"
+              " vpaddd %%xmm1, %%xmm0, %%xmm0;     \n\t"
+              " vpsrldq $4, %%xmm0, %%xmm2;        \n\t"
+              " vpaddd %%xmm2, %%xmm0, %%xmm0;     \n\t"
+              " vmovd %%xmm0, %0;                  \n\t"
+#else
               " pxor %%xmm0, %%xmm0;      \n\t"
               " movdqa %%xmm0, %%xmm2;    \n\t"
               " jl 1f;                \n\t"
@@ -894,6 +943,7 @@ namespace FIX
               " psrldq $4, %%xmm2;        \n\t"
               " paddd %%xmm2, %%xmm0;     \n\t"
               " movd %%xmm0, %0;          \n\t"
+#endif
               : "+r"(x), "+r"(pu), "+r"(n)
               : "r" (mask)
               : "xmm0", "xmm1", "xmm2", "xmm3", "xmm4"
@@ -990,6 +1040,20 @@ namespace FIX
     {
       register unsigned at = 0;
       __asm__ __volatile (
+#if defined(__AVX__)
+        "vmovd %1, %%xmm1                  \n\t"
+        "vpunpcklbw %%xmm1, %%xmm1, %%xmm1 \n\t"
+        "vmovq %2, %%xmm0                  \n\t"
+        "vpshuflw $0, %%xmm1, %%xmm1       \n\t"
+        "movl $8, %1                       \n\t"
+        "vpcmpeqb %%xmm1, %%xmm0, %%xmm0   \n\t"
+        "vpmovmskb %%xmm0, %0              \n\t"
+        "bsf %0, %0                        \n\t"
+        "cmovz %1, %0                      \n\t"
+        : "=a" (at), "+r" (v)
+        : "r" (f.value)
+        : "xmm0", "xmm1"
+#else
         "movd %1, %%xmm1            \n\t"
         "punpcklbw %%xmm1, %%xmm1   \n\t"
         "movq %2, %%xmm0            \n\t"
@@ -1001,7 +1065,9 @@ namespace FIX
         "cmovz %1, %0               \n\t"
         : "=a" (at), "+r" (v)
         : "r" (f.value)
-        : "xmm0", "xmm1" );
+        : "xmm0", "xmm1"
+#endif
+      );
       return at;
     }
 
@@ -1068,6 +1134,29 @@ namespace FIX
                * http://wm.ite.pl/articles/sse-itoa.html
                */
             __asm__ __volatile__ (
+#ifdef __AVX__
+              "vmovd          %0, %%xmm1             \n"
+              "vmovq          %2, %%xmm0             \n"
+              "vmovq          %3, %%xmm3             \n"
+              "vpmuludq       %%xmm1, %%xmm0, %%xmm0 \n"
+              "vpsrlq         $45, %%xmm0, %%xmm0    \n"
+              "vpmuludq       %%xmm3, %%xmm0, %%xmm0 \n"
+              "vpaddd         %%xmm1, %%xmm0, %%xmm0 \n"
+              "vpsllq         $2, %%xmm0, %%xmm0     \n"
+              "vpunpcklwd     %%xmm0, %%xmm0, %%xmm0 \n"
+              "vmovdqa        %4, %%xmm1             \n"
+              "vpshufd        $5, %%xmm0, %%xmm0     \n"
+              "vpmulhuw       %5, %%xmm0, %%xmm0     \n"
+              "vpmulhuw       %6, %%xmm0, %%xmm0     \n"
+              "vpmullw        %%xmm0, %%xmm1, %%xmm1 \n"
+              "vpsllq         $16, %%xmm1, %%xmm1    \n"
+              "vmovdqa        %7, %%xmm3             \n"
+              "vpxor          %%xmm2, %%xmm2, %%xmm2 \n"
+              "vpsubw         %%xmm1, %%xmm0, %%xmm0 \n"
+              "vpackuswb      %%xmm2, %%xmm0, %%xmm0 \n"
+              "vpaddb         %%xmm3, %%xmm0, %%xmm0 \n"
+              "vmovq          %%xmm0, (%1)           \n"
+#else
               "movd           %0, %%xmm1             \n"
               "movq           %2, %%xmm0             \n"
               "movq           %3, %%xmm3             \n"
@@ -1089,6 +1178,7 @@ namespace FIX
               "packuswb       %%xmm2, %%xmm0         \n"
               "paddb          %%xmm3, %%xmm0         \n"
               "movq           %%xmm0, (%1)           \n"
+#endif
               : 
               : "r" (x), "r" (buf), "m"(*s_Bits.div_10000),
                 "m"(*s_Bits.mul_10000), "m"(*s_Bits.mul_10), "m"(*s_Bits.div_const),
@@ -1117,36 +1207,80 @@ namespace FIX
 
       static inline const char NOTHROW_PRE * PURE_DECL HEAVYUSE NOTHROW_POST delimit(const char* p, unsigned len)
       {
-        uintptr_t b = ~(uintptr_t)p + 1;
+#if defined(__GNUC__) && defined(__x86_64__)
+        if ( LIKELY(len > 1) )
+        {
+          register uint64_t v = 0x3d3d3d3d3d3d3d3dULL;
+          register uint64_t pos = ~(uintptr_t)p;
+          __asm__ __volatile__ (
+#ifdef __AVX__
+                "vmovq %0, %%xmm0                       \n\t"
+                "vmovq %4, %%xmm1                       \n\t"
+                "vpunpcklqdq %%xmm0, %%xmm0, %%xmm0     \n\t"
+                "vpcmpeqb %%xmm1, %%xmm0, %%xmm0        \n\t"
+                "movl %3, %%ecx                         \n\t"
+                "vpmovmskb %%xmm0, %0                   \n\t"
+#else
+                "movq %0, %%xmm0                        \n\t"
+                "movq %4, %%xmm1                        \n\t"
+                "punpcklqdq %%xmm0, %%xmm0              \n\t"
+                "pcmpeqb %%xmm1, %%xmm0                 \n\t"
+                "movl %3, %%ecx                         \n\t"
+                "pmovmskb %%xmm0, %0                    \n\t"
+#endif
+                "add $1, %2                             \n\t"
+                "bsf %0, %0                             \n\t"
+                "cmovnz %0, %%rcx                       \n\t"
+                "cmpl %3, %%ecx                         \n\t"
+                "cmovl %%rcx, %1                        \n\t"
+                : "+r"(v), "+r"(pos), "+r"(p)
+                : "r"(len), "m"(*(p + 1))
+                : "cc", "rcx", "xmm0", "xmm1"
+          );
+          return p + pos;
+        }
+        return NULL;
+#else
         switch (len)
         {
-          default: b = (p[8] == '=') ? 8 : b;
-          case 8:  b = (p[7] == '=') ? 7 : b;
-          case 7:  b = (p[6] == '=') ? 6 : b;
-          case 6:  b = (p[5] == '=') ? 5 : b;
-          case 5:  b = (p[4] == '=') ? 4 : b;
-          case 4:  b = (p[3] == '=') ? 3 : b;
-          case 3:  b = (p[2] == '=') ? 2 : b;
-          case 2:  b = (p[1] == '=') ? 1 : b;
-          case 1:  {}
-          case 0:  {}
+          default: if (LIKELY(*p != '=')) { p++;
+                   if (LIKELY(*p != '=')) { p++;
+          case 8:  if (LIKELY(*p != '=')) { p++;
+          case 7:  if (LIKELY(*p != '=')) { p++;
+          case 6:  if (LIKELY(*p != '=')) { p++;
+          case 5:  if (LIKELY(*p != '=')) { p++;
+          case 4:  if (LIKELY(*p != '=')) { p++;
+          case 3:  if (LIKELY(*p != '=')) { p++;
+          case 2:  if (LIKELY(*p != '=')) { p++;
+                   if (LIKELY(*p != '=')) { p++;
+          case 1:
+          case 0:  return NULL;
+                } } } } } } } } } }
         }
-        return p + b;
+        return p;
+#endif
       }
 
+      // store correct accumulated value even in case of a stop at a non-digit character
       static inline bool HEAVYUSE NOTHROW parse(const char* b, const char* e, int& rv, int& rx)
       {
-        register bool result = true;
-        int value = 0, checksum = 0;
-        do
-        {
-          int v = *b;
-          result = (v >= '0' && v <= '9');
-          value = value * 10 + (v - '0');
-          checksum += v;
-        } while (LIKELY((++b < e) & result));
-        rv = value; rx = checksum;
-        return result;
+	bool valid = false;
+	unsigned a, c, s = *b == '-';
+        int v = 0, x = s ? '-' : 0;
+	switch (e - (b += s))
+	{
+          case 8: a = (c = *b++) - '0'; if (LIKELY(a < 10)) { v = a; x = c; 
+          case 7: a = (c = *b++) - '0'; if (LIKELY(a < 10)) { v = v * 10 + a; x += c; 
+          case 6: a = (c = *b++) - '0'; if (LIKELY(a < 10)) { v = v * 10 + a; x += c; 
+          case 5: a = (c = *b++) - '0'; if (LIKELY(a < 10)) { v = v * 10 + a; x += c; 
+          case 4: a = (c = *b++) - '0'; if (LIKELY(a < 10)) { v = v * 10 + a; x += c; 
+          case 3: a = (c = *b++) - '0'; if (LIKELY(a < 10)) { v = v * 10 + a; x += c; 
+          case 2: a = (c = *b++) - '0'; if (LIKELY(a < 10)) { v = v * 10 + a; x += c; 
+          case 1: a = (c = *b)   - '0'; if (LIKELY(a < 10)) { v = v * 10 + a; x += c;
+                  valid = true; } } } } } } } }
+	}
+        rv = LIKELY(!s) ? v : -v; rx = x;
+        return valid;
       }
 
       static inline char NOTHROW length(int field)

@@ -35,12 +35,6 @@
 namespace FIX
 {
 
-#ifdef HAVE_BOOST
-  namespace qi {
-    using namespace boost::spirit::qi;
-  }
-#endif
-
 /// String convertor is a no-op.
 struct StringConvertor
 {
@@ -81,13 +75,13 @@ struct StringConvertor
   { return true; }
 };
 
-/// Converts integer/long to/from a string
+/// Converts integer to/from a string
 struct IntConvertor
 {
   public:
 
-  typedef long value_type;
-  typedef unsigned long unsigned_value_type;
+  typedef int value_type;
+  typedef unsigned int unsigned_value_type;
 
   static const std::size_t MaxValueSize = std::numeric_limits<value_type>::digits10 + 2;
   static std::size_t RequiredSize(value_type v = 0) { return MaxValueSize; }
@@ -97,24 +91,24 @@ struct IntConvertor
 
 #ifdef _MSC_VER
 	inline int generate(char* buffer) const
-    {
-      char* p=buffer + MaxValueSize - 1;
-      value_type value = m_value;
-      unsigned_value_type v, u = value < 0 ? ~value + 1 : value;
-      do { v = u / 10; *p-- = (char)('0' + (u - v * 10)); } while( (u = v) );
-      *p = '-';
-      return p - buffer + (value >= 0);
+	{
+	  char* p=buffer + MaxValueSize - 1;
+	  value_type value = m_value;
+	  unsigned_value_type v, u = value < 0 ? ~value + 1 : value;
+	  do { v = u / 10; *p-- = (char)('0' + (u - v * 10)); } while( (u = v) );
+	  *p = '-';
+	  return p - buffer + (value >= 0);
 	}
 #else
-    inline int generate(char* buffer) const
-    {
-      char* p=buffer;
-      value_type value = m_value;
-      unsigned_value_type v, u = value < 0 ? ~value + 1 : value;
-      do { v = u / 10; *p++ = (char)('0' + (u - v * 10)); } while( (u = v) );
-      *p = '-';
-      return ((p - buffer) + (value < 0));
-    }
+	inline int generate(char* buffer) const
+	{
+	  char* p=buffer;
+	  value_type value = m_value;
+	  unsigned_value_type v, u = value < 0 ? ~value + 1 : value;
+	  do { v = u / 10; *p++ = (char)('0' + (u - v * 10)); } while( (u = v) );
+	  *p = '-';
+	  return ((p - buffer) + (value < 0));
+	}
 #endif
 
     public:
@@ -124,94 +118,105 @@ struct IntConvertor
 	{
 	  char buf[MaxValueSize];
 #ifdef _MSC_VER
-      int offt = generate(buf);
+	  int offt = generate(buf);
 	  return S(buf + offt, MaxValueSize - offt);
 #else
 #ifdef HAVE_BOOST
-      return S(boost::rbegin(buf) + (MaxValueSize - generate(buf)), boost::rend(buf));
+	  return S(boost::rbegin(buf) + (MaxValueSize - generate(buf)), boost::rend(buf));
 #else
-      return S(Util::CharBuffer::reverse_iterator(buf + generate(buf)),
-               Util::CharBuffer::reverse_iterator((char*)buf));
+	  return S(Util::CharBuffer::reverse_iterator(buf + generate(buf)),
+		   Util::CharBuffer::reverse_iterator((char*)buf));
 #endif
 #endif
 	}
 	template <typename S> void append_to(S& s) const
-    {
+	{
 	  char buf[MaxValueSize];
 #if _MSC_VER
-      int offt = generate(buf);
+	  int offt = generate(buf);
 	  s.append(buf + offt, MaxValueSize - offt);
 #else
-#ifdef HAVE_BOOST
-      s.append(boost::rbegin(buf) + (MaxValueSize - generate(buf)), boost::rend(buf));
+#if defined(HAVE_BOOST) && !defined(__INTEL_COMPILER)
+	  s.append(boost::rbegin(buf) + (MaxValueSize - generate(buf)), boost::rend(buf));
 #else
-      s.append(Util::CharBuffer::reverse_iterator(buf + generate(buf)),
-               Util::CharBuffer::reverse_iterator((char*)buf));
+	  s.append(Util::CharBuffer::reverse_iterator(buf + generate(buf)),
+		   Util::CharBuffer::reverse_iterator((char*)buf));
 #endif
 #endif
 	}
   };
 
-  template <typename S> static void generate(S& result, long value)
+  template <typename S> static void generate(S& result, int value)
   {
     Proxy(value).append_to(result);
   }
 
   template <typename T>
-  static bool parse( const char* str, const char* end, T& result )
+  static inline bool parse( const char* str, const char* end, T& result )
   {
-    T x, multiplier = (*str == '-');
-    str += multiplier;
-    x = 0;
-    multiplier = 1 - (multiplier << 1);
-    bool valid = end > str;
-    while( end > str )
+    unsigned_value_type c;
+    T x = 0;
+    int neg = *str == '-';
+    switch( end - (str += neg) )
     {
-      const T c = *str++ - '0';
-      if( LIKELY(c >= 0 && 9 >= c) )
-        x = 10 * x + c;
-      else
-        return false;
+      case 10: c = *str++ - '0'; if ( LIKELY(c < 10) ) { x = c * 1000000000;
+      case  9: c = *str++ - '0'; if ( LIKELY(c < 10) ) { x += c * 100000000;
+      case  8: c = *str++ - '0'; if ( LIKELY(c < 10) ) { x += c * 10000000;
+      case  7: c = *str++ - '0'; if ( LIKELY(c < 10) ) { x += c * 1000000;
+      case  6: c = *str++ - '0'; if ( LIKELY(c < 10) ) { x += c * 100000;
+      case  5: c = *str++ - '0'; if ( LIKELY(c < 10) ) { x += c * 10000;
+      case  4: c = *str++ - '0'; if ( LIKELY(c < 10) ) { x += c * 1000;
+      case  3: c = *str++ - '0'; if ( LIKELY(c < 10) ) { x += c * 100;
+      case  2: c = *str++ - '0'; if ( LIKELY(c < 10) ) { x += c * 10;
+      case  1: c = *str - '0';   if ( LIKELY(c < 10) ) { x += c;
+               result = LIKELY( !neg ) ? x : -x;
+               return true;
+               } } } } } } } } } }
     }
-    result = x * multiplier;
-    return valid;
+    return false;
   }
 
   template <typename S, typename T>
-  static bool parse( const S& value, T& result )
+  static inline bool parse( const S& value, T& result )
   {
     const char* str = String::c_str(value);
-    T x, multiplier = (*str == '-');
-    str += multiplier;
-    x = 0;
-    multiplier = 1 - (multiplier << 1);
-    do
+    unsigned_value_type c;
+    T x = 0;
+    int neg = *str == '-';
+    str += neg;
+    switch( String::length(value) - neg )
     {
-      const int c = *str - '0';
-      if( LIKELY(c >= 0 && 9 >= c) )
-        x = 10 * x + c;
-      else
-        return false;
-    } while (*++str);
-
-    result = x * multiplier;
-    return true;
+      case 10: c = *str++ - '0'; if ( LIKELY(c < 10) ) { x = c * 1000000000;
+      case  9: c = *str++ - '0'; if ( LIKELY(c < 10) ) { x += c * 100000000;
+      case  8: c = *str++ - '0'; if ( LIKELY(c < 10) ) { x += c * 10000000;
+      case  7: c = *str++ - '0'; if ( LIKELY(c < 10) ) { x += c * 1000000;
+      case  6: c = *str++ - '0'; if ( LIKELY(c < 10) ) { x += c * 100000;
+      case  5: c = *str++ - '0'; if ( LIKELY(c < 10) ) { x += c * 10000;
+      case  4: c = *str++ - '0'; if ( LIKELY(c < 10) ) { x += c * 1000;
+      case  3: c = *str++ - '0'; if ( LIKELY(c < 10) ) { x += c * 100;
+      case  2: c = *str++ - '0'; if ( LIKELY(c < 10) ) { x += c * 10;
+      case  1: c = *str - '0';   if ( LIKELY(c < 10) ) { x += c;
+               result = LIKELY( !neg ) ? x : -x;
+               return true;
+               } } } } } } } } } }
+    }
+    return false;
   }
 
-  static std::string convert( long value )
+  static std::string convert( int value )
   {
     return Proxy(value).convert_to<std::string>();
   }
 
-  template <typename S> static S convert( long value )
+  template <typename S> static S convert( int value )
   {
     return Proxy(value).convert_to<S>();
   }
 
-  static long convert( const String::value_type& value )
+  static inline int convert( const String::value_type& value )
   throw( FieldConvertError )
   {
-    long result = 0;
+    int result = 0;
     if( parse( value, result ) )
       return result;
     throw FieldConvertError();
@@ -231,46 +236,62 @@ struct PositiveIntConvertor
   template <typename T>
   static bool parse( const char* str, const char* end, T& result )
   {
+    unsigned c;
     T x = 0;
-    do 
+    switch( end - str )
     {
-      const T c = *str - '0';
-      if( LIKELY(c >= 0 && 9 >= c) )
-        x = 10 * x + c;
-      else
-        return false;
-    } while ( end != ++str );
-    result = x;
-    return true;
+      case 10: c = *str++ - '0'; if ( LIKELY(c < 10) ) { x = c * 1000000000;
+      case  9: c = *str++ - '0'; if ( LIKELY(c < 10) ) { x += c * 100000000;
+      case  8: c = *str++ - '0'; if ( LIKELY(c < 10) ) { x += c * 10000000;
+      case  7: c = *str++ - '0'; if ( LIKELY(c < 10) ) { x += c * 1000000;
+      case  6: c = *str++ - '0'; if ( LIKELY(c < 10) ) { x += c * 100000;
+      case  5: c = *str++ - '0'; if ( LIKELY(c < 10) ) { x += c * 10000;
+      case  4: c = *str++ - '0'; if ( LIKELY(c < 10) ) { x += c * 1000;
+      case  3: c = *str++ - '0'; if ( LIKELY(c < 10) ) { x += c * 100;
+      case  2: c = *str++ - '0'; if ( LIKELY(c < 10) ) { x += c * 10;
+      case  1: c = *str - '0';   if ( LIKELY(c < 10) ) { x += c;
+               result = x;
+               return true;
+               } } } } } } } } } }
+    }
+    return false;
   }
 
   template <typename S, typename T>
   static bool parse( const S& value, T& result )
   {
     const char* str = String::c_str(value);
+    unsigned c;
     T x = 0;
-    do
+    switch( String::length(value) )
     {
-      const T c = *str - '0';
-      if( LIKELY(c >= 0 && 9 >= c) )
-        x = 10 * x + c;
-      else
-        return false;
-    } while (*++str);
-    result = x;
-    return true;
+      case 10: c = *str++ - '0'; if ( LIKELY(c < 10) ) { x = c * 1000000000;
+      case  9: c = *str++ - '0'; if ( LIKELY(c < 10) ) { x += c * 100000000;
+      case  8: c = *str++ - '0'; if ( LIKELY(c < 10) ) { x += c * 10000000;
+      case  7: c = *str++ - '0'; if ( LIKELY(c < 10) ) { x += c * 1000000;
+      case  6: c = *str++ - '0'; if ( LIKELY(c < 10) ) { x += c * 100000;
+      case  5: c = *str++ - '0'; if ( LIKELY(c < 10) ) { x += c * 10000;
+      case  4: c = *str++ - '0'; if ( LIKELY(c < 10) ) { x += c * 1000;
+      case  3: c = *str++ - '0'; if ( LIKELY(c < 10) ) { x += c * 100;
+      case  2: c = *str++ - '0'; if ( LIKELY(c < 10) ) { x += c * 10;
+      case  1: c = *str - '0';   if ( LIKELY(c < 10) ) { x += c;
+               result = x;
+               return true;
+               } } } } } } } } } }
+    }
+    return false;
   }
 };
 
 /// Converts checksum to/from a string
 struct CheckSumConvertor
 {
-  typedef long value_type;
+  typedef int value_type;
 
   static const std::size_t MaxValueSize = 3;
   static std::size_t RequiredSize(value_type v = 0) { return MaxValueSize; }
 
-  template <typename S> static void generate(S& result, long value)
+  template <typename S> static void generate(S& result, int value)
   throw( FieldConvertError )
   {
     unsigned char n, v = (unsigned char)value;
@@ -300,23 +321,23 @@ struct CheckSumConvertor
     result[2] = ('0' + v);
   }
 
-  static bool parse( const char* str, const char* end, long& result)
+  static bool parse( const char* str, const char* end, int& result)
   {
     return PositiveIntConvertor::parse( str, end, result );
   }
 
-  template <typename S> static bool parse( const S& value, long& result )
+  template <typename S> static bool parse( const S& value, int& result )
   {
     return PositiveIntConvertor::parse( value, result );
   }
 
-  static std::string convert( long value )
+  static std::string convert( int value )
   throw( FieldConvertError )
   {
     return convert<std::string>(value);
   }
 
-  template <typename S> static S convert( long value )
+  template <typename S> static S convert( int value )
   throw( FieldConvertError )
   {
     unsigned char n, v = (unsigned char)value;
@@ -335,10 +356,10 @@ struct CheckSumConvertor
     throw FieldConvertError();
   }
 
-  static long convert( const String::value_type& value )
+  static inline int convert( const String::value_type& value )
   throw( FieldConvertError )
   {
-    long result = 0;
+    int result = 0;
     if( PositiveIntConvertor::parse( value, result ) )
       return result;
     throw FieldConvertError();
@@ -354,6 +375,66 @@ struct CheckSumConvertor
 /// Converts double to/from a string
 struct DoubleConvertor
 {
+  private:
+
+  ALIGN_DECL_DEFAULT static const double m_mul1[8];
+  ALIGN_DECL_DEFAULT static const double m_mul8[8];
+
+  /* Char array must have been verified to consist of digits and at most one dot,
+   * pointed to by the pdot argument (equal to e if there is no fraction). */
+  static inline double PURE_DECL NOTHROW parse_verified( const char* b, const char* e, const char* pdot )
+  {
+    double value = 0.0;
+
+    PREFETCH((const char*)m_mul1, 0, 0);
+
+    while( b < pdot )
+    {
+      value = value * 10. + (*b++ - '0');
+    }
+
+    if( ++b < e )
+    {
+      double scale = 1.0;
+      unsigned exp = e - b;
+      if( exp > 308 )
+      {
+        exp = 308;
+        e = b + 308;
+      }
+      do
+      {
+        value = value * 10. + (*b - '0');
+      } while (++b < e);
+
+      if( exp <= 8 )
+      {
+        scale *= m_mul1[exp - 1];
+      }
+      else if( exp <= 64 )
+      {
+        scale *= m_mul8[(exp >> 3) - 1];
+        if( (exp &= 7) )
+          scale *= m_mul1[exp - 1];
+      }
+      else
+      {
+        do { scale *= 1E64; } while( (exp -= 64) > 64 );
+        if( exp > 8 )
+        {
+          scale *= m_mul8[(exp >> 3) - 1];
+          exp &= 7;
+        }
+        if( exp )
+          scale *= m_mul1[exp - 1];
+      }
+      return value / scale;
+    }
+    return value;
+  }
+
+  public:
+
   typedef double value_type;
 
   static const int MaxPrecision = 15;
@@ -400,95 +481,74 @@ struct DoubleConvertor
     Proxy(value, padded, rounded).append_to(result);
   }
 
-#ifdef HAVE_BOOST
-  static bool parse( const char* str, const char* end, double& result)
+  static bool NOTHROW parse( const char* str, const char* end, double& result)
   {
-    qi::any_real_parser<double> x;
-    return x.parse( str, end, qi::unused, qi::unused, result ) &&
-           (end == str);
-  }
-
-  template <typename S> static bool parse( const S& value, double& result )
-  {
-    const char* str = String::c_str(value);
-    const char* end = str + String::size(value);
-    qi::any_real_parser<double> x;
-    return x.parse( str, end, qi::unused, qi::unused, result ) &&
-           (end == str);
-  }
-#else
-  static bool parse( const char* str, const char* end, double& result)
-  {
-    const char * i = str;
-
-    // Catch null strings
-    if ( i >= end ) return false;
-    // Eat leading '-' and recheck for null string
-    if( *i == '-' && ++i == end ) return false;
-    
-    bool haveDigit = false;
-  
-    if( isdigit(*i) )
+    const char* p = str;
+    if( *p )
     {
-      haveDigit = true;
-      do
+      bool positive;
+      if( (positive = (*p != '-')) || *++p)
       {
-        if ( ++i == end )
+        const char* pdot = end;
+        const char* pv = p;
+
+        while( p < end && Util::Char::isdigit(*p++) );
+
+        if( p < end )
         {
-          result = strtod( str, const_cast<char**>(&i) );
+          if( *p == '.' )
+          {
+            pdot = p++;
+
+            while( p < end && Util::Char::isdigit(*p++) );
+          }
+        }
+
+        if( LIKELY(p == end && (p - pv) > (int)(pdot != end)) )
+        {
+          double value = parse_verified( pv, end, pdot );
+          result = positive ? value : -value;
           return true;
         }
       }
-      while( isdigit (*i) );
     }
-  
-    if( *i == '.' && ++i < end)
-    {
-      if ( isdigit(*i) )
-      {
-        haveDigit = true;
-        do
-        {
-          if ( ++i == end )
-            break;
-        }
-        while( isdigit (*i) );
-      }
-    }
-  
-    if( i < end || !haveDigit ) return false;
-    result = strtod( str, const_cast<char**>(&i) );
-    return true;
+    return false;
   }
 
-  template <typename S> static bool parse( const S& value, double& result )
+  template <typename S> static bool NOTHROW parse( const S& value, double& result )
   {
-    const char * i = String::c_str(value);
+    const char * p = String::c_str(value);
   
     // Catch null strings
-    if( !*i ) return false;
-    // Eat leading '-' and recheck for null string
-    if( *i == '-' && !*++i ) return false;
-  
-    bool haveDigit = false;
-  
-    if( isdigit(*i) )
+    if( *p )
     {
-      haveDigit = true;
-      while( isdigit (*++i) );
+      // Eat leading '-' and recheck for null string
+      bool positive = *p != '-';
+      if( positive || *++p )
+      {
+	const char* pv = p;
+      
+        if( Util::Char::isdigit(*p) )
+        {
+          while( Util::Char::isdigit(*++p) );
+        }
+      
+        const char* pdot = (*p == '.') ? p : NULL;
+        if( pdot && Util::Char::isdigit(*++p) )
+        {
+          while( Util::Char::isdigit(*++p) );
+        }
+      
+        if( LIKELY(!*p && (p - pv) > (pdot ? 1 : 0)) )
+        {
+	      double value = parse_verified( pv, p, pdot ? pdot : p );
+          result = positive ? value : -value;
+          return true;
+        }
+      }
     }
-  
-    if( *i == '.' && isdigit(*++i) )
-    {
-      haveDigit = true;
-      while( isdigit (*++i) );
-    }
-  
-    if( *i || !haveDigit ) return false;
-    result = strtod( String::c_str(value), 0 );
-    return true;
+    return false;
   }
-#endif // HAVE_BOOST
 
   static std::string convert( double value, int padded = 0, bool rounded = false )
   {
