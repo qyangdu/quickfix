@@ -73,11 +73,12 @@ PLATFORM-SPECIFIC NOTES
         builds as string implementation shipped with it already employs this optimization.
 
         Recommended environment for G++ on Nehalem and above:
-        CXXFLAGS="-O3 -march=core2 -msse4.2 -falign-functions=16 -falign-jumps=16"
+        CXXFLAGS="-O3 -march=core2 -msse4.2 -falign-functions=16 -falign-jumps=16" or "-O3 -march=corei7-avx -mavx -falign-functions=16 -falign-jumps=16" if AVX support is available.
 
-        There is a 15-20% performance regression with g++ 4.7.x compared to 4.4.x.
-        There is a 10-15% performance increase when going from Visual Studio 2008 to 2012.
-
-        G++ builds enable use of custom SSE2 assembly code which is not yet compatible with -mavx. 
+        Using g++ 4.7.x is not recommenced as there is a sizable performance regression compared to versions 4.4.x or 4.8.x.
 
         Visual Studio builds need to use /Ox optimization level for best performance.
+
+VERSION-SPECIFIC NOTES
+
+Supported FIX tag value range is 1-99999999. 
