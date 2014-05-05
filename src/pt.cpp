@@ -53,16 +53,19 @@ double testCreateHeartbeat( int );
 double testIdentifyType( int );
 double testSerializeToStringHeartbeat( int );
 double testSerializeFromStringHeartbeat( int );
+double testSerializeFromStringAndValidateHeartbeat( int );
 double testCreateNewOrderSingle( int );
 double testCreateNewOrderSinglePacked( int );
 double testSerializeToStringNewOrderSingle( int );
 double testSerializeFromStringNewOrderSingle( int );
+double testSerializeFromStringAndValidateNewOrderSingle( int count );
 double testCreateQuoteRequest( int );
 double testCreateQuoteRequestPacked( int );
 double testCreateQuoteRequestPackedInplace( int );
 double testReadFromQuoteRequest( int );
 double testSerializeToStringQuoteRequest( int );
 double testSerializeFromStringQuoteRequest( int );
+double testSerializeFromStringAndValidateQuoteRequest( int );
 double testFileStoreNewOrderSingle( int );
 double testValidateNewOrderSingle( int );
 double testValidateDictNewOrderSingle( int );
@@ -71,6 +74,11 @@ double testValidateDictQuoteRequest( int );
 double testSendOnSocket( int, short );
 double testSendOnThreadedSocket( int, short );
 void report( double, int );
+
+std::auto_ptr<FIX::DataDictionary> s_dataDictionary;
+const bool VALIDATE = true;
+const bool DONT_VALIDATE = false;
+
 
 int main( int argc, char** argv )
 {
@@ -96,6 +104,8 @@ int main( int argc, char** argv )
     }
   }
 
+  s_dataDictionary.reset( new FIX::DataDictionary( "../spec/FIX42.xml" ) );
+
   std::cout << "Converting integers to strings: ";
   report( testIntegerToString( count ), count );
 
@@ -120,6 +130,9 @@ int main( int argc, char** argv )
   std::cout << "Serializing Heartbeat messages from strings: ";
   report( testSerializeFromStringHeartbeat( count ), count );
 
+  std::cout << "Serializing Heartbeat messages from strings and validation: ";
+  report( testSerializeFromStringAndValidateHeartbeat( count ), count );
+
   std::cout << "Creating NewOrderSingle messages: ";
   report( testCreateNewOrderSingle( count ), count );
 
@@ -131,6 +144,9 @@ int main( int argc, char** argv )
 
   std::cout << "Serializing NewOrderSingle messages from strings: ";
   report( testSerializeFromStringNewOrderSingle( count ), count );
+
+  std::cout << "Serializing NewOrderSingle messages from strings and validation: ";
+  report( testSerializeFromStringAndValidateNewOrderSingle( count ), count );
 
   std::cout << "Creating QuoteRequest messages: ";
   report( testCreateQuoteRequest( count ), count );
@@ -146,6 +162,9 @@ int main( int argc, char** argv )
 
   std::cout << "Serializing QuoteRequest messages from strings: ";
   report( testSerializeFromStringQuoteRequest( count ), count );
+
+  std::cout << "Serializing QuoteRequest messages from strings and validation: ";
+  report( testSerializeFromStringAndValidateQuoteRequest( count ), count );
 
   std::cout << "Reading fields from QuoteRequest message: ";
   report( testReadFromQuoteRequest( count ), count );
@@ -288,6 +307,20 @@ double testSerializeFromStringHeartbeat( int count )
   return (FIX::Util::Sys::TickCount::now() - start).seconds();
 }
 
+double testSerializeFromStringAndValidateHeartbeat( int count )
+{
+  FIX42::Heartbeat message;
+  std::string string = message.toString();
+  count = count - 1;
+
+  FIX::Util::Sys::TickCount start = FIX::Util::Sys::TickCount::now();
+  for ( int i = 0; i <= count; ++i )
+  {
+    message.setString( string, VALIDATE, s_dataDictionary.get() );
+  }
+  return (FIX::Util::Sys::TickCount::now() - start).seconds();
+}
+
 double testCreateNewOrderSingle( int count )
 {
   FIX::Util::Sys::TickCount start = FIX::Util::Sys::TickCount::now();
@@ -342,6 +375,29 @@ double testSerializeToStringNewOrderSingle( int count )
   }
   return (FIX::Util::Sys::TickCount::now() - start).seconds();
 }
+
+double testSerializeFromStringAndValidateNewOrderSingle( int count )
+{
+  FIX::ClOrdID clOrdID( "ORDERID" );
+  FIX::HandlInst handlInst( '1' );
+  FIX::Symbol symbol( "LNUX" );
+  FIX::Side side( FIX::Side_BUY );
+  FIX::TransactTime transactTime;
+  FIX::OrdType ordType( FIX::OrdType_MARKET );
+  FIX42::NewOrderSingle message
+    ( clOrdID, handlInst, symbol, side, transactTime, ordType );
+  std::string string = message.toString();
+
+  count = count - 1;
+
+  FIX::Util::Sys::TickCount start = FIX::Util::Sys::TickCount::now();
+  for ( int i = 0; i <= count; ++i )
+  {
+    message.setString( string, VALIDATE, s_dataDictionary.get() );
+  }
+  return (FIX::Util::Sys::TickCount::now() - start).seconds();
+}
+
 
 double testSerializeFromStringNewOrderSingle( int count )
 {
@@ -522,6 +578,35 @@ double testSerializeFromStringQuoteRequest( int count )
   for ( int j = 0; j <= count; ++j )
   {
     message.setString( string );
+  }
+  return (FIX::Util::Sys::TickCount::now() - start).seconds();
+}
+
+double testSerializeFromStringAndValidateQuoteRequest( int count )
+{
+  FIX42::QuoteRequest message( FIX::QuoteReqID("1") );
+  FIX42::QuoteRequest::NoRelatedSym noRelatedSym;
+
+  for( int i = 1; i <= 10; ++i )
+  {
+    noRelatedSym.set( FIX::Symbol("IBM") );
+    noRelatedSym.set( FIX::MaturityMonthYear() );
+    noRelatedSym.set( FIX::PutOrCall(FIX::PutOrCall_PUT) );
+    noRelatedSym.set( FIX::StrikePrice(120) );
+    noRelatedSym.set( FIX::Side(FIX::Side_BUY) );
+    noRelatedSym.set( FIX::OrderQty(100) );
+    noRelatedSym.set( FIX::Currency("USD") );
+    noRelatedSym.set( FIX::OrdType(FIX::OrdType_MARKET) );
+    message.addGroup( noRelatedSym );
+  }
+  std::string string = message.toString();
+
+  count = count - 1;
+
+  FIX::Util::Sys::TickCount start = FIX::Util::Sys::TickCount::now();
+  for ( int j = 0; j <= count; ++j )
+  {
+    message.setString( string, VALIDATE, s_dataDictionary.get() );
   }
   return (FIX::Util::Sys::TickCount::now() - start).seconds();
 }

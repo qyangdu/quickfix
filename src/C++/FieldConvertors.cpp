@@ -41,6 +41,9 @@ ALIGN_DECL_DEFAULT UtcConvertorBase::NumberRange UtcConvertorBase::padded_number
 { {'9','0'} }, { {'9','1'} }, { {'9','2'} }, { {'9','3'} }, { {'9','4'} }, { {'9','5'} }, { {'9','6'} }, { {'9','7'} }, { {'9','8'} }, { {'9','9'} }
 };
 
+ALIGN_DECL_DEFAULT const double DoubleConvertor::m_mul1[8] = { 1E1, 1E2, 1E3, 1E4, 1E5, 1E6, 1E7, 1E8 };
+ALIGN_DECL_DEFAULT const double DoubleConvertor::m_mul8[8] = { 1E8, 1E16, 1E24, 1E32, 1E40, 1E48, 1E56, 1E64 };
+
 #define NUMOF(a) (sizeof(a) / sizeof(a[0]))
 
 int HEAVYUSE DoubleConvertor::Proxy::generate(char* buf) const

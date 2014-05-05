@@ -835,7 +835,7 @@ public:
       catch( FieldConvertError& )
       { throw IncorrectDataFormat( getField(), getString() ); }
     }
-  operator const int() const
+  operator int() const
     { return getValue(); }
 
 };
@@ -1260,7 +1260,7 @@ public:
       catch( FieldConvertError& )
       { throw IncorrectDataFormat( getField(), getString() ); }
     }
-  operator const int() const
+  operator int() const
     { return getValue(); }
 };
 

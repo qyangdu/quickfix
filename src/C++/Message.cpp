@@ -31,7 +31,6 @@
 namespace FIX
 {
 const char* Message::FieldReader::ErrDelimiter = "Equal sign not found in field";
-const char* Message::FieldReader::ErrTag = "Malformed field tag";
 const char* Message::FieldReader::ErrSOH = "SOH not found at end of field";
 
 std::auto_ptr<DataDictionary> Message::s_dataDictionary;
@@ -241,7 +240,7 @@ Message::toString( const FieldCounter& c, std::string& str ) const
     l -= csumPayloadLength;
 
     char* p = const_cast<char*>( String::c_str(str) );
-    int32_t csum = Util::CharBuffer::checkSum( p, l - csumTagLength ) % 256;
+    int32_t csum = Util::CharBuffer::checkSum( p, l - csumTagLength ) & 255;
     p += l;
     // NOTE: We can modify this data in place even for Copy-on-Write strings
     //       as the string is constructed locally
@@ -324,35 +323,43 @@ std::string Message::toXMLFields(const FieldMap& fields, int space) const
   return stream.str();
 }
 
-inline void HEAVYUSE Message::extractField ( Message::FieldReader& reader,
+inline bool Message::extractFieldDataLength( Message::FieldReader& reader, const Group* pGroup, int field )
+{
+  // length field is 1 less except for Signature
+  int lenField = (field != FIELD::Signature) ? (field - 1) : FIELD::SignatureLength;
+  const FieldBase* fieldPtr = (pGroup) ? pGroup->getFieldPtrIfSet( lenField ) : NULL;
+  if ( fieldPtr || NULL != (fieldPtr = getFieldPtrIfSet( lenField ) ) )
+  {
+    const FieldBase::string_type& fieldLength = fieldPtr->getRawString();
+    if ( IntConvertor::parse( fieldLength, lenField ) )
+      reader.pos( lenField );
+    else
+    {
+      setErrorStatusBit( incorrect_data_format, lenField );
+      return false;
+    }
+  }
+  return true;
+}
+
+inline bool HEAVYUSE Message::extractField ( Message::FieldReader& reader,
     const DataDictionary* pSessionDD, const DataDictionary* pAppDD,
     const Group* pGroup)
 {
-  int field = reader.scan();
-
-  if ( LIKELY(pSessionDD && pSessionDD->isDataField(field)) ||
-             (pAppDD && pAppDD != pSessionDD && pAppDD->isDataField(field)) )
+  const char* errpos = reader.scan();
+  if( LIKELY(!errpos) )
   {
-    // length field is 1 less except for Signature
-    long lenField = (field != FIELD::Signature) ? (field - 1) : FIELD::SignatureLength;
-    const FieldBase* fieldPtr;
-    if ( pGroup && NULL != (fieldPtr = pGroup->getFieldPtrIfSet( lenField ) ) )
-    {
-      const FieldBase::string_type& fieldLength = fieldPtr->getRawString();
-      if ( !IntConvertor::parse( fieldLength, lenField ) )
-        throw InvalidMessage("Malformed field length for field " +
-                                   IntConvertor::convert(field) );
-      reader.pos( lenField );
-    }
-    else if ( NULL != (fieldPtr = getFieldPtrIfSet( lenField ) ) )
-    {
-      const FieldBase::string_type& fieldLength = fieldPtr->getRawString();
-      if ( !IntConvertor::parse( fieldLength, lenField ) )
-        throw InvalidMessage("Malformed field length for field " +
-                                   IntConvertor::convert(field) );
-      reader.pos( lenField );
-    }
+    int field = reader.getField();
+    if ((LIKELY(!pSessionDD || !pSessionDD->isDataField(field)) &&
+         LIKELY(!pAppDD || pAppDD == pSessionDD || !pAppDD->isDataField(field))) ||
+         extractFieldDataLength( reader, pGroup, field) )
+      return true;
   }
+  else
+    setErrorStatusBit( invalid_tag_format, (intptr_t)errpos );
+
+  reader.skip();
+  return false;
 }
 
 static const DataDictionary::FieldToGroup::key_type group_key_header_ =
@@ -384,100 +391,121 @@ throw( InvalidMessage )
 
   field_type type = header;
 
-  if( doValidation )
+  if( reader && 
+      extractField( reader, pSessionDataDictionary, pApplicationDataDictionary ) )
   {
-    extractField( reader, pSessionDataDictionary, pApplicationDataDictionary );
-    if ( reader.getField() != FIELD::BeginString )
-      throw InvalidMessage("BeginString out of order");
-  
-    p = &( reader >> m_header );
-    if ( pSessionDataDictionary )
+    if( LIKELY(reader.getField() == FIELD::BeginString) )
     {
-      header_key.first = p->getField();
-      setGroup( reader, header_key, getHeader(), *pSessionDataDictionary );
+      p = &( reader >> m_header );
+      if ( pSessionDataDictionary )
+      {
+        header_key.first = p->getField();
+        setGroup( reader, header_key, m_header, *pSessionDataDictionary );
+      }
     }
-  
-    if ( reader )
+    else
     {
-      extractField( reader, pSessionDataDictionary, pApplicationDataDictionary );
-      if ( reader.getField() != FIELD::BodyLength )
-        throw InvalidMessage("BodyLength out of order");
+      if( doValidation )
+        throw InvalidMessage("BeginString field out of order");
+      goto loop;
+    }
+  }
   
+  if ( reader &&
+       extractField( reader, pSessionDataDictionary, pApplicationDataDictionary ) )
+  {
+    if( LIKELY(reader.getField() == FIELD::BodyLength) )
+    {
       pBodyLength = (const BodyLength*)(p = &( reader >> m_header ));
       if ( pSessionDataDictionary ) 
       {
         header_key.first = p->getField();
-        setGroup( reader, header_key, getHeader(), *pSessionDataDictionary );
+        setGroup( reader, header_key, m_header, *pSessionDataDictionary );
       }
+    }
+    else
+    {
+      if( doValidation )
+        throw InvalidMessage("BodyLength field out of order");
+      goto loop;
+    }
+  }
   
-      if ( reader )
+  if ( reader &&
+       extractField( reader, pSessionDataDictionary, pApplicationDataDictionary ) )
+  {
+    if ( LIKELY(reader.getField() == FIELD::MsgType) )
+    {
+      p = &( reader >> m_header );
+
+      if ( pApplicationDataDictionary )
+        msg_key.second = p->forString( String::RvalFunc() );
+
+      if ( pSessionDataDictionary )
       {
-        extractField( reader, pSessionDataDictionary, pApplicationDataDictionary );
-        if ( reader.getField() != FIELD::MsgType )
-          throw InvalidMessage("MsgType out of order");
-  
-        p = &( reader >> m_header );
-  
-        if ( pApplicationDataDictionary )
-          msg_key.second = p->forString( String::RvalFunc() );
-  
-        if ( pSessionDataDictionary )
-        {
-          header_key.first = p->getField();
-          setGroup( reader, header_key, getHeader(), *pSessionDataDictionary );
-        }
+        header_key.first = p->getField();
+        setGroup( reader, header_key, m_header, *pSessionDataDictionary );
       }
+    }
+    else 
+    {
+      if( doValidation )
+        throw InvalidMessage("MsgType field out of order");
+      goto loop;
     }
   }
 
   while ( reader )
   {
-    extractField( reader, pSessionDataDictionary, pApplicationDataDictionary );
-
-    if ( isHeaderField( reader.getField(), pSessionDataDictionary ) )
+    if( extractField( reader, pSessionDataDictionary, pApplicationDataDictionary ) )
     {
-      if ( type != header )
+loop:
+      int field = reader.getField();
+      if ( isHeaderField( field, pSessionDataDictionary ) )
       {
-        if ( m_field == 0 ) m_field = reader.getField();
-        setStatusBit( invalid_field );
+        if ( LIKELY(type == header) )
+        {
+          if ( field == FIELD::SenderCompID || field == FIELD::TargetCompID )
+            setStatusBit( ( field == FIELD::SenderCompID )
+                          ? has_sender_comp_id : has_target_comp_id );
+        }
+        else
+          setErrorStatusBit( tag_out_of_order, field );
+  
+        p = &( reader >> m_header );
+        if ( pSessionDataDictionary )
+        {
+          header_key.first = p->getField();
+          setGroup( reader, header_key, m_header, *pSessionDataDictionary );
+        }
+  
+        if ( pApplicationDataDictionary && p->getField() == FIELD::MsgType )
+          msg_key.second = p->forString( String::RvalFunc() );
       }
-
-      p = &( reader >> m_header );
-      if ( pSessionDataDictionary )
+      else if ( isTrailerField( field, pSessionDataDictionary ) )
       {
-        header_key.first = p->getField();
-        setGroup( reader, header_key, getHeader(), *pSessionDataDictionary );
+        type = trailer;
+  
+        p = &( reader >> m_trailer );
+        if ( pSessionDataDictionary )
+        {
+          trailer_key.first = p->getField();
+          setGroup( reader, trailer_key, m_trailer, *pSessionDataDictionary );
+        }
       }
-
-      if ( pApplicationDataDictionary && p->getField() == FIELD::MsgType )
-        msg_key.second = p->forString( String::RvalFunc() );
-    }
-    else if ( isTrailerField( reader.getField(), pSessionDataDictionary ) )
-    {
-      type = trailer;
-
-      p = &( reader >> m_trailer );
-      if ( pSessionDataDictionary )
+      else
       {
-        trailer_key.first = p->getField();
-        setGroup( reader, trailer_key, getTrailer(), *pSessionDataDictionary );
-      }
-    }
-    else
-    {
-      if ( type == trailer )
-      {
-        if ( m_field == 0 ) m_field = reader.getField();
-        setStatusBit( invalid_field );
-      }
-
-      type = body;
-
-      p = &( reader >> *this );
-      if ( pApplicationDataDictionary )
-      {
-        msg_key.first = p->getField();
-        setGroup( reader, msg_key, *this, *pApplicationDataDictionary );
+        if ( type == trailer )
+          setErrorStatusBit( tag_out_of_order, field );
+  
+        type = body;
+  
+        p = &( reader >> *this );
+        if ( pApplicationDataDictionary )
+        {
+          msg_key.first = p->getField();
+          setGroup( reader, msg_key, *this, *pApplicationDataDictionary );
+        }
       }
     }
   }
@@ -510,33 +538,35 @@ void Message::setGroup( Message::FieldReader& reader,
     while ( reader )
     {
       const char* pos = reader.pos();
-      extractField( reader, &dataDictionary, &dataDictionary, pGroup.get() );
-      if ( // found delimiter
-           (reader.getField() == delim)
-           // no delimiter, but field belongs to group or already processed
-           || ((pGroup.get() == 0 || pGroup->isSetField(reader.getField())) &&
-                pDD->isField(reader.getField())) )
+      if( extractField( reader, &dataDictionary, &dataDictionary, pGroup.get() ) )
       {
-        if ( pGroup.get() )
+        if( // found delimiter
+             (reader.getField() == delim)
+             // no delimiter, but field belongs to group or already processed
+             || ((pGroup.get() == 0 || pGroup->isSetField(reader.getField())) &&
+                  pDD->isField(reader.getField())) )
         {
-          map.addGroupPtr( group, pGroup.release(), false );
+          if ( pGroup.get() )
+          {
+            map.addGroupPtr( group, pGroup.release(), false );
+          }
+          pGroup.reset( new Group( reader.getField(), delim, pDD->getOrderedFields() ) );
         }
-        pGroup.reset( new Group( reader.getField(), delim, pDD->getOrderedFields() ) );
-      }
-      else if ( !pDD->isField( reader.getField() ) )
-      {
-        if ( pGroup.get() )
+        else if ( !pDD->isField( reader.getField() ) )
         {
-          map.addGroupPtr( group, pGroup.release(), false );
+          if ( pGroup.get() )
+          {
+            map.addGroupPtr( group, pGroup.release(), false );
+          }
+          reader.rewind( pos );
+          return ;
         }
-        reader.rewind( pos );
-        return ;
+    
+        if ( !pGroup.get() ) return ;
+        reader >> *pGroup;
+        key.first = reader.getField();
+        setGroup( reader, key, *pGroup, *pDD );
       }
-  
-      if ( !pGroup.get() ) return ;
-      reader >> *pGroup;
-      key.first = reader.getField();
-      setGroup( reader, key, *pGroup, *pDD );
     }
   }
 }
@@ -549,13 +579,15 @@ bool Message::setStringHeader( const std::string& str )
   int count = 0;
   while ( reader )
   {
-    extractField( reader );
-    if ( count < 3 && headerOrder[ count++ ] != reader.getField() )
-      return false;
+    if( extractField( reader ) )
+    {
+      if( count < 3 && headerOrder[ count++ ] != reader.getField() )
+        return false;
 
-    if ( isHeaderField( reader.getField() ) )
-       reader >> m_header;
-    else break;
+      if( isHeaderField( reader.getField() ) )
+        reader >> m_header;
+      else break;
+    }
   }
   return true;
 }

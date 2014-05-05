@@ -861,6 +861,8 @@ void Session::generateBusinessReject( const Message& message, int err, int field
 {
   Message reject;
   reject.getHeader().setField( MsgType::Pack( MsgType_BusinessMessageReject ) );
+  if( m_sessionID.isFIXT() )
+    reject.setField( DefaultApplVerID::Pack( m_senderDefaultApplVerID ) );
   fill( reject.getHeader() );
   MsgType msgType;
   MsgSeqNum msgSeqNum;
@@ -1280,6 +1282,12 @@ void HEAVYUSE Session::next( const Message& message, const DataDictionary& sessi
   {
     if( LIKELY(checkSessionTime(timeStamp)) )
     {
+      // make sure these fields are present
+      if (!message.getStatusBit(Message::has_sender_comp_id))
+        FIELD_THROW_IF_NOT_FOUND( header, SenderCompID );
+      if (!message.getStatusBit(Message::has_target_comp_id))
+        FIELD_THROW_IF_NOT_FOUND( header, TargetCompID );
+
       const BeginString& beginString = FIELD_GET_REF( header, BeginString );
       if( beginString == m_sessionID.getBeginString() )
       {
@@ -1289,8 +1297,10 @@ void HEAVYUSE Session::next( const Message& message, const DataDictionary& sessi
         if( LIKELY(!Message::isAdminMsgTypeValue(msgTypeValue)) )
         {
           if( LIKELY(!m_sessionID.isFIXT()) )
+          {
             sessionDD.validate( message, beginString, msgType,
                                 &sessionDD, &sessionDD );
+          }
           else
           {
             ApplVerID applVerID;
@@ -1301,7 +1311,7 @@ void HEAVYUSE Session::next( const Message& message, const DataDictionary& sessi
             DataDictionary::validate( message, beginString, msgType,
       				&sessionDD, &applicationDataDictionary );
           }
-          if( !verify( message, timeStamp, header,
+          if ( !verify( message, timeStamp, header,
                                  msgTypeValue, true, true ) ) return ;
           m_state.incrNextTargetMsgSeqNum();
         } 

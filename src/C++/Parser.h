@@ -166,10 +166,11 @@ public:
         {
           do
           {
-            char v = m_buffer[cursor++];
-            if( v >= '0' && v <= '9')
+            int v = m_buffer[cursor++];
+	    unsigned a = v - '0';
+            if( a < 10 )
             {
-              m_bodyLength = m_bodyLength * 10 + (v - '0');
+              m_bodyLength = m_bodyLength * 10 + a;
             }
             else if (v == '\001' && m_bodyLength < MaxBufferLength)
             {
@@ -202,7 +203,7 @@ public:
           }
           else
           {
-            m_cursor = cursor;
+            m_cursor = p ? p - m_buffer + 4 : cursor;
             m_state = RTR;
             throw MessageParseError( "BodyLength mismatch" );
           }

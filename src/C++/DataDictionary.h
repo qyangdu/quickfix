@@ -356,8 +356,9 @@ public:
   bool isMsgField( const String::value_type& msgType, int field ) const
   {
     MsgTypeToField::const_iterator i = m_messageFields.find( msgType );
-    if ( i == m_messageFields.end() ) return false;
-    return i->second.find( field ) != i->second.end();
+    if ( LIKELY(i != m_messageFields.end()) )
+      return i->second.find( field ) != i->second.end();
+    return false;
   }
 
   void addHeaderField( int field, bool required )
@@ -369,7 +370,8 @@ public:
 
   bool isHeaderField( int field ) const
   {
-    return (field < HeaderTypeBits) ? m_fieldTypeHeader[ field ] : (m_headerFields.find( field ) != m_headerFields.end());
+    return ( LIKELY(field < HeaderTypeBits) )
+      ? m_fieldTypeHeader[ field ] : (m_headerFields.find( field ) != m_headerFields.end());
   }
 
   void addTrailerField( int field, bool required )
@@ -381,7 +383,8 @@ public:
 
   bool isTrailerField( int field ) const
   {
-    return (field < TrailerTypeBits) ? m_fieldTypeTrailer[ field ] : (m_trailerFields.find( field ) != m_trailerFields.end());
+    return ( LIKELY(field < TrailerTypeBits) )
+      ? m_fieldTypeTrailer[ field ] : (m_trailerFields.find( field ) != m_trailerFields.end());
   }
 
   void addFieldType( int field, FIX::TYPE::Type type )
@@ -425,7 +428,7 @@ public:
   bool isFieldValue( int field, const String::value_type& value) const 
   {
     FieldToValue::const_iterator i = m_fieldValues.find( field );
-    return ( i == m_fieldValues.end() ) ? false : isFieldValue( i, value );
+    return ( LIKELY(i != m_fieldValues.end()) ) ? isFieldValue( i, value ) : false;
   }
 
   void addGroup( const std::string& msg, int field, int delim,
@@ -471,8 +474,8 @@ public:
 
   bool isDataField( int field ) const
   {
-    if (field < DataTypeBits)
-	return m_fieldTypeData[ field ];
+    if ( LIKELY(field < DataTypeBits) )
+      return m_fieldTypeData[ field ];
     FieldTypes::const_iterator i = m_fieldTypes.find( field );
     return i != m_fieldTypes.end() && i->second == TYPE::Data;
   }
@@ -533,25 +536,25 @@ private:
   /// Check if message type is defined in spec.
   void checkMsgType( const MsgType& msgType ) const
   {
-    if ( !isMsgType( msgType.forString( String::RvalFunc() ) ) )
-      throw InvalidMessageType();
+    if ( LIKELY(isMsgType( msgType.forString( String::RvalFunc() ) )) )
+      return;
+    throw InvalidMessageType();
   }
 
   /// If we need to check for the tag in the dictionary
   bool shouldCheckTag( const FieldBase& field ) const
   {
-    if( !isChecked(UserDefinedFields) && field.getField() >= FIELD::UserMin )
-      return false;
-    else
-      return isChecked(UnknownFields);
+    return ( !isChecked(UserDefinedFields) && field.getField() >= FIELD::UserMin )
+           ? false : isChecked(UnknownFields);
   }
 
   /// Check if field tag number is defined in spec.
   void checkValidTagNumber( const FieldBase& field ) const
   throw( InvalidTagNumber )
   {
-    if( m_fields.find( field.getField() ) == m_fields.end() )
-      throw InvalidTagNumber( field.getField() );
+    if( LIKELY(m_fields.find( field.getField() ) != m_fields.end()) )
+      return;
+    throw InvalidTagNumber( field.getField() );
   }
 
   void checkValidFormat( const FieldBase& field ) const
@@ -559,9 +562,8 @@ private:
   {
     TYPE::Type type = TYPE::Unknown;
     getFieldType( field.getField(), type );
-    if( field.isValidType( type ) )
+    if( LIKELY(field.isValidType( type )) )
       return;
-
     throw IncorrectDataFormat( field.getField(), field.getString() );
   }
 
@@ -591,10 +593,11 @@ private:
   {
     int f = field.getField();
     FieldToValue::const_iterator i = m_fieldValues.find( f );
-    if ( i != m_fieldValues.end() )
+    if ( LIKELY(i != m_fieldValues.end()) )
     {
-      if ( !isFieldValue( i, field.forString( String::RvalFunc() ) ) )
-        throw IncorrectTagValue( f );
+      if ( LIKELY(isFieldValue( i, field.forString( String::RvalFunc() ) )) )
+        return;
+      throw IncorrectTagValue( f );
     }
   }
 
@@ -602,9 +605,10 @@ private:
   void checkHasValue( const FieldBase& field ) const
   throw( NoTagValue )
   {
-    if ( isChecked(FieldsHaveValues) &&
-        !field.forString( String::SizeFunc() ) )
-      throw NoTagValue( field.getField() );
+    if ( LIKELY(!isChecked(FieldsHaveValues) ||
+		         field.forString( String::SizeFunc() )) )
+      return;
+    throw NoTagValue( field.getField() );
   }
 
   /// Check if a field is in this message type.
@@ -612,8 +616,9 @@ private:
   ( const FieldBase& field, const MsgType& msgType ) const
   throw( TagNotDefinedForMessage )
   {
-    if ( !isMsgField( msgType.forString( String::RvalFunc() ), field.getField() ) )
-      throw TagNotDefinedForMessage( field.getField() );
+    if ( LIKELY(isMsgField( msgType.forString( String::RvalFunc() ), field.getField() )) )
+      return;
+    throw TagNotDefinedForMessage( field.getField() );
   }
 
   /// Check if group count matches number of groups in
@@ -624,8 +629,9 @@ private:
     int fieldNum = field.getField();
     if( isGroup(msgType, fieldNum) )
     {
-      if( fieldMap.groupCount(fieldNum)
-        != IntConvertor::convert( field.forString( String::RvalFunc() ) ) )
+      if( LIKELY(fieldMap.groupCount(fieldNum)
+                 == IntConvertor::convert( field.forString( String::RvalFunc() ) )) )
+        return;
       throw RepeatingGroupCountMismatch(fieldNum);
     }
   }
@@ -639,15 +645,17 @@ private:
     NonBodyFields::const_iterator iNBF, iNBFend = m_headerFields.end();
     for( iNBF = m_headerFields.begin(); iNBF != iNBFend; ++iNBF )
     {
-      if( iNBF->second == true && !header.isSetField(iNBF->first) )
-        throw RequiredTagMissing( iNBF->first );
+      if( LIKELY(iNBF->second != true || header.isSetField(iNBF->first)) )
+        continue;
+      throw RequiredTagMissing( iNBF->first );
     }
 
     iNBFend = m_trailerFields.end();
     for( iNBF = m_trailerFields.begin(); iNBF != iNBFend; ++iNBF )
     {
-      if( iNBF->second == true && !trailer.isSetField(iNBF->first) )
-        throw RequiredTagMissing( iNBF->first );
+      if( LIKELY(iNBF->second != true || trailer.isSetField(iNBF->first)) )
+        continue;
+      throw RequiredTagMissing( iNBF->first );
     }
 
     MsgTypeToField::const_iterator iM
@@ -658,8 +666,9 @@ private:
     MsgFields::const_iterator iF, iFend = fields.end();
     for( iF = fields.begin(); iF != iFend; ++iF )
     {
-      if( !body.isSetField(*iF) )
-        throw RequiredTagMissing( *iF );
+      if( LIKELY(body.isSetField(*iF)) )
+        continue;
+      throw RequiredTagMissing( *iF );
     }
 
     int delim;

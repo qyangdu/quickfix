@@ -42,7 +42,7 @@ throw( ConfigError, FieldConvertError )
   return result;
 }
 
-long Dictionary::getLong( const std::string& key ) const
+int Dictionary::getInt( const std::string& key ) const
 throw( ConfigError, FieldConvertError )
 {
   Data::const_iterator i = m_data.find( string_toUpper(key) );
@@ -119,7 +119,7 @@ void Dictionary::setString( const std::string& key, const std::string& value )
   m_data[ string_strip(string_toUpper(key)) ] = string_strip(value);
 }
 
-void Dictionary::setLong( const std::string& key, long value )
+void Dictionary::setInt( const std::string& key, int value )
 {
   m_data[ string_strip(string_toUpper(key)) ] = IntConvertor::convert( value );
 }

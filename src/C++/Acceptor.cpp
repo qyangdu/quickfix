@@ -176,7 +176,7 @@ Session* Acceptor::getSession( const SessionID& sessionID ) const
     return 0;
 }
 
-const Dictionary* const Acceptor::getSessionSettings( const SessionID& sessionID ) const
+const Dictionary* Acceptor::getSessionSettings( const SessionID& sessionID ) const
 {
   try
   {

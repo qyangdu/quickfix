@@ -59,7 +59,7 @@ throw ( ConfigError )
   for( i = sessions.begin(); i != sessions.end(); ++i )
   {
     const Dictionary& settings = s.get( *i );
-    settings.getLong( SOCKET_ACCEPT_PORT );
+    settings.getInt( SOCKET_ACCEPT_PORT );
     if( settings.has(SOCKET_REUSE_ADDRESS) )
       settings.getBool( SOCKET_REUSE_ADDRESS );
     if( settings.has(SOCKET_NODELAY) )
@@ -78,7 +78,7 @@ throw ( RuntimeError )
   for( ; i != sessions.end(); ++i )
   {
     Dictionary settings = s.get( *i );
-    port = (short)settings.getLong( SOCKET_ACCEPT_PORT );
+    port = (short)settings.getInt( SOCKET_ACCEPT_PORT );
 
     m_portToSessions[port].insert( *i );
 
@@ -93,10 +93,10 @@ throw ( RuntimeError )
       s.get().getBool( SOCKET_NODELAY ) : false;
 
     const int sendBufSize = settings.has( SOCKET_SEND_BUFFER_SIZE ) ?
-      s.get().getLong( SOCKET_SEND_BUFFER_SIZE ) : 0;
+      s.get().getInt( SOCKET_SEND_BUFFER_SIZE ) : 0;
 
     const int rcvBufSize = settings.has( SOCKET_RECEIVE_BUFFER_SIZE ) ?
-      s.get().getLong( SOCKET_RECEIVE_BUFFER_SIZE ) : 0;
+      s.get().getInt( SOCKET_RECEIVE_BUFFER_SIZE ) : 0;
 
     int socket = socket_createAcceptor( port, reuseAddress );
     if( socket < 0 )

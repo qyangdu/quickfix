@@ -58,7 +58,18 @@ class Message : public FieldMap
   friend class DataDictionary;
   friend class Session;
 
-  enum status_type { invalid_field, serialized_once };
+  enum status_type {
+	tag_out_of_order,
+	invalid_tag_format,
+	incorrect_data_format,
+
+	has_sender_comp_id = (sizeof(intptr_t) * 8) - 3,
+	has_target_comp_id = (sizeof(intptr_t) * 8) - 2,
+	serialized_once    = (sizeof(intptr_t) * 8) - 1
+  };
+  static const intptr_t status_error_mask =  (1 << tag_out_of_order) |
+                                             (1 << invalid_tag_format) |
+                                             (1 << incorrect_data_format);
 
   enum field_type { header, body, trailer };
 
@@ -67,7 +78,7 @@ class Message : public FieldMap
     admin_none = 0,
     admin_session = 1, // TestRequest, Heartbeat, Reject
     admin_status = 2, // ResendRequest, SequenceReset, Logout
-    admin_logon = 4, // Logon
+    admin_logon = 4  // Logon
   };
 
   class HeaderFieldSet : public Util::BitSet<1280>
@@ -85,12 +96,15 @@ class Message : public FieldMap
     }
   };
 
-  static ALIGN_DECL_DEFAULT HeaderFieldSet headerFieldSet;
+  static 
+#ifndef SWIG 
+  ALIGN_DECL_DEFAULT
+#endif
+  HeaderFieldSet headerFieldSet;
 
   class FieldReader {
 
     static const char* ErrDelimiter;
-    static const char* ErrTag;
     static const char* ErrSOH;
 
     int  m_field, m_pos;
@@ -128,10 +142,14 @@ class Message : public FieldMap
     operator bool () const
     { return m_start + m_pos < m_end; }
 
-    int scan ();
+    const char* scan ();
+    void skip ();
 
     const char* pos () const
     { return m_start + m_pos; }
+
+    const char* end () const
+    { return m_end; }
 
     void pos(int pos)
     { m_pos = pos; }
@@ -147,7 +165,7 @@ class Message : public FieldMap
       return r;
     }
 
-    int getField() const { return static_cast<int>(m_field); }
+    int getField() const { return m_field; }
 
     void assign_to(String::value_type& s) const
     {
@@ -325,7 +343,7 @@ public:
     m_header = copy.m_header;
     m_trailer = copy.m_trailer;
     m_status = copy.m_status;
-    m_field = copy.m_field;
+    m_status_data = copy.m_status_data;
   }
 
   /// Set global data dictionary for encoding messages into XML
@@ -459,8 +477,18 @@ public:
   Trailer& getTrailer() { return m_trailer; }
 
   bool hasValidStructure(int& field) const
-  { field = m_field;
-    return !getStatusBit(invalid_field);
+  {
+    if( getStatusBit(tag_out_of_order) )
+    {
+      field = m_status_data;
+      return false;
+    }
+    return true;
+  }
+
+  const char* hasInvalidTagFormat() const
+  {
+    return getStatusBit(invalid_tag_format) ? (const char*)m_status_data: NULL;
   }
 
   int bodyLength( int beginStringField = FIELD::BeginString, 
@@ -475,7 +503,7 @@ public:
   int checkSum( int checkSumField = FIELD::CheckSum ) const
   { return ( m_header.calculateTotal(checkSumField)
              + calculateTotal(checkSumField)
-             + m_trailer.calculateTotal(checkSumField) ) % 256;
+             + m_trailer.calculateTotal(checkSumField) ) & 255;
   }
 
   inline bool NOTHROW isAdmin() const
@@ -503,7 +531,8 @@ public:
 
   void clear()
   { 
-    m_field = 0;
+    m_status_data = 0;
+    m_status = 0;
     m_header.clear();
     FieldMap::clear();
     m_trailer.clear();
@@ -602,7 +631,8 @@ public:
 
 private:
 
-  void extractField ( FieldReader& f,
+  bool extractFieldDataLength( FieldReader& f, const Group* pGroup, int field );
+  bool extractField ( FieldReader& f,
 		      const DataDictionary* pSessionDD = 0,
 		      const DataDictionary* pAppDD = 0,
 		      const Group* pGroup = 0);
@@ -621,6 +651,15 @@ private:
   inline void setStatusBit(status_type bit)
   {
     m_status |= 1 << bit;
+  }
+
+  inline void setErrorStatusBit(status_type bit, int data)
+  {
+    if ( !(m_status & status_error_mask) )
+    {
+      m_status_data = data;
+      m_status |= 1 << bit;
+    }
   }
 
   inline void clearStatusBit(status_type bit)
@@ -643,14 +682,14 @@ private:
 protected:
   mutable FieldMap m_header;
   mutable FieldMap m_trailer;
-  int m_status;
-  int m_field;
+  intptr_t m_status;
+  intptr_t m_status_data;
 
   static std::auto_ptr<DataDictionary> s_dataDictionary;
 };
 /*! @} */
 
-inline int Message::FieldReader::scan()
+inline const char* Message::FieldReader::scan()
 {
   const char* b = m_start + m_pos;
   const char* p = Util::Tag::delimit(b, m_end - b);
@@ -665,18 +704,34 @@ inline int Message::FieldReader::scan()
       {
         m_start = p;
         m_pos = b - p;
-        return m_field;
+        return NULL;
       }
       else
         b = ErrSOH;
     }
     else
-      b = ErrTag;
+      return b;
   }
   else
     b = ErrDelimiter;
+
   m_field = 0;
   throw InvalidMessage(b);
+}
+
+inline void Message::FieldReader::skip()
+{
+  const char* b = m_start + m_pos;
+  const char* p = (const char*)::memchr( b, '\001', m_end - b );
+  if ( LIKELY(p != NULL) )
+  {
+    m_start = b;
+    m_pos = p - b + 1;
+    return;
+  }
+
+  m_field = 0;
+  throw InvalidMessage(ErrSOH);
 }
 
 inline void Message::FieldCounter::countHeader( const FieldMap& fields )

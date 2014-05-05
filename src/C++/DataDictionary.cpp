@@ -164,10 +164,15 @@ throw( FIX::Exception )
   app_checks = pAppDD ? pAppDD->m_checks : 0;
   session_checks |= app_checks;
 
+  const Header& header = message.getHeader();
+
   if( session_checks ) 
   {
-    const Header& header = message.getHeader();
+    const char* tag = message.hasInvalidTagFormat();
     int field = 0;
+
+    if( tag )
+      throw InvalidTagNumber(tag, ::strchr(tag, '=') - tag);
 
     if( isChecked(FieldsOutOfOrder, session_checks) )
     {

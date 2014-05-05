@@ -237,14 +237,14 @@ public:
   }
 
   /// Get direct access to a field through a pointer
-  const FieldBase* const getFieldPtr( int tag )
+  const FieldBase* getFieldPtr( int tag )
   const throw( FieldNotFound )
   {
     return &getFieldRef( tag );
   }
 
   /// Get direct access to a field through a pointer
-  const FieldBase* const getFieldPtrIfSet( int tag ) const
+  const FieldBase* getFieldPtrIfSet( int tag ) const
   {
     Fields::const_iterator iter = m_fields.find( tag );
     return ( iter != m_fields.end() ) ? &iter->second : NULL;
@@ -402,6 +402,9 @@ bool getIfSet( FIELD& field ) const       \
 (const FIX::FLD*)MAP.getFieldPtr( FIX::FIELD::FLD )
 #define FIELD_GET_REF( MAP, FLD ) \
 (const FIX::FLD&)MAP.getFieldRef( FIX::FIELD::FLD )
+#define FIELD_THROW_IF_NOT_FOUND( MAP, FLD ) \
+if( !(MAP).isSetField( FIX::FIELD::FLD) ) \
+  throw FieldNotFound( FIX::FIELD::FLD )
 
 #endif //FIX_FIELDMAP
 
