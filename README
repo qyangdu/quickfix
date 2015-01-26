@@ -10,17 +10,26 @@ BUILDING AND INSTALLING
         make check
         sudo make install
 
+VERSION-SPECIFIC NOTES
+
+	Supported FIX tag value range is 1-99999999. 
+
+
 SYSTEM REQUIREMENTS
 
     REDHAT/CENTOS 5.x
 
-        Required: sudo yum install gcc-c++ automake autoconf libtool libxml2 libxml2-devel
-        Optional: sudo yum install postgresql-devel ruby-devel postgresql-server mysql-server mysql-client mysql-devel libxslt
+        Required: sudo yum install gcc-c++ automake autoconf libtool
+		  libxml2 libxml2-devel
+        Optional: sudo yum install postgresql-devel ruby-develpostgresql-server
+		  mysql-server mysql-client mysql-devel libxslt
 
     UBUNTU
 
         Required: sudo apt-get install g++ automake libtool libxml2 libxml2-dev
-        Optional: sudo apt-get install ruby ruby-dev libmysqlclient-dev libpq-dev mysql-server postgresql xsltproc
+        Optional: sudo apt-get install ruby ruby-dev libmysqlclient-dev
+		  libpq-dev mysql-server postgresql xsltproc
+
 
 OPTIONAL DEPENDENCIES FOR EXTRA PERFORMANCE
 
@@ -66,6 +75,7 @@ OPTIONAL DEPENDENCIES FOR EXTRA PERFORMANCE
 
         Then continue with the build using DebugBoost or ReleaseBoost build targets.
 
+
 PLATFORM-SPECIFIC NOTES
 
         Use --with-sso configure option to enable short string optimization on platforms
@@ -73,12 +83,133 @@ PLATFORM-SPECIFIC NOTES
         builds as string implementation shipped with it already employs this optimization.
 
         Recommended environment for G++ on Nehalem and above:
-        CXXFLAGS="-O3 -march=core2 -msse4.2 -falign-functions=16 -falign-jumps=16" or "-O3 -march=corei7-avx -mavx -falign-functions=16 -falign-jumps=16" if AVX support is available.
+        CXXFLAGS="-O3 -march=core2 -msse4.2 -falign-functions=16 -falign-jumps=16" or
+		 "-O3 -march=corei7-avx -mavx -falign-functions=16 -falign-jumps=16"
+	if AVX support is available.
 
-        Using g++ 4.7.x is not recommenced as there is a sizable performance regression compared to versions 4.4.x or 4.8.x.
+        Using g++ 4.7.x is not recommenced as there is a sizable performance regression
+	compared to versions 4.4.x or 4.8.x.
 
         Visual Studio builds need to use /Ox optimization level for best performance.
 
-VERSION-SPECIFIC NOTES
 
-Supported FIX tag value range is 1-99999999. 
+BENCHMARKS
+
+System: Intel(R) Xeon(R) CPU E5-2690 0 @ 2.90GHz, CentOS 6.4, 
+	running with sleep states disabled (performance-latency profile)
+
+	g++ version: 4.8.3
+
+Configuration:
+
+	fix8 1.3.2	--with-tbb, --with-mpmc=tbb
+	Quickfix 1.13.3 --with-boost
+	Quickfix 1.14.3 --with-boost, --with-tbb, --with-allocator=tbb
+	quickerfix:	--with-boost --with-sparsehash, --with-sso, --with-tbb,
+			--with-allocator=tbb
+
+	g++ options: -O3 -march=corei7-avx -mavx -falign-functions=16 -falign-jumps=16
+
+	Lockless allocator library (locklessinc.com/downloads).
+
+CODEC:	Measures encoding and decoding performance for a NewOrderSingle message.
+	examples/codec/codec.cpp
+
+	Command line:
+	LD_PRELOAD=libllalloc.so taskset -c 9 ./codec
+	LD_PRELOAD=libllalloc.so taskset -c 9 ./codec ../../spec/FIX44.xml
+
+	Results (usec per message, lower is better):
+
+		FIX8		Quickfix 	Quickfix 	quickerfix
+		1.3.2		1.13.3		1.14.3		20150126
+
+to string	2.25516		8.17674		4.38878		1.15212
+from string	7.6158		25.7686		9.422		4.17038
+
+
+
+PT:	Measures performance of various QuickFix subsystems
+	src/pt.cpp
+
+	Command line:
+	LD_PRELOAD=libllalloc.so taskset -c 1,9 ./pt -p 1234 -c 1000000
+
+	Results (operations per second, higher is better):
+
+					Quickfix 	Quickfix 	quickerfix 
+					1.13.3		1.14.3		20150126
+
+Converting integers to strings: 	2.17391e+07	2.5e+07		2.50043e+07
+
+Converting strings to integers:		1.66667e+08	2.5e+08		3.02979e+08
+
+Converting doubles to strings:		1.10375e+06	1.04712e+06	8.63696e+06
+
+Converting strings to doubles:		4.6729e+06	5.26316e+07	1.00057e+08
+
+Creating Heartbeat messages:		1.00604e+06	1.54083e+06	2.95872e+06
+
+Identifying message types:		6.99301e+06	6.99301e+06	7.15104e+06
+
+Serializing Heartbeat messages
+to strings:				847458		1.20627e+06	2.86269e+06
+
+Serializing Heartbeat messages
+from strings:				392003		625391		1.66729e+06
+
+Serializing Heartbeat messages
+from strings and validation:		-		541419		1.41926e+06
+
+Creating NewOrderSingle messages:	331785		406669		882670
+		        (packed):	-		-		1.03113e+06
+
+Serializing NewOrderSingle messages
+to strings:				652316		925069		1.86311e+06
+
+Serializing NewOrderSingle messages
+from strings:				152346		290698		778741
+
+Serializing NewOrderSingle messages
+from strings and validation:		-		261438		609899
+
+Creating QuoteRequest messages:		13621.9		20406.5		48262.3
+		      (packed):		-		-		69529.7
+	    (packed, in place):		-		-		103909
+
+Serializing QuoteRequest messages
+to strings:				174490		239292		407025
+
+Serializing QuoteRequest messages
+from strings:				16942.8		32526.7		78849.8
+
+Serializing QuoteRequest messages
+from strings and validation:		-		30869		60888.3
+
+Reading fields from QuoteRequest
+message:				28681.2		72695.6		115673
+
+Storing NewOrderSingle messages:	299670		281057		339957
+
+Validating NewOrderSingle messages
+with no data dictionary:		5.64972e+06	5.74713e+06	8.41927e+06
+
+Validating NewOrderSingle messages
+with data dictionary:			345901		457247		508882
+
+Validating QuoteRequest messages
+with no data dictionary:		9.80392e+06	9.34579e+06	1.57595e+07
+
+Validating QuoteRequest messages
+with data dictionary:			478240		548847		694729
+
+Sending/Receiving
+NewOrderSingle/ExecutionReports
+on Socket				59883.8		92489.8		194443
+
+Sending/Receiving
+NewOrderSingle/ExecutionReport
+on ThreadedSocket			59862.3		92850.5		201834
+
+
+
