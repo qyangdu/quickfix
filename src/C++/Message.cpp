@@ -214,9 +214,48 @@ void Message::reverseRoute( const Header& header )
   }
 }
 
+namespace detail {
+	class ProxyBuffer {
+
+		typedef uint32_t word_type;
+		Sg::sg_buf_t buf_;
+
+		public:
+			ProxyBuffer(std::string& s) {
+				buf_ = IOV_BUF_INITIALIZER(const_cast<char*>( String::c_str(s) ), 0);
+			}
+			ProxyBuffer& append(const char* s, std::size_t len) {
+				union { char* pc; word_type* pw; } dst = { (char*)IOV_BUF(buf_) + IOV_LEN(buf_) };
+				union { const char* pc; const word_type* pw; } src = { s };
+				IOV_LEN(buf_) += len;
+                                for (;len >= sizeof(word_type); len -= sizeof(word_type)) *dst.pw++ = *src.pw++;
+				while (len--) *dst.pc++ = *src.pc++;
+				return *this;
+			}
+			ProxyBuffer& append(int field, int sz, const char* src, std::size_t len) {
+                                char* dst = (char*)IOV_BUF(buf_) + IOV_LEN(buf_);
+                                Util::Tag::generate(dst, field, sz);
+                                dst[sz++] = '=';
+                                IOV_LEN(buf_) += sz;
+                                append(src, len);
+                                IOV_LEN(buf_)++;
+                                dst[sz + len] = '\001';
+                                return *this;
+
+			}
+			char* data() const {
+				return Sg::data<char*>(buf_);
+			}
+			int size() const {
+				return Sg::size(buf_);
+			}
+	};
+}
+
 std::string& HEAVYUSE
 Message::toString( const FieldCounter& c, std::string& str ) const
 {
+  char* p;
   const int checkSumField = c.getCheckSumTag();
   const int bodyLengthField = c.getBodyLengthTag();
   const int csumPayloadLength = CheckSumConvertor::MaxValueSize + 1;
@@ -227,23 +266,29 @@ Message::toString( const FieldCounter& c, std::string& str ) const
        + csumTagLength + csumPayloadLength + c.getBeginStringLength();
 
   str.clear();
+#ifndef NO_PROXY_BUFFER
+  str.resize(l);
+  detail::ProxyBuffer sbuf(str);
+#else
   str.reserve(l);
+  std::string& sbuf = str;
+#endif
 
+  // NOTE: We can modify data in place even for Copy-on-Write strings
+  //       as the string is constructed locally
   if( getStatusBit( serialized_once ) && checkSumField == FIELD::CheckSum )
   {
     FieldBase& f = m_trailer.setField(CheckSumField::Pack(checkSumField, 0));
 
     m_trailer.serializeTo( 
       FieldMap::serializeTo(
-        m_header.serializeTo( str ) ) );
+        m_header.serializeTo( sbuf ) ) );
 
     l -= csumPayloadLength;
 
-    char* p = const_cast<char*>( String::c_str(str) );
+    p = (char*)sbuf.data();
     int32_t csum = Util::CharBuffer::checkSum( p, l - csumTagLength ) & 255;
     p += l;
-    // NOTE: We can modify this data in place even for Copy-on-Write strings
-    //       as the string is constructed locally
     CheckSumConvertor::generate(p, (unsigned char) csum );
     f.setPacked( StringField::Pack( checkSumField, p, 3 ) );
   }
@@ -253,7 +298,7 @@ Message::toString( const FieldCounter& c, std::string& str ) const
                                            checkSum(checkSumField)));
     m_trailer.serializeTo( 
       FieldMap::serializeTo(
-        m_header.serializeTo( str ) ) );
+        m_header.serializeTo( sbuf ) ) );
   }
   return str;
 }

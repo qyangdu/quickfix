@@ -133,7 +133,7 @@ Message::admin_trait Session::fill( Header& header, int num, UtcTimeStamp now )
   return trait;
 }
 
-void Session::next( const UtcTimeStamp& timeStamp )
+void HEAVYUSE Session::next( const UtcTimeStamp& timeStamp )
 {
   try
   {
@@ -455,14 +455,14 @@ void Session::nextResendRequest( const Message& resendRequest, const UtcTimeStam
     m_state.incrNextTargetMsgSeqNum();
 }
 
-bool Session::send( Message& message )
+bool HEAVYUSE Session::send( Message& message )
 {
   int f[2] = { FIELD::PossDupFlag, FIELD::OrigSendingTime };
   message.getHeader().removeFields( f, f + sizeof(f)/sizeof(int));
   return sendRaw( message );
 }
 
-bool Session::sendRaw( Message& message, int num )
+bool HEAVYUSE Session::sendRaw( Message& message, int num )
 {
   Locker l( m_mutex );
 
@@ -1227,7 +1227,7 @@ bool Session::nextQueued( int num, const UtcTimeStamp& timeStamp )
   return false;
 }
 
-void Session::next( Sg::sg_buf_t buf, const UtcTimeStamp& timeStamp, bool queued )
+void HEAVYUSE Session::next( Sg::sg_buf_t buf, const UtcTimeStamp& timeStamp, bool queued )
 {
   const char* msg = Sg::data<const char*>(buf);
   try
@@ -1458,8 +1458,9 @@ throw( SessionNotFound )
 {
   message.setSessionID( sessionID );
   Session* pSession = lookupSession( sessionID );
-  if ( !pSession ) throw SessionNotFound();
-  return pSession->send( message );
+  if ( LIKELY(NULL != pSession) )
+    return pSession->send( message );
+  throw SessionNotFound();
 }
 
 bool Session::sendToTarget
@@ -1497,11 +1498,8 @@ bool Session::doesSessionExist( const SessionID& sessionID )
 Session* Session::lookupSession( const SessionID& sessionID )
 {
   Locker locker( s_mutex );
-  Sessions::iterator find = s_sessions.find( sessionID );
-  if ( find != s_sessions.end() )
-    return find->second;
-  else
-    return 0;
+  Sessions::iterator it = s_sessions.find( sessionID );
+  return ( it != s_sessions.end() ) ? it->second : NULL;
 }
 
 Session* Session::lookupSession( const std::string& string, bool reverse )
@@ -1589,8 +1587,7 @@ bool Session::addSession( Session& s )
     s_sessionIDs.insert( s.m_sessionID );
     return true;
   }
-  else
-    return false;
+  return false;
 }
 
 void Session::removeSession( Session& s )

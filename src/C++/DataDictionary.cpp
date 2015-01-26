@@ -147,7 +147,7 @@ throw( FIX::Exception )
 {
   unsigned session_checks, app_checks;
 
-  if( pSessionDD != 0 )
+  if( LIKELY(pSessionDD != 0) )
   {
     if( pSessionDD->m_hasVersion )
     {

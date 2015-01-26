@@ -109,7 +109,7 @@ public:
     m_state = RTR;
   }
 
-  bool parse()
+  bool HEAVYUSE parse()
   {
     const char* p;
     int cursor = m_cursor;

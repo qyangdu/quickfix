@@ -1091,51 +1091,46 @@ namespace FIX
 
       class Convertor
       {
-        static const std::size_t MaxValueSize = 8;
+        static const std::size_t MaxValueSize = 8; // tag length limit
 
-        int m_value;
+        uint32_t m_value;
 
-        void NOTHROW HEAVYUSE generate(char* buffer) const {
-          char* p=buffer + MaxValueSize - 1;
-          int v, value = m_value;
-          do { v = value / 10; *p-- = (char)('0' + (value - v * 10)); } while( (value = v) );
-        }
+        void NOTHROW HEAVYUSE generate(char* buf, int digits) const {
 
-      public:
-        Convertor(int value) : m_value(value) {}
-
-        void NOTHROW HEAVYUSE append_to(char* buf, int digits) const
-        {
-          generate(buf + digits - MaxValueSize);
-        }
-
-        template <typename S> void HEAVYUSE append_to(S& s, int digits) const
-        {
-          char buf[MaxValueSize];
+          uint32_t v, x = m_value;
 
 #if defined(__GNUC__) && defined(__x86_64__)
-          int v, x = m_value;
 
           if( x <= 999 )
           {
-            if( x > 99 )
-            {
-              v = x / 100;
-              buf[MaxValueSize - 3] = '0' + v;
-              x -= v * 100;
-            }
-            v = x / 10;
-            buf[MaxValueSize - 2] = '0' + v;
-            buf[MaxValueSize - 1] = '0' + x - 10 * v;
+	    if (x > 99) {
+	      uint32_t mul100 = 42949673;
+	      __asm__ __volatile__ (
+		"mull    %2		\n"
+		: "=d"(v), "+a"(mul100) : "r"(x) : "cc"
+	      );
+             *buf++ = '0' + v;
+              x -= v * 100U;
+	    }
+	    uint32_t mul10 = 429496730;
+	    __asm__ __volatile__ (
+		"mull    %2			\n"
+		: "=d"(v), "+a"(mul10) : "r"(x) : "cc"
+	    );
+	    if (digits > 1) {
+	      *(uint16_t*)buf = 0x3030 + ((x - v * 10) << 8) + v;
+	    } else
+	      *buf = '0' + x;
           }
           else
           {
+	    uint64_t packed;
               /* Based on utoa32_sse_2 routine by Wojciech Mula
                * http://wm.ite.pl/articles/sse-itoa.html
                */
             __asm__ __volatile__ (
 #ifdef __AVX__
-              "vmovd          %0, %%xmm1             \n"
+              "vmovd          %1, %%xmm1             \n"
               "vmovq          %2, %%xmm0             \n"
               "vmovq          %3, %%xmm3             \n"
               "vpmuludq       %%xmm1, %%xmm0, %%xmm0 \n"
@@ -1155,9 +1150,9 @@ namespace FIX
               "vpsubw         %%xmm1, %%xmm0, %%xmm0 \n"
               "vpackuswb      %%xmm2, %%xmm0, %%xmm0 \n"
               "vpaddb         %%xmm3, %%xmm0, %%xmm0 \n"
-              "vmovq          %%xmm0, (%1)           \n"
+              "vmovq          %%xmm0, %0             \n"
 #else
-              "movd           %0, %%xmm1             \n"
+              "movd           %1, %%xmm1             \n"
               "movq           %2, %%xmm0             \n"
               "movq           %3, %%xmm3             \n"
               "pmuludq        %%xmm1, %%xmm0         \n"
@@ -1177,20 +1172,43 @@ namespace FIX
               "psubw          %%xmm1, %%xmm0         \n"
               "packuswb       %%xmm2, %%xmm0         \n"
               "paddb          %%xmm3, %%xmm0         \n"
-              "movq           %%xmm0, (%1)           \n"
+              "movq           %%xmm0, %0             \n"
 #endif
-              : 
-              : "r" (x), "r" (buf), "m"(*s_Bits.div_10000),
+              : "=r"(packed) 
+              : "r" (x), "m"(*s_Bits.div_10000),
                 "m"(*s_Bits.mul_10000), "m"(*s_Bits.mul_10), "m"(*s_Bits.div_const),
                 "m"(*s_Bits.shl_const), "m"(*s_Bits.to_ascii)
               : "xmm0", "xmm1", "xmm2", "xmm3"
             );
+	    packed >>= (8 - digits) << 3;
+	    if (digits > 4)
+	      *(uint64_t*)buf = packed;	// can overwrite space reserved for '=', '\001' and '\000'
+	    else
+	      *(uint32_t*)buf = (uint32_t)packed;
           }
 #else
-          generate(buf);
+          buf += digits - 1;
+          do { 
+	    v = x / 10;
+	    *buf-- = "0123456789" [x - v * 10];
+	  } while( (x = v) );
 #endif
-          s.append(buf + MaxValueSize - digits, digits);
         }
+
+      public:
+        Convertor(int value) : m_value(value) {}
+
+        void NOTHROW HEAVYUSE append_to(char* buf, int digits) const
+        {
+	  generate(buf, digits);
+        }
+
+        template <typename S> void HEAVYUSE append_to(S& s, int digits) const
+        {
+          char buf[MaxValueSize];
+          generate(buf, digits);
+	  s.append(buf, digits);
+	}
       };
 
     public:
@@ -1200,7 +1218,7 @@ namespace FIX
         Convertor(value).append_to(result, digits);
       }
 
-      static void NOTHROW generate(char* result, int value, int digits)
+      static void NOTHROW HEAVYUSE generate(char* result, int value, int digits)
       {
         Convertor(value).append_to(result, digits);
       }

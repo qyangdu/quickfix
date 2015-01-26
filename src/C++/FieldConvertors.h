@@ -105,7 +105,7 @@ struct IntConvertor
 	  char* p=buffer;
 	  value_type value = m_value;
 	  unsigned_value_type v, u = value < 0 ? ~value + 1 : value;
-	  do { v = u / 10; *p++ = (char)('0' + (u - v * 10)); } while( (u = v) );
+	  do { v = u / 10; *p++ = "0123456789" [u - v * 10]; } while( (u = v) );
 	  *p = '-';
 	  return ((p - buffer) + (value < 0));
 	}
@@ -541,7 +541,7 @@ struct DoubleConvertor
       
         if( LIKELY(!*p && (p - pv) > (pdot ? 1 : 0)) )
         {
-	      double value = parse_verified( pv, p, pdot ? pdot : p );
+	  double value = parse_verified( pv, p, pdot ? pdot : p );
           result = positive ? value : -value;
           return true;
         }
