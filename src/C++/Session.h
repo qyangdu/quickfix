@@ -204,7 +204,7 @@ public:
   }
 
   bool send( Message& );
-  template <typename B> bool tx( B b, int n )
+  template <typename B> bool HEAVYUSE tx( B b, int n )
   {
     m_state.SessionState::onOutgoing( b, n );
     return m_pResponder->send( b, n );
@@ -442,8 +442,7 @@ private:
 					char* p = (char*)IOV_BUF(*e);
 					p += IOV_LEN(*e);
 					IOV_LEN(*e) += l;
-					std::size_t len = l >> 3;
-					len += (l - len) != 0;
+					std::size_t len = (l >> 3) + ((l & 7) != 0);
 					uint64_t* dst = (uint64_t*)p;
 					const uint64_t* src = (const uint64_t*)s;
 					while (len-- > 0)  {
@@ -459,7 +458,7 @@ private:
 				}
 				return *this;
 			}
-			SgBuffer& append(int field, int sz, const char* s, std::size_t l) {
+			SgBuffer& NOTHROW HEAVYUSE append(int field, int sz, const char* s, std::size_t l) {
 				Sg::sg_buf_ptr e = sg_ + n_;
 				char* p = (char*)IOV_BUF(*e);
 				p += IOV_LEN(*e);
