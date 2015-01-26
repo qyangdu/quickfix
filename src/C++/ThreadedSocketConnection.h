@@ -66,7 +66,6 @@ private:
   bool send( const std::string& );
   bool send( Sg::sg_buf_ptr bufs, int n );
 
-  int m_poll;
   int m_socket;
   char m_buffer[4 * BUFSIZ];
 
@@ -81,7 +80,6 @@ private:
   Sessions m_sessions;
   Session* m_pSession;
   bool m_disconnect;
-  fd_set m_fds;
 };
 }
 

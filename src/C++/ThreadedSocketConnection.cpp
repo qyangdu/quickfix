@@ -21,7 +21,7 @@
 #include "stdafx.h"
 #else
 #include "config.h"
-#include <sys/epoll.h>
+#include <poll.h>
 #endif
 
 #include "ThreadedSocketConnection.h"
@@ -34,41 +34,20 @@ namespace FIX
 {
 ThreadedSocketConnection::ThreadedSocketConnection
 ( int s, Sessions sessions, Application& application, Log* pLog )
-: m_poll( 0 ), m_socket( s ), m_application( application ), m_pLog( pLog ),
+: m_socket( s ), m_application( application ), m_pLog( pLog ),
   m_sessions( sessions ), m_pSession( 0 ),
   m_disconnect( false )
-{
-#ifdef XXX
-  struct epoll_event ev;
-  ev.data.ptr = this;
-  ev.events = EPOLLRDHUP | EPOLLIN;
-  m_poll = epoll_create(1);
-  epoll_ctl( m_poll, EPOLL_CTL_ADD, m_socket, &ev );
-#endif
-
-  FD_ZERO( &m_fds );
-  FD_SET( m_socket, &m_fds );
-}
+{}
 
 ThreadedSocketConnection::ThreadedSocketConnection
 ( const SessionID& sessionID, int s,
   const std::string& address, short port, 
   Application& application, Log* pLog )
-  : m_poll ( 0 ), m_socket( s ), m_address( address ), m_port( port ),
+  : m_socket( s ), m_address( address ), m_port( port ),
     m_application( application ), m_pLog( pLog ),
     m_pSession( Session::lookupSession( sessionID ) ),
     m_disconnect( false )
 {
-#ifdef XXX
-  struct epoll_event ev;
-  ev.data.ptr = this;
-  ev.events = EPOLLRDHUP | EPOLLIN;
-  m_poll = epoll_create(1);
-  epoll_ctl( m_poll, EPOLL_CTL_ADD, m_socket, &ev );
-#endif
-
-  FD_ZERO( &m_fds );
-  FD_SET( m_socket, &m_fds );
   if ( m_pSession ) m_pSession->setResponder( this );
 }
 
@@ -99,9 +78,6 @@ bool ThreadedSocketConnection::connect()
 void ThreadedSocketConnection::disconnect()
 {
   m_disconnect = true;
-#ifdef XXX
-  epoll_ctl( m_poll, EPOLL_CTL_DEL, m_socket, NULL );
-#endif
   socket_close( m_socket );
   m_parser.reset();
 }
@@ -158,21 +134,11 @@ inline void HEAVYUSE ThreadedSocketConnection::processStream()
 
 bool HEAVYUSE ThreadedSocketConnection::read()
 {
-#ifdef XXX
-  epoll_event ev;
-#else
-  struct timeval timeout = { 1, 0 };
-  fd_set readset = m_fds;
-#endif
-
   try
   {
     // Wait for input (1 second timeout)
-#ifdef XXX
-    int result = epoll_wait( m_poll, &ev, 1, 1000 );
-#else
-    int result = select( 1 + m_socket, &readset, 0, 0, &timeout );
-#endif
+    struct pollfd pfd = { m_socket, POLLIN | POLLPRI, 0 };
+    int result = poll(&pfd, 1, 1000);
 
     if( result > 0 ) // Something to read
     {
