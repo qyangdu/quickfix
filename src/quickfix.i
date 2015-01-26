@@ -15,6 +15,7 @@
 %array_class(int, IntArray);
 
 %ignore _REENTRANT;
+%ignore ALIGN_DECL_DEFAULT;
 %ignore FIX::SynchronizedApplication::m_mutex;
 %rename(SocketInitiatorBase) FIX::SocketInitiator;
 %rename(SocketAcceptorBase) FIX::SocketAcceptor;
