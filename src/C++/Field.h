@@ -122,12 +122,18 @@ public:
   virtual inline ~FieldBase()
     {}
 
-  void setField( int field )
+  void setTag( int field )
   {
     m_tag = field;
     m_tagChecksum = Util::Tag::checkSum(field);
     m_tagLength = Util::Tag::length(field);
     m_calculated = C_NONE;
+  }
+
+  /// @deprecated Use setTag
+  void setField( int field ) 
+  {
+    setTag( field );
   }
 
   void setString( const std::string& string )
@@ -145,8 +151,12 @@ public:
   }
 
   /// Get the fields integer tag.
-  int getField() const
+  int getTag() const
     { return m_tag; }
+
+  /// @deprecated Use getTag
+  int getField() const
+    { return getTag(); }
 
   /// Get iovec for the fields value
   Sg::sg_buf_t getSgBuf() const
