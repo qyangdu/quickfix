@@ -138,7 +138,11 @@ bool HEAVYUSE ThreadedSocketConnection::read()
   {
     // Wait for input (1 second timeout)
     struct pollfd pfd = { m_socket, POLLIN | POLLPRI, 0 };
+#ifndef _MSC_VER
     int result = poll(&pfd, 1, 1000);
+#else
+    int result = WSAPoll(&pfd, 1, 1000);
+#endif
 
     if( result > 0 ) // Something to read
     {
