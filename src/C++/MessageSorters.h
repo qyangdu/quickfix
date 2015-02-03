@@ -39,6 +39,7 @@ namespace FIX
 /// Sorts fields in correct header order.
 struct header_order
 {
+  // BeginString = 8 < BodyLength = 9 < MsgType = 35 < other
   static inline bool PURE_DECL NOTHROW compare( const int x, const int y )
   {
     int orderedX = getOrderedPosition( x );
@@ -49,10 +50,7 @@ struct header_order
 
   static inline int PURE_DECL NOTHROW getOrderedPosition( const int field )
   {
-    int s = -3 * (field == FIX::FIELD::BeginString) |
-            -2 * (field == FIX::FIELD::BodyLength) |
-            -1 * (field == FIX::FIELD::MsgType);
-    return (s == 0) ? field : s;
+    return field - (((field == FIX::FIELD::MsgType) | ((unsigned)(field - FIX::FIELD::BeginString) <= 1)) << 6);
   }
 };
 
@@ -98,14 +96,14 @@ struct message_order
         int* allocate( std::size_t largest, AtomicCount::value_type v )
         {
           std::size_t bufsz = sizeof(storage) + sizeof(int) * (largest + 1);
-          storage* p = new ((storage*) new char[bufsz]) storage( v );
+	  storage* p = new ((storage*) (ALLOCATOR<char>().allocate(bufsz))) storage( v );
           return reinterpret_cast<int*>(p + 1);
         }
         static inline void deallocate( int* buffer )
         {
           storage* p = get(buffer);
           p->~storage();
-          delete [] reinterpret_cast<char*>(p);
+	  ALLOCATOR<char>().deallocate(reinterpret_cast<char*>(p), 0);
         }
   
         static inline AtomicCount& counter( int* buffer )

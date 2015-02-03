@@ -341,14 +341,44 @@ namespace FIX
 
            inline bool PURE_DECL HEAVYUSE operator == (const Data& d) const
            {
-             std::size_t l = size();
-             return ( l == d.size() && !::memcmp(c_str(), d.c_str(), l) );
+             std::size_t s;
+	     if ( isLocal() )
+             {
+               s = m_length;
+               if ( d.isLocal() )
+               {
+                 if ( s != d.m_length ) return false;
+                 union { const char* pc; const uint32_t* pu; } l = { m_data };
+                 union { const char* pc; const uint32_t* pu; } r = { d.m_data };
+                 while ( s > sizeof(uint32_t) ) { if (*l.pu++ != *r.pu++ ) return false; s -= sizeof(uint32_t); }
+                 while ( s > 0 ) { if (*l.pc++ != *r.pc++) return false; s--; }
+                 return true;
+               }
+             }
+             else
+               s = String::size(asString());
+             return ( s == d.size() && !::memcmp(c_str(), d.c_str(), s) );
            }
 
            inline bool PURE_DECL HEAVYUSE operator != (const Data& d) const
            {
-             std::size_t l = size();
-             return ( l != d.size() || ::memcmp(c_str(), d.c_str(), l) );
+             std::size_t s;
+	     if ( isLocal() )
+             {
+               s = m_length;
+               if ( d.isLocal() )
+               {
+                 if ( s != d.m_length ) return true;
+                 union { const char* pc; const uint32_t* pu; } l = { m_data };
+                 union { const char* pc; const uint32_t* pu; } r = { d.m_data };
+                 while ( s > sizeof(uint32_t) ) { if (*l.pu++ != *r.pu++ ) return true; s -= sizeof(uint32_t); }
+                 while ( s > 0 ) { if (*l.pc++ != *r.pc++) return true; s--; }
+                 return false;
+               }
+             }
+             else
+               s = String::size(asString());
+             return ( s != d.size() || ::memcmp(c_str(), d.c_str(), s) );
            }
 
            inline int PURE_DECL HEAVYUSE compare( const char* p, std::size_t sz ) const
@@ -679,10 +709,12 @@ namespace FIX
      {
        typedef std::string result_type;
        result_type operator()( const value_type& v ) const
-#ifdef ENABLE_SSO
-       { return std::string( c_str(v), length(v) ); }
-#else
+#ifndef ENABLE_SSO
        { return std::string( v ); }
+#else
+       { return std::string( c_str(v), length(v) ); }
+       value_type operator()( const result_type& r ) const
+       { return value_type( c_str(r), length(r) ); }
 #endif
      };
 

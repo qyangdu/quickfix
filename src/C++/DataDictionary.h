@@ -65,6 +65,7 @@ class DataDictionary
   static const int HeaderTypeBits = 8192;
   static const int TrailerTypeBits = 8192;
   static const int DataTypeBits = 8192;
+  static const int GroupTypeBits = 8192;
 
   enum Check { 
     FieldsOutOfOrder,
@@ -136,6 +137,15 @@ public:
     boost::fast_pool_allocator<String::value_type>
   > Values;
 
+  typedef boost::unordered_map <
+    String::value_type,
+    std::pair < int, DataDictionary* >,
+    ItemHash,
+    std::equal_to< String::value_type >,
+    boost::fast_pool_allocator< std::pair<String::value_type,
+    std::pair<int, DataDictionary*> > >
+  > FieldPresenceMap;
+
 #ifdef HAVE_SPARSEHASH
   typedef google::dense_hash_set <
     String::value_type,
@@ -166,6 +176,15 @@ public:
     std::equal_to<int>,
     boost::pool_allocator< std::pair<int, Values> >
   > FieldToValue;
+
+  typedef google::dense_hash_map <
+    int,
+    FieldPresenceMap,
+    boost::hash<int>,
+    std::equal_to<int>,
+    boost::pool_allocator< std::pair<int, FieldPresenceMap> >
+  > FieldToGroup;
+
 #else
   typedef boost::unordered_set <
     String::value_type,
@@ -196,6 +215,15 @@ public:
     std::equal_to<int>,
     boost::fast_pool_allocator< std::pair<int, Values> >
   > FieldToValue;
+
+  typedef boost::unordered_map <
+    int,
+    FieldPresenceMap,
+    boost::hash<int>,
+    std::equal_to<int>,
+    boost::fast_pool_allocator< std::pair<int, FieldPresenceMap> >
+  > FieldToGroup;
+
 #endif
   typedef boost::unordered_map <
     int,
@@ -224,15 +252,6 @@ public:
     >
   > ValueToName;
 
-  typedef boost::unordered_map <
-    std::pair < int, String::value_type >,
-    std::pair < int, DataDictionary* >,
-    ItemHash,
-    std::equal_to<std::pair< int, String::value_type> >,
-    boost::fast_pool_allocator< std::pair<std::pair<int, std::string>,
-    std::pair<int, DataDictionary*> > >
-  > FieldToGroup;
-
 #else /* !HAVE_BOOST */
   typedef std::set < int > MsgFields;
   typedef std::map < String::value_type, MsgFields > MsgTypeToField;
@@ -240,6 +259,7 @@ public:
   typedef std::vector< int > OrderedFields;
   typedef message_order OrderedFieldsArray;
   typedef std::set < String::value_type > Values;
+  typedef std::map < String::value_type, std::pair < int, DataDictionary* > > FieldPresenceMap;
 #ifdef HAVE_SPARSEHASH
   typedef google::dense_hash_set <
     String::value_type,
@@ -250,23 +270,24 @@ public:
   typedef google::dense_hash_set < int > Fields;
   typedef google::dense_hash_map < int, TYPE::Type > FieldTypes;
   typedef google::dense_hash_map < int, Values > FieldToValue;
+  typedef google::dense_hash_map < int, FieldPresenceMap > FieldToGroup;
 #else
   typedef std::set < String::value_type > MsgTypes;
   typedef std::set < int > Fields;
   typedef std::map < int, TYPE::Type > FieldTypes;
   typedef std::map < int, Values > FieldToValue;
+  typedef std::map < int, FieldPresenceMap > FieldToGroup;
 #endif
   typedef std::map < int, std::string > FieldToName;
   typedef std::map < std::string, int > NameToField;
   typedef std::map < std::pair < int, std::string > ,
   std::string  > ValueToName;
-  typedef std::map < std::pair < int, String::value_type > ,
-  std::pair < int, DataDictionary* > > FieldToGroup;
 #endif /* !HAVE_BOOST */
 
   typedef Util::BitSet<DataTypeBits> FieldTypeDataBits;
   typedef Util::BitSet<HeaderTypeBits> FieldTypeHeaderBits;
   typedef Util::BitSet<TrailerTypeBits> FieldTypeTrailerBits;
+  typedef Util::BitSet<GroupTypeBits> FieldTypeGroupBits;
 
   DataDictionary();
   DataDictionary( const DataDictionary& copy );
@@ -431,45 +452,45 @@ public:
     return ( LIKELY(i != m_fieldValues.end()) ) ? isFieldValue( i, value ) : false;
   }
 
-  void addGroup( const std::string& msg, int field, int delim,
+  void addGroup( const FieldPresenceMap::key_type& msg, int field, int delim,
                  const DataDictionary& dataDictionary )
   {
-    DataDictionary * pDD = new DataDictionary;
-    *pDD = dataDictionary;
+    DataDictionary * pDD = new DataDictionary( dataDictionary );
     pDD->setVersion( getVersion() );
-    m_groups[ std::make_pair( field, msg ) ] = std::make_pair( delim, pDD );
+ 
+    if (field < GroupTypeBits) m_fieldTypeGroup.set(field);
+    FieldPresenceMap& presenceMap = m_groups[ field ];
+    presenceMap[ String::CopyFunc()(msg) ] = std::make_pair( delim, pDD );
   }
 
-  bool isGroup( const std::string& msg, int field ) const
+  bool isGroup( const FieldPresenceMap::key_type& msg, int field ) const
   {
-    return m_groups.find( std::make_pair( field,
-                   String::value_type(msg) ) ) != m_groups.end();
+    if (LIKELY(field < GroupTypeBits && !m_fieldTypeGroup[field])) return false;
+    FieldToGroup::const_iterator i = m_groups.find( field );
+    if ( i == m_groups.end() ) return false;
+
+    const FieldPresenceMap& presenceMap = i->second;
+
+    FieldPresenceMap::const_iterator iter = presenceMap.find( msg );
+    return ( iter != presenceMap.end() );
   }
 
-  bool isGroup( const FieldToGroup::key_type& key ) const
-  {
-    return m_groups.find( key ) != m_groups.end();
-  }
-
-  bool getGroup( const std::string& msg, int field, int& delim,
+  bool getGroup( const FieldPresenceMap::key_type& msg, int field, int& delim,
                  const DataDictionary*& pDataDictionary ) const
   {
-    return getGroup( std::make_pair( field,
-                   String::value_type(msg) ), delim, pDataDictionary );
-  }
+    if (LIKELY(field < GroupTypeBits && !m_fieldTypeGroup[field])) return false;
+    FieldToGroup::const_iterator i = m_groups.find( field );
+    if ( i == m_groups.end() ) return false;
 
-  bool getGroup( const FieldToGroup::key_type& key, int& delim,
-                 const DataDictionary*& pDataDictionary ) const
-  {
-    FieldToGroup::const_iterator i = m_groups.find( key );
-    if ( i != m_groups.end() )
-    {
-      FieldToGroup::mapped_type pair = i->second;
-      delim = pair.first;
-      pDataDictionary = pair.second;
-      return true;
-    }
-    return false;
+    const FieldPresenceMap& presenceMap = i->second;
+
+    FieldPresenceMap::const_iterator iter = presenceMap.find( msg );
+    if( iter == presenceMap.end() ) return false;
+
+    std::pair < int, DataDictionary* > pair = iter->second;
+    delim = pair.first;
+    pDataDictionary = pair.second;
+    return true;
   }
 
   bool isDataField( int field ) const
@@ -520,13 +541,15 @@ public:
   DataDictionary& operator=( const DataDictionary& rhs );
 
 private:
+
   void init()
   {
 #ifdef HAVE_SPARSEHASH
     m_fieldTypes.set_empty_key(-1);
-    m_messages.set_empty_key(std::string());
+    m_messages.set_empty_key(String::value_type());
     m_fieldValues.set_empty_key(-1);
     m_fields.set_empty_key(-1);
+    m_groups.set_empty_key(-1);
 #endif
   }
 
@@ -627,7 +650,7 @@ private:
   throw( RepeatingGroupCountMismatch )
   {
     int fieldNum = field.getField();
-    if( isGroup(msgType, fieldNum) )
+    if( isGroup(msgType.forString( String::RvalFunc() ), fieldNum) )
     {
       if( LIKELY(fieldMap.groupCount(fieldNum)
                  == IntConvertor::convert( field.forString( String::RvalFunc() ) )) )
@@ -673,13 +696,10 @@ private:
 
     int delim;
     const DataDictionary* DD = 0;
-    FieldToGroup::key_type group_key;
     FieldMap::g_iterator groups, groups_end = body.g_end();
     for( groups = body.g_begin(); groups != groups_end; ++groups )
     {
-      group_key.first = groups->first;
-      group_key.second = msgType.forString( String::RvalFunc() );
-      if( getGroup( group_key, delim, DD ) )
+      if( getGroup( msgType.forString( String::RvalFunc() ), groups->first, delim, DD ) )
       {
         FieldMap::g_item_const_iterator group, group_end = groups->second.end();
         for( group = groups->second.begin(); group != group_end; ++group )
@@ -719,6 +739,7 @@ private:
   FieldToName m_fieldNames;
   NameToField m_names;
   ValueToName m_valueNames;
+  FieldTypeGroupBits m_fieldTypeGroup;
   FieldToGroup m_groups;
 };
 }

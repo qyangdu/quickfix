@@ -637,8 +637,8 @@ private:
 		      const DataDictionary* pAppDD = 0,
 		      const Group* pGroup = 0);
 
-  void setGroup ( FieldReader& f, DataDictionary::FieldToGroup::key_type& key,
-		  FieldMap& map, const DataDictionary& dataDictionary );
+  void setGroup ( FieldReader& f, const DataDictionary::FieldPresenceMap::key_type& msg,
+		  const int group, FieldMap& map, const DataDictionary& dataDictionary );
 
   void validate(const BodyLength* pBodyLength);
   std::string toXMLFields(const FieldMap& fields, int space) const;

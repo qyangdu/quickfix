@@ -74,7 +74,13 @@ DataDictionary::~DataDictionary()
 {
   FieldToGroup::iterator i;
   for ( i = m_groups.begin(); i != m_groups.end(); ++i )
-    delete i->second.second;
+  {
+    const FieldPresenceMap& presenceMap = i->second;
+
+    FieldPresenceMap::const_iterator iter = presenceMap.begin();
+    for ( ; iter != presenceMap.end(); ++iter )
+      delete iter->second.second;
+  }
 }
 
 DataDictionary& DataDictionary::operator=( const DataDictionary& rhs )
@@ -99,11 +105,17 @@ DataDictionary& DataDictionary::operator=( const DataDictionary& rhs )
   m_names = rhs.m_names;
   m_valueNames = rhs.m_valueNames;
 
+  m_fieldTypeGroup = rhs.m_fieldTypeGroup;
   FieldToGroup::const_iterator i = rhs.m_groups.begin();
   for ( ; i != rhs.m_groups.end(); ++i )
   {
-    addGroup( i->first.second, i->first.first,
-              i->second.first, *i->second.second );
+    const FieldPresenceMap& presenceMap = i->second;
+
+    FieldPresenceMap::const_iterator iter = presenceMap.begin();
+    for ( ; iter != presenceMap.end(); ++iter )
+    {
+      addGroup( iter->first, i->first, iter->second.first, *iter->second.second );
+    }
   }
   return *this;
 }

@@ -407,14 +407,10 @@ inline bool HEAVYUSE Message::extractField ( Message::FieldReader& reader,
   return false;
 }
 
-static const DataDictionary::FieldToGroup::key_type group_key_header_ =
-       std::make_pair(0, String::value_type("_header_") );
-static const DataDictionary::FieldToGroup::key_type group_key_null_header_ =
-       std::make_pair(0, String::value_type() );
-static const DataDictionary::FieldToGroup::key_type group_key_trailer_ =
-       std::make_pair(0, String::value_type("_trailer_") );
-static const DataDictionary::FieldToGroup::key_type group_key_null_trailer_ =
-       std::make_pair(0, String::value_type() );
+ALIGN_DECL_DEFAULT static const DataDictionary::FieldPresenceMap::key_type group_key_header_ =
+       DataDictionary::FieldPresenceMap::key_type("_header_");
+ALIGN_DECL_DEFAULT static const DataDictionary::FieldPresenceMap::key_type group_key_trailer_ =
+       DataDictionary::FieldPresenceMap::key_type("_trailer_");
 
 void HEAVYUSE
 Message::setString( const char* data, std::size_t length,
@@ -423,11 +419,7 @@ Message::setString( const char* data, std::size_t length,
                     const DataDictionary* pApplicationDataDictionary )
 throw( InvalidMessage )
 {
-  DataDictionary::FieldToGroup::key_type header_key ( pSessionDataDictionary
-                                         ? group_key_header_ : group_key_null_header_ );
-  DataDictionary::FieldToGroup::key_type trailer_key ( pSessionDataDictionary
-                                         ? group_key_trailer_ : group_key_null_trailer_ );
-  DataDictionary::FieldToGroup::key_type msg_key;
+  DataDictionary::FieldPresenceMap::key_type msg_key;
   const BodyLength* pBodyLength = NULL;
   const FieldBase* p;
   FieldReader reader( data, length );
@@ -443,10 +435,7 @@ throw( InvalidMessage )
     {
       p = &( reader >> m_header );
       if ( pSessionDataDictionary )
-      {
-        header_key.first = p->getField();
-        setGroup( reader, header_key, m_header, *pSessionDataDictionary );
-      }
+        setGroup( reader, group_key_header_, p->getField(), m_header, *pSessionDataDictionary );
     }
     else
     {
@@ -463,10 +452,7 @@ throw( InvalidMessage )
     {
       pBodyLength = (const BodyLength*)(p = &( reader >> m_header ));
       if ( pSessionDataDictionary ) 
-      {
-        header_key.first = p->getField();
-        setGroup( reader, header_key, m_header, *pSessionDataDictionary );
-      }
+        setGroup( reader, group_key_header_, p->getField(), m_header, *pSessionDataDictionary );
     }
     else
     {
@@ -484,13 +470,10 @@ throw( InvalidMessage )
       p = &( reader >> m_header );
 
       if ( pApplicationDataDictionary )
-        msg_key.second = p->forString( String::RvalFunc() );
+        msg_key = p->forString( String::RvalFunc() );
 
       if ( pSessionDataDictionary )
-      {
-        header_key.first = p->getField();
-        setGroup( reader, header_key, m_header, *pSessionDataDictionary );
-      }
+        setGroup( reader, group_key_header_, p->getField(), m_header, *pSessionDataDictionary );
     }
     else 
     {
@@ -519,26 +502,12 @@ loop:
   
         p = &( reader >> m_header );
         if ( pSessionDataDictionary )
-        {
-          header_key.first = p->getField();
-          setGroup( reader, header_key, m_header, *pSessionDataDictionary );
-        }
+          setGroup( reader, group_key_header_, p->getField(), m_header, *pSessionDataDictionary );
   
         if ( pApplicationDataDictionary && p->getField() == FIELD::MsgType )
-          msg_key.second = p->forString( String::RvalFunc() );
+          msg_key = p->forString( String::RvalFunc() );
       }
-      else if ( isTrailerField( field, pSessionDataDictionary ) )
-      {
-        type = trailer;
-  
-        p = &( reader >> m_trailer );
-        if ( pSessionDataDictionary )
-        {
-          trailer_key.first = p->getField();
-          setGroup( reader, trailer_key, m_trailer, *pSessionDataDictionary );
-        }
-      }
-      else
+      else if ( LIKELY(!isTrailerField( field, pSessionDataDictionary )) )
       {
         if ( type == trailer )
           setErrorStatusBit( tag_out_of_order, field );
@@ -547,10 +516,15 @@ loop:
   
         p = &( reader >> *this );
         if ( pApplicationDataDictionary )
-        {
-          msg_key.first = p->getField();
-          setGroup( reader, msg_key, *this, *pApplicationDataDictionary );
-        }
+          setGroup( reader, msg_key, p->getField(), *this, *pApplicationDataDictionary );
+      }
+      else
+      {
+        type = trailer;
+  
+        p = &( reader >> m_trailer );
+        if ( pSessionDataDictionary )
+          setGroup( reader, group_key_trailer_, p->getField(), m_trailer, *pSessionDataDictionary );
       }
     }
   }
@@ -565,53 +539,49 @@ void Message::setGroup( const std::string& msg,
                         const DataDictionary& dataDictionary )
 {
   FieldReader reader(str, pos);
-  DataDictionary::FieldToGroup::key_type key( field.getField(), msg );
-  setGroup( reader, key, map, dataDictionary );
+  setGroup( reader, String::CopyFunc()(msg), field.getField(), map, dataDictionary );
   pos = reader.pos() - String::c_str(str);
 }
 
 void Message::setGroup( Message::FieldReader& reader,
-                        DataDictionary::FieldToGroup::key_type& key,
+			const DataDictionary::FieldPresenceMap::key_type& msg, const int group,
                         FieldMap& map, const DataDictionary& dataDictionary )
 {
-  int delim, group = key.first;
+  int delim;
   const DataDictionary* pDD = 0;
-  if ( dataDictionary.getGroup( key, delim, pDD ) )
+  if ( LIKELY(!dataDictionary.getGroup( msg, group, delim, pDD )) ) return;
+
+  std::auto_ptr<Group> pGroup;
+  while ( reader )
   {
-    std::auto_ptr<Group> pGroup;
-  
-    while ( reader )
+    const char* pos = reader.pos();
+    if( extractField( reader, &dataDictionary, &dataDictionary, pGroup.get() ) )
     {
-      const char* pos = reader.pos();
-      if( extractField( reader, &dataDictionary, &dataDictionary, pGroup.get() ) )
+      if( // found delimiter
+           (reader.getField() == delim)
+           // no delimiter, but field belongs to group or already processed
+           || ((pGroup.get() == 0 || pGroup->isSetField(reader.getField())) &&
+                pDD->isField(reader.getField())) )
       {
-        if( // found delimiter
-             (reader.getField() == delim)
-             // no delimiter, but field belongs to group or already processed
-             || ((pGroup.get() == 0 || pGroup->isSetField(reader.getField())) &&
-                  pDD->isField(reader.getField())) )
+        if ( pGroup.get() )
         {
-          if ( pGroup.get() )
-          {
-            map.addGroupPtr( group, pGroup.release(), false );
-          }
-          pGroup.reset( new Group( reader.getField(), delim, pDD->getOrderedFields() ) );
+          map.addGroupPtr( group, pGroup.release(), false );
         }
-        else if ( !pDD->isField( reader.getField() ) )
-        {
-          if ( pGroup.get() )
-          {
-            map.addGroupPtr( group, pGroup.release(), false );
-          }
-          reader.rewind( pos );
-          return ;
-        }
-    
-        if ( !pGroup.get() ) return ;
-        reader >> *pGroup;
-        key.first = reader.getField();
-        setGroup( reader, key, *pGroup, *pDD );
+        pGroup.reset( new Group( reader.getField(), delim, pDD->getOrderedFields() ) );
       }
+      else if ( !pDD->isField( reader.getField() ) )
+      {
+        if ( pGroup.get() )
+        {
+          map.addGroupPtr( group, pGroup.release(), false );
+        }
+        reader.rewind( pos );
+        return ;
+      }
+  
+      if ( !pGroup.get() ) return ;
+      reader >> *pGroup;
+      setGroup( reader, msg, reader.getField(), *pGroup, *pDD );
     }
   }
 }
