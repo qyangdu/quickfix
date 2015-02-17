@@ -127,18 +127,18 @@ throw( FIX::Exception )
   const Header& header = message.getHeader();
   FieldMap::iterator it = header.begin();
   FieldMap::iterator end = header.end();
-  if( it != end && it->first == FIELD::BeginString )
+  if( LIKELY(it != end && it->first == FIELD::BeginString) )
   {
     const BeginString& beginString = (const BeginString&) it->second;
-    if( ++it != end )
+    if( LIKELY(++it != end) )
     {
-      if( it->first == FIELD::MsgType )
+      if( LIKELY(it->first == FIELD::MsgType) )
       {
         validate( message, beginString, (const MsgType&) it->second,
               bodyOnly ? (DataDictionary*)NULL : this, this );
         return;
       }
-      if( ++it != end && it->first == FIELD::MsgType)
+      if( LIKELY(++it != end && it->first == FIELD::MsgType) )
       {
         validate( message, beginString, (const MsgType&) it->second,
               bodyOnly ? (DataDictionary*)NULL : this, this );
@@ -222,27 +222,30 @@ void HEAVYUSE DataDictionary::iterate( const FieldMap& map, const MsgType& msgTy
   for ( i = ibegin; i != iend; ++i )
   {
     const FieldBase& field = i->second;
-    if( i != ibegin && (field.getField() == lastField) )
-      throw RepeatedTag( lastField );
-    checkHasValue( field );
-
-    if ( m_hasVersion )
+    if( LIKELY((field.getTag() != lastField) || i == ibegin) )
     {
-      checkValidFormat( field );
-      checkValue( field );
-    }
-
-    if ( hasBegin && shouldCheckTag(field) )
-    {
-      checkValidTagNumber( field );
-      if ( !Message::isHeaderField( field, this )
-           && !Message::isTrailerField( field, this ) )
+      checkHasValue( field );
+  
+      if ( m_hasVersion )
       {
-        checkIsInMessage( field, msgType );
-        checkGroupCount( field, map, msgType );
+        checkValidFormat( field );
+        checkValue( field );
       }
+  
+      if ( hasBegin && shouldCheckTag(field) )
+      {
+        checkValidTagNumber( field );
+        if ( !Message::isHeaderField( field, this )
+             && !Message::isTrailerField( field, this ) )
+        {
+          checkIsInMessage( field, msgType );
+          checkGroupCount( field, map, msgType );
+        }
+      }
+      lastField = field.getTag();
+      continue;
     }
-    lastField = field.getField();
+    throw RepeatedTag( lastField );
   }
 }
 

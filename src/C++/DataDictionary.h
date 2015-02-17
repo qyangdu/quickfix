@@ -354,7 +354,7 @@ public:
     return true;
   }
 
-  bool isField( int field ) const
+  bool HEAVYUSE PURE_DECL isField( int field ) const
   {
     return m_fields.find( field ) != m_fields.end();
   }
@@ -567,7 +567,7 @@ private:
   /// If we need to check for the tag in the dictionary
   bool shouldCheckTag( const FieldBase& field ) const
   {
-    return ( !isChecked(UserDefinedFields) && field.getField() >= FIELD::UserMin )
+    return ( !isChecked(UserDefinedFields) && field.getTag() >= FIELD::UserMin )
            ? false : isChecked(UnknownFields);
   }
 
@@ -575,19 +575,19 @@ private:
   void checkValidTagNumber( const FieldBase& field ) const
   throw( InvalidTagNumber )
   {
-    if( LIKELY(m_fields.find( field.getField() ) != m_fields.end()) )
+    if( LIKELY(m_fields.find( field.getTag() ) != m_fields.end()) )
       return;
-    throw InvalidTagNumber( field.getField() );
+    throw InvalidTagNumber( field.getTag() );
   }
 
   void checkValidFormat( const FieldBase& field ) const
   throw( IncorrectDataFormat )
   {
     TYPE::Type type = TYPE::Unknown;
-    getFieldType( field.getField(), type );
+    getFieldType( field.getTag(), type );
     if( LIKELY(field.isValidType( type )) )
       return;
-    throw IncorrectDataFormat( field.getField(), field.getString() );
+    throw IncorrectDataFormat( field.getTag(), field.getString() );
   }
 
   bool isFieldValue( const FieldToValue::const_iterator& i,
@@ -614,7 +614,7 @@ private:
   void checkValue( const FieldBase& field ) const
   throw( IncorrectTagValue )
   {
-    int f = field.getField();
+    int f = field.getTag();
     FieldToValue::const_iterator i = m_fieldValues.find( f );
     if ( LIKELY(i != m_fieldValues.end()) )
     {
@@ -631,7 +631,7 @@ private:
     if ( LIKELY(!isChecked(FieldsHaveValues) ||
 		         field.forString( String::SizeFunc() )) )
       return;
-    throw NoTagValue( field.getField() );
+    throw NoTagValue( field.getTag() );
   }
 
   /// Check if a field is in this message type.
@@ -639,9 +639,9 @@ private:
   ( const FieldBase& field, const MsgType& msgType ) const
   throw( TagNotDefinedForMessage )
   {
-    if ( LIKELY(isMsgField( msgType.forString( String::RvalFunc() ), field.getField() )) )
+    if ( LIKELY(isMsgField( msgType.forString( String::RvalFunc() ), field.getTag() )) )
       return;
-    throw TagNotDefinedForMessage( field.getField() );
+    throw TagNotDefinedForMessage( field.getTag() );
   }
 
   /// Check if group count matches number of groups in
@@ -649,7 +649,7 @@ private:
   ( const FieldBase& field, const FieldMap& fieldMap, const MsgType& msgType ) const
   throw( RepeatingGroupCountMismatch )
   {
-    int fieldNum = field.getField();
+    int fieldNum = field.getTag();
     if( isGroup(msgType.forString( String::RvalFunc() ), fieldNum) )
     {
       if( LIKELY(fieldMap.groupCount(fieldNum)

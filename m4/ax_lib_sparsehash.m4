@@ -2,7 +2,8 @@ AC_DEFUN([AX_LIB_SPARSEHASH],
 [
 has_sparsehash=false
 AC_ARG_WITH(sparsehash,
-    [  --with-sparsehash=<path>     prefix of Google Sparsehash installation. e.g. /usr/local/include/sparsehash],
+    [  --with-sparsehash=<path>
+                          prefix of Google Sparsehash installation. e.g. /usr/local/include/sparsehash],
     [if test $withval == "no"
      then
        has_sparsehash=false

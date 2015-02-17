@@ -97,10 +97,10 @@ public:
   typedef String::value_type       string_type;
   typedef std::string              data_type;
 
-  explicit FieldBase( int field = 0 )
-    : m_tag(field)
-    , m_tagChecksum(Util::Tag::checkSum(field))
-    , m_tagLength(Util::Tag::length(field))
+  explicit FieldBase( int tag = 0 )
+    : m_tag(tag)
+    , m_tagChecksum(Util::Tag::checkSum(tag))
+    , m_tagLength(Util::Tag::length(tag))
     , m_calculated(C_NONE)
     {}
 
@@ -111,10 +111,10 @@ public:
     , m_tagLength(p.getTagLength()), m_calculated(C_NONE), m_string(p)
     {}
 
-  FieldBase( int field, const std::string& string )
-    : m_tag( field )
-    , m_tagChecksum(Util::Tag::checkSum(field))
-    , m_tagLength(Util::Tag::length(field))
+  FieldBase( int tag, const std::string& string )
+    : m_tag( tag )
+    , m_tagChecksum(Util::Tag::checkSum(tag))
+    , m_tagLength(Util::Tag::length(tag))
     , m_calculated( C_NONE )
     , m_string(string)
     {}
@@ -122,11 +122,11 @@ public:
   virtual inline ~FieldBase()
     {}
 
-  void setTag( int field )
+  void setTag( int tag )
   {
-    m_tag = field;
-    m_tagChecksum = Util::Tag::checkSum(field);
-    m_tagLength = Util::Tag::length(field);
+    m_tag = tag;
+    m_tagChecksum = Util::Tag::checkSum(tag);
+    m_tagLength = Util::Tag::length(tag);
     m_calculated = C_NONE;
   }
 

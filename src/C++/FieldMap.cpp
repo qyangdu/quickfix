@@ -31,37 +31,15 @@ namespace FIX
 {
 FieldMap::~FieldMap()
 {
-  clear();
+  f_clear();
+  g_clear();
 }
 
 FieldMap& FieldMap::operator=( const FieldMap& rhs )
 {
-/*
-  clear();
-*/
-
-  m_order = rhs.m_order;
-  m_fields = rhs.m_fields;
-
-  Groups::const_iterator i, end = m_groups.end();
-  for ( i = m_groups.begin(); i != end; ++i )
-  {
-    GroupItem::const_iterator j, jend = i->second.end();
-    for ( j = i->second.begin(); j != jend; ++j )
-      delete *j;
-  }
-  m_groups.clear();
-
-  end = rhs.m_groups.end();
-  for ( i = rhs.m_groups.begin(); i != end; ++i )
-  {
-    GroupItem::const_iterator j, jend = i->second.end();
-    for ( j = i->second.begin(); j != jend; ++j )
-    {
-      FieldMap * pGroup = new FieldMap( FieldMap::create_allocator(), **j );
-      m_groups[ i->first ].push_back( pGroup );
-    }
-  }
+  f_clone( rhs );
+  g_clear();
+  g_copy( rhs );
   return *this;
 }
 
@@ -113,13 +91,6 @@ void FieldMap::removeGroup( int field )
   removeGroup( groupCount(field), field );
 }
 
-void FieldMap::removeField( int field )
-{
-  Fields::iterator i = m_fields.find( field );
-  if ( i != m_fields.end() )
-    m_fields.erase( i );
-}
-
 bool FieldMap::hasGroup( int num, int field ) const
 {
   return groupCount(field) >= num;
@@ -137,25 +108,6 @@ int FieldMap::groupCount( int field ) const
   if( i == m_groups.end() )
     return 0;
   return i->second.size();
-}
-
-void FieldMap::clear()
-{
-  m_fields.clear();
-
-  Groups::iterator i;
-  for ( i = m_groups.begin(); i != m_groups.end(); ++i )
-  {
-    GroupItem::iterator j;
-    for ( j = i->second.begin(); j != i->second.end(); ++j )
-      delete *j;
-  }
-  m_groups.clear();
-}
-
-bool FieldMap::isEmpty()
-{
-  return m_fields.size() == 0;
 }
 
 int FieldMap::totalFields() const
@@ -181,7 +133,7 @@ std::string& FieldMap::calculateString( std::string& result, bool clear ) const
   if( clear ) result.clear();
 #endif
 
-  if( !result.size() )
+  if( result.empty() )
     result.reserve( totalFields() * 32 );
 
   return serializeTo( result );
@@ -195,9 +147,10 @@ int FieldMap::calculateLength( int beginStringField,
   Fields::const_iterator i, fe = m_fields.end();
   for ( i = m_fields.begin(); i != fe; ++i )
   {
-    if ( i->first != beginStringField
-         && i->first != bodyLengthField
-         && i->first != checkSumField )
+    int tag = i->first;
+    if ( tag != beginStringField
+         && tag != bodyLengthField
+         && tag != checkSumField )
     { result += i->second.getLength(); }
   }
 
@@ -241,7 +194,10 @@ void FieldMap::addGroupPtr( int field, FieldMap * group, bool setCount )
       setField( IntField::Pack( field, vec.size() ) );
 }
 
-#ifndef HAVE_BOOST
+#if !defined(ENABLE_BOOST_MAP) && \
+    !defined(ENABLE_BOOST_RBTREE) && \
+    !defined(ENABLE_BOOST_SGTREE) && \
+    !defined(ENABLE_BOOST_AVLTREE)
 namespace detail {
   struct FieldProxy {
     typedef void result_type;
@@ -253,15 +209,13 @@ namespace detail {
     operator std::string() const { return std::string(); }
   };
 }
-
 std::size_t FieldMap::init_allocation_unit()
 {
-  FieldMap::Fields f( message_order( message_order::normal ), ItemStore::buffer(1024) );
+  FieldMap::store_type f( message_order( message_order::normal ), ItemStore::buffer(1024) );
   // Metrics of the inserted FieldBase object must be calculated at compile time
   f.insert(std::make_pair(1, FIX::FieldBase(detail::FieldProxy())));
   return f.get_allocator().item_size();
 }
-
 const std::size_t FieldMap::AllocationUnit = FieldMap::init_allocation_unit();
 #endif
 

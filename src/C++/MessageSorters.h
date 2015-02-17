@@ -187,7 +187,7 @@ struct message_order
   };
 
 public:
-  enum cmp_mode { header, trailer, normal, group };
+  enum cmp_mode { group, header, trailer, normal };
 
   message_order( cmp_mode mode = normal )
   : m_mode( mode ), m_largest( 0 ) {}
@@ -201,17 +201,35 @@ public:
 
   inline bool PURE_DECL NOTHROW operator() ( const int x, const int y ) const
   {
+    if ( LIKELY(m_mode == normal) ) return x < y;
+
     switch ( m_mode )
     {
+      case group:
+      return group_order::compare( x, y, m_groupOrder, m_largest );
       case header:
       return header_order::compare( x, y );
       case trailer:
       return trailer_order::compare( x, y );
-      case group:
-      return group_order::compare( x, y, m_groupOrder, m_largest );
-      case normal: default:
-      return x < y;
+      case normal: ;
     }
+
+    return x < y;
+  }
+
+  static inline bool PURE_DECL NOTHROW header_compare( const int x, const int y ) 
+  {
+    return header_order::compare( x, y );
+  }
+
+  static inline bool PURE_DECL NOTHROW trailer_compare( const int x, const int y )
+  {
+    return trailer_order::compare( x, y );
+  }
+
+  inline bool PURE_DECL NOTHROW group_compare( const int x, const int y ) const
+  {
+    return group_order::compare( x, y, m_groupOrder, m_largest );
   }
 
   inline message_order NOTHROW_PRE & NOTHROW_POST
@@ -253,17 +271,20 @@ public:
 
     inline bool PURE_DECL NOTHROW operator() ( const int x, const int y ) const
     {
+      if ( LIKELY(m_mode == normal) ) return x < y;
+
       switch ( m_mode )
       {
+        case group:
+        return group_order::compare( x, y, m_groupOrder, m_largest );
         case header:
         return header_order::compare( x, y );
         case trailer:
         return trailer_order::compare( x, y );
-        case group:
-        return group_order::compare( x, y, m_groupOrder, m_largest );
-        case normal: default:
-        return x < y;
+        case normal: ;
       }
+
+      return x < y;
     }
 
   private:

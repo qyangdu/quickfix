@@ -110,15 +110,15 @@ Message::admin_trait Session::fill( Header& header, int num, UtcTimeStamp now )
   m_state.lastSentTime( now );
   if( it->first == FIX::FIELD::BeginString )
   {
-    const_cast<FieldBase&>(it->second) = m_sessionID.getBeginString();
+    (FieldBase&)it->second = m_sessionID.getBeginString();
     ++it;
   }
   else
     header.addField( it, m_sessionID.getBeginString() );
 
-  if (it->first == FIX::FIELD::BodyLength )
+  if ( it->first == FIX::FIELD::BodyLength )
     ++it;
-  if (it->first == FIX::FIELD::MsgType )
+  if ( it->first == FIX::FIELD::MsgType )
   {
     const char* p = it->second.forString( String::CstrFunc() );
     char msgType = *p;
@@ -459,6 +459,7 @@ bool HEAVYUSE Session::send( Message& message )
 {
   int f[2] = { FIELD::PossDupFlag, FIELD::OrigSendingTime };
   message.getHeader().removeFields( f, f + sizeof(f)/sizeof(int));
+
   return sendRaw( message );
 }
 
@@ -522,16 +523,16 @@ bool HEAVYUSE Session::sendRaw( Message& message, int num )
       {
         m_application.toApp( message, m_sessionID );
 
-		if( m_pResponder )
+	if( m_pResponder )
         {
-		  const SgBufferFactory::SgBuffer& s =
-                         message.toBuffer( sg_buffer_factory );
+	  const SgBufferFactory::SgBuffer& s =
+                        message.toBuffer( sg_buffer_factory );
 
-		if( !num )
-		  persist( message, s.iovec(), s.elements() );
+	  if( !num )
+	    persist( message, s.iovec(), s.elements() );
 
-		if ( isLoggedOn() )
-		  tx ( s.iovec(), s.elements() );
+	  if ( isLoggedOn() )
+	    tx ( s.iovec(), s.elements() );
         }
         else
         {
@@ -1129,7 +1130,7 @@ bool Session::doPossDup( const Message& msg )
   {
     if ( !header.isSetField( origSendingTime ) )
     {
-      generateReject( msg, SessionRejectReason_REQUIRED_TAG_MISSING, origSendingTime.getField() );
+      generateReject( msg, SessionRejectReason_REQUIRED_TAG_MISSING, origSendingTime.getTag() );
       return false;
     }
     header.getField( origSendingTime );

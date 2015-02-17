@@ -2,7 +2,7 @@ AC_DEFUN([AX_SSO],
 [
 has_sso=false
 AC_ARG_WITH(sso,
-    [  --with-sso=<width>   Short string optimization], 
+    [  --with-sso              short string optimization], 
     [if test $withval == "no"
      then
        has_sso=false

@@ -102,34 +102,44 @@ class Message : public FieldMap
 #endif
   HeaderFieldSet headerFieldSet;
 
-  class FieldReader {
+  class FieldReader : public Sequence {
 
     static const char* ErrDelimiter;
     static const char* ErrSOH;
 
     int  m_field, m_pos;
     int  m_length, m_csum;
+    int  m_hdr, m_body, m_trl, m_grp;
     const char* m_start;
     const char* const m_end;
+
+    inline void step() {
+      m_start += m_pos + 1;
+      m_pos = 0;
+    }
 
   public:
     typedef String::value_type result_type;
 
     FieldReader ( const char* s, const char* e )
     : m_field(0), m_pos(0), m_length(0), m_csum(0),
+      m_hdr(0), m_body(0), m_trl(0), m_grp(0),
       m_start(s), m_end(e) {}
 
     FieldReader ( const char* p, std::size_t n )
     : m_field(0), m_pos(0), m_length(0), m_csum(0),
+      m_hdr(0), m_body(0), m_trl(0), m_grp(0),
       m_start(p), m_end(p + n) {}
 
     FieldReader ( const std::string& s )
     : m_field(0), m_pos(0), m_length(0), m_csum(0),
+      m_hdr(0), m_body(0), m_trl(0), m_grp(0),
       m_start(String::c_str(s)),
       m_end(m_start + String::size(s)) {}
 
     FieldReader ( const std::string& s, std::string::size_type pos )
     : m_field(0), m_pos(0), m_length(0), m_csum(0),
+      m_hdr(0), m_body(0), m_trl(0), m_grp(0),
       m_start(String::c_str(s) + pos),
       m_end(String::c_str(s) + String::size(s)) {}
 
@@ -157,12 +167,60 @@ class Message : public FieldMap
     void rewind ( const char* p )
     { m_start = p; m_pos = 0; }
 
-    const FieldBase& operator >> (FieldMap& map)
+    void startGroupAt( int n = 0 ) { m_grp = n; }
+
+    /// Store ordered header fields 
+    const FieldBase* flushSpecHeaderField(FieldMap& map)
     {
-      const FieldBase& r = map.addField( *this )->second;
-      m_start += m_pos + 1;
-      m_pos = 0;
-      return r;
+      const FieldBase& r = Sequence::push_back_to( map, *this )->second;
+      step();
+      return &r;
+    }
+
+    const FieldBase* flushHeaderField(FieldMap& map)
+    {
+      const FieldBase& r = ( LIKELY(Sequence::header_compare(map, m_hdr, m_field)) )
+                            ? m_hdr = m_field, Sequence::push_back_to( map, *this )->second
+                            : map.addField( *this )->second;
+      step();
+      return &r;
+    }
+
+    void flushField(FieldMap& map)
+    {
+      if ( LIKELY(m_body < m_field) )
+      {
+        Sequence::push_back_to( map, *this )->second;
+        m_body = m_field;
+      }
+      else
+        map.addField( *this )->second;
+      step();
+    }
+
+    void flushTrailerField(FieldMap& map)
+    {
+      if ( LIKELY(Sequence::trailer_compare(map, m_trl, m_field)) )
+      {
+        Sequence::push_back_to( map, *this )->second;
+        m_trl = m_field;
+      }
+      else
+        map.addField( *this )->second;
+      step();
+    }
+
+    int flushGroupField(FieldMap& map)
+    {
+      if ( LIKELY(Sequence::group_compare(map, m_grp, m_field) || m_grp == 0) )
+      {
+        Sequence::push_back_to( map, *this )->second;
+        m_grp = m_field;
+      }
+      else
+        map.addField( *this )->second;
+      step();
+      return m_grp;
     }
 
     int getField() const { return m_field; }
@@ -739,7 +797,7 @@ inline void Message::FieldCounter::countHeader( const FieldMap& fields )
   FieldMap::const_iterator it = fields.begin();
   const FieldMap::const_iterator end = fields.end();
 
-  if( it != end )
+  if( LIKELY(it != end) )
   {
     if( LIKELY(it->first == FIELD::BeginString) )
     {
@@ -768,9 +826,10 @@ inline void Message::FieldCounter::countHeader( int beginStringField,
   const FieldMap::const_iterator end = fields.end();
   for( FieldMap::const_iterator it = fields.begin(); it != end; ++it )
   {
-    if ( LIKELY(it->first != bodyLengthField) )
+    int tag = it->first;
+    if ( LIKELY(tag != bodyLengthField) )
     {
-      if( LIKELY(it->first != beginStringField) )
+      if( LIKELY(tag != beginStringField) )
         m_length += it->second.getLength();
       else
         m_prefix += it->second.getLength();
@@ -784,7 +843,7 @@ inline int Message::FieldCounter::countBody(const FieldMap& fields)
   int result = 0;
   const FieldMap::const_iterator end = fields.end();
   for( FieldMap::const_iterator it = fields.begin();
-       it != end; ++it )
+       LIKELY(it != end); ++it )
   {
     result += it->second.getLength();
   }

@@ -135,9 +135,9 @@ void Message::reverseRoute( const Header& header )
   SenderCompID senderCompID;
   TargetCompID targetCompID;
 
-  m_header.removeField( beginString.getField() );
-  m_header.removeField( senderCompID.getField() );
-  m_header.removeField( targetCompID.getField() );
+  m_header.removeField( beginString.getTag() );
+  m_header.removeField( senderCompID.getTag() );
+  m_header.removeField( targetCompID.getTag() );
 
   if( header.getFieldIfSet( beginString ) )
   {
@@ -147,8 +147,8 @@ void Message::reverseRoute( const Header& header )
     OnBehalfOfLocationID onBehalfOfLocationID;
     DeliverToLocationID deliverToLocationID;
 
-    m_header.removeField( onBehalfOfLocationID.getField() );
-    m_header.removeField( deliverToLocationID.getField() );
+    m_header.removeField( onBehalfOfLocationID.getTag() );
+    m_header.removeField( deliverToLocationID.getTag() );
 
     if( beginString >= BeginString_FIX41 )
     {
@@ -184,10 +184,10 @@ void Message::reverseRoute( const Header& header )
   DeliverToCompID deliverToCompID;
   DeliverToSubID deliverToSubID;
 
-  m_header.removeField( onBehalfOfCompID.getField() );
-  m_header.removeField( onBehalfOfSubID.getField() );
-  m_header.removeField( deliverToCompID.getField() );
-  m_header.removeField( deliverToSubID.getField() );
+  m_header.removeField( onBehalfOfCompID.getTag() );
+  m_header.removeField( onBehalfOfSubID.getTag() );
+  m_header.removeField( deliverToCompID.getTag() );
+  m_header.removeField( deliverToSubID.getTag() );
 
   if( header.getFieldIfSet( onBehalfOfCompID ) )
   {
@@ -412,7 +412,7 @@ ALIGN_DECL_DEFAULT static const DataDictionary::FieldPresenceMap::key_type group
 ALIGN_DECL_DEFAULT static const DataDictionary::FieldPresenceMap::key_type group_key_trailer_ =
        DataDictionary::FieldPresenceMap::key_type("_trailer_");
 
-void HEAVYUSE
+inline void HEAVYUSE
 Message::setString( const char* data, std::size_t length,
                     bool doValidation,
                     const DataDictionary* pSessionDataDictionary,
@@ -421,7 +421,6 @@ throw( InvalidMessage )
 {
   DataDictionary::FieldPresenceMap::key_type msg_key;
   const BodyLength* pBodyLength = NULL;
-  const FieldBase* p;
   FieldReader reader( data, length );
 
   clear();
@@ -432,11 +431,7 @@ throw( InvalidMessage )
       extractField( reader, pSessionDataDictionary, pApplicationDataDictionary ) )
   {
     if( LIKELY(reader.getField() == FIELD::BeginString) )
-    {
-      p = &( reader >> m_header );
-      if ( pSessionDataDictionary )
-        setGroup( reader, group_key_header_, p->getField(), m_header, *pSessionDataDictionary );
-    }
+      reader.flushSpecHeaderField( m_header );
     else
     {
       if( doValidation )
@@ -449,11 +444,7 @@ throw( InvalidMessage )
        extractField( reader, pSessionDataDictionary, pApplicationDataDictionary ) )
   {
     if( LIKELY(reader.getField() == FIELD::BodyLength) )
-    {
-      pBodyLength = (const BodyLength*)(p = &( reader >> m_header ));
-      if ( pSessionDataDictionary ) 
-        setGroup( reader, group_key_header_, p->getField(), m_header, *pSessionDataDictionary );
-    }
+      pBodyLength = (const BodyLength*)reader.flushSpecHeaderField( m_header );
     else
     {
       if( doValidation )
@@ -467,13 +458,10 @@ throw( InvalidMessage )
   {
     if ( LIKELY(reader.getField() == FIELD::MsgType) )
     {
-      p = &( reader >> m_header );
+      const FieldBase* p = reader.flushSpecHeaderField( m_header );
 
       if ( pApplicationDataDictionary )
         msg_key = p->forString( String::RvalFunc() );
-
-      if ( pSessionDataDictionary )
-        setGroup( reader, group_key_header_, p->getField(), m_header, *pSessionDataDictionary );
     }
     else 
     {
@@ -500,11 +488,14 @@ loop:
         else
           setErrorStatusBit( tag_out_of_order, field );
   
-        p = &( reader >> m_header );
-        if ( pSessionDataDictionary )
-          setGroup( reader, group_key_header_, p->getField(), m_header, *pSessionDataDictionary );
+        const FieldBase* p = reader.flushHeaderField( m_header );
   
-        if ( pApplicationDataDictionary && p->getField() == FIELD::MsgType )
+        if ( LIKELY(field != FIELD::MsgType) )
+        { 
+          if ( pSessionDataDictionary )
+            setGroup( reader, group_key_header_, field, m_header, *pSessionDataDictionary );
+        }
+        else if ( pApplicationDataDictionary )
           msg_key = p->forString( String::RvalFunc() );
       }
       else if ( LIKELY(!isTrailerField( field, pSessionDataDictionary )) )
@@ -514,17 +505,17 @@ loop:
   
         type = body;
   
-        p = &( reader >> *this );
+        reader.flushField( *this );
         if ( pApplicationDataDictionary )
-          setGroup( reader, msg_key, p->getField(), *this, *pApplicationDataDictionary );
+          setGroup( reader, msg_key, field, *this, *pApplicationDataDictionary );
       }
       else
       {
         type = trailer;
   
-        p = &( reader >> m_trailer );
-        if ( pSessionDataDictionary )
-          setGroup( reader, group_key_trailer_, p->getField(), m_trailer, *pSessionDataDictionary );
+        reader.flushTrailerField( m_trailer );
+        if ( field != FIELD::CheckSum && pSessionDataDictionary )
+          setGroup( reader, group_key_trailer_, field, m_trailer, *pSessionDataDictionary );
       }
     }
   }
@@ -538,8 +529,8 @@ void Message::setGroup( const std::string& msg,
                         std::string::size_type& pos, FieldMap& map,
                         const DataDictionary& dataDictionary )
 {
-  FieldReader reader(str, pos);
-  setGroup( reader, String::CopyFunc()(msg), field.getField(), map, dataDictionary );
+  FieldReader reader( str, pos );
+  setGroup( reader, String::CopyFunc()(msg), field.getTag(), map, dataDictionary );
   pos = reader.pos() - String::c_str(str);
 }
 
@@ -557,19 +548,21 @@ void Message::setGroup( Message::FieldReader& reader,
     const char* pos = reader.pos();
     if( extractField( reader, &dataDictionary, &dataDictionary, pGroup.get() ) )
     {
+      int field = reader.getField();
       if( // found delimiter
-           (reader.getField() == delim)
+           (field == delim)
            // no delimiter, but field belongs to group or already processed
-           || ((pGroup.get() == 0 || pGroup->isSetField(reader.getField())) &&
-                pDD->isField(reader.getField())) )
+           || ((pGroup.get() == 0 || pGroup->isSetField( field )) &&
+                pDD->isField( field )) )
       {
         if ( pGroup.get() )
         {
           map.addGroupPtr( group, pGroup.release(), false );
         }
-        pGroup.reset( new Group( reader.getField(), delim, pDD->getOrderedFields() ) );
+        reader.startGroupAt();
+        pGroup.reset( new Group( field, delim, pDD->getOrderedFields() ) );
       }
-      else if ( !pDD->isField( reader.getField() ) )
+      else if ( !pDD->isField( field ) )
       {
         if ( pGroup.get() )
         {
@@ -580,8 +573,9 @@ void Message::setGroup( Message::FieldReader& reader,
       }
   
       if ( !pGroup.get() ) return ;
-      reader >> *pGroup;
-      setGroup( reader, msg, reader.getField(), *pGroup, *pDD );
+      int end = reader.flushGroupField( *pGroup );
+      setGroup( reader, msg, field, *pGroup, *pDD );
+      reader.startGroupAt( end );
     }
   }
 }
@@ -596,11 +590,18 @@ bool Message::setStringHeader( const std::string& str )
   {
     if( extractField( reader ) )
     {
-      if( count < 3 && headerOrder[ count++ ] != reader.getField() )
+      if( count < 3 )
+      {
+        if ( LIKELY(headerOrder[ count++ ] == reader.getField()) )
+        { 
+          reader.flushSpecHeaderField( m_header );
+          continue;
+        }
         return false;
+      }
 
       if( isHeaderField( reader.getField() ) )
-        reader >> m_header;
+        reader.flushHeaderField( m_header );
       else break;
     }
   }
@@ -670,23 +671,21 @@ void Message::validate(const BodyLength* pBodyLength)
   {
     try
     {
-      if ( *pBodyLength != bodyLength() )
+      if ( LIKELY(*pBodyLength == bodyLength()) )
       {
-        std::stringstream text;
-        text << "Expected BodyLength=" << bodyLength()
-             << ", Received BodyLength=" << (int)*pBodyLength;
-        throw InvalidMessage(text.str());
-      }
-  
-      const CheckSum& aCheckSum = FIELD_GET_REF( m_trailer, CheckSum );
-  
-      if ( aCheckSum != checkSum() )
-      {
+        const CheckSum& aCheckSum = FIELD_GET_REF( m_trailer, CheckSum );
+        if ( LIKELY(aCheckSum == checkSum()) )
+          return;
+
         std::stringstream text;
         text << "Expected CheckSum=" << checkSum()
              << ", Received CheckSum=" << (int)aCheckSum;
         throw InvalidMessage(text.str());
       }
+      std::stringstream text;
+      text << "Expected BodyLength=" << bodyLength()
+           << ", Received BodyLength=" << (int)*pBodyLength;
+      throw InvalidMessage(text.str());
     }
     catch ( FieldNotFound& )
     {

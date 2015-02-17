@@ -141,7 +141,7 @@ namespace FIX
 
        private:
 
-         typedef intptr_t buffer_type[2];
+         typedef uint64_t buffer_type[2];
          typedef std::string string_type;
 
          static const std::size_t MaxLocalCapacity = sizeof(buffer_type) - 1;
@@ -339,53 +339,17 @@ namespace FIX
                                   : String::c_str(asString());
            }
 
-           inline bool PURE_DECL HEAVYUSE operator == (const Data& d) const
+           inline bool PURE_DECL HEAVYUSE equal(const Data& d) const
            {
-             std::size_t s;
-	     if ( isLocal() )
-             {
-               s = m_length;
-               if ( d.isLocal() )
-               {
-                 if ( s != d.m_length ) return false;
-                 union { const char* pc; const uint32_t* pu; } l = { m_data };
-                 union { const char* pc; const uint32_t* pu; } r = { d.m_data };
-                 while ( s > sizeof(uint32_t) ) { if (*l.pu++ != *r.pu++ ) return false; s -= sizeof(uint32_t); }
-                 while ( s > 0 ) { if (*l.pc++ != *r.pc++) return false; s--; }
-                 return true;
-               }
-             }
-             else
-               s = String::size(asString());
-             return ( s == d.size() && !::memcmp(c_str(), d.c_str(), s) );
-           }
-
-           inline bool PURE_DECL HEAVYUSE operator != (const Data& d) const
-           {
-             std::size_t s;
-	     if ( isLocal() )
-             {
-               s = m_length;
-               if ( d.isLocal() )
-               {
-                 if ( s != d.m_length ) return true;
-                 union { const char* pc; const uint32_t* pu; } l = { m_data };
-                 union { const char* pc; const uint32_t* pu; } r = { d.m_data };
-                 while ( s > sizeof(uint32_t) ) { if (*l.pu++ != *r.pu++ ) return true; s -= sizeof(uint32_t); }
-                 while ( s > 0 ) { if (*l.pc++ != *r.pc++) return true; s--; }
-                 return false;
-               }
-             }
-             else
-               s = String::size(asString());
-             return ( s != d.size() || ::memcmp(c_str(), d.c_str(), s) );
+	     std::size_t s;
+             return ( (s = size()) == d.size() && !::memcmp(c_str(), d.c_str(), s) );
            }
 
            inline int PURE_DECL HEAVYUSE compare( const char* p, std::size_t sz ) const
            {
              if( isLocal() )
              {
-               int r = ::strncmp( m_data, p, sz );
+               int r = ::memcmp( m_data, p, std::min((std::size_t)m_length, sz) );
                return (r != 0) ? r : ((int)m_length - sz);
              }
              return asString().compare(0, std::string::npos, p, sz);
@@ -423,9 +387,13 @@ namespace FIX
            {
              if( LIKELY(sz < MaxLocalCapacity) )
              {
-               m_v[0] = *reinterpret_cast<const intptr_t*>(p);
-               m_v[1] = (sz > sizeof(intptr_t)) ?
-                 *reinterpret_cast<const intptr_t*>(p + sizeof(intptr_t)) : 0;
+#if defined(__GNUC__) && (defined(__x86_64__) || defined(__i386__))
+               m_v[0] = *reinterpret_cast<const uint64_t*>(p);
+               m_v[1] = (sz > sizeof(uint64_t)) ?
+                 *reinterpret_cast<const uint64_t*>(p + sizeof(uint64_t)) : 0;
+#else
+               ::memcpy(m_data, p, sz);
+#endif
                m_data[sz] = '\0';
                m_length = (unsigned char)sz;
              }
@@ -581,12 +549,12 @@ namespace FIX
 
          inline bool operator == ( const short_string_type& ss ) const
          {
-           return s_ == ss.s_;
+           return s_.equal( ss.s_ );
          }
 
          inline bool operator != ( const short_string_type& ss ) const
          {
-           return s_ != ss.s_;
+           return !s_.equal( ss.s_ );
          }
 
          inline int compare( const short_string_type& ss ) const
