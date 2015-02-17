@@ -83,29 +83,46 @@ struct IntConvertor
   typedef int value_type;
   typedef unsigned int unsigned_value_type;
 
+  union NumberRange {
+    char     c[2];
+    uint16_t u;
+  };
+
+  static ALIGN_DECL_DEFAULT NumberRange padded_numbers[100]; /* string representations of "00" to "99" */
+
   static const std::size_t MaxValueSize = std::numeric_limits<value_type>::digits10 + 2;
   static std::size_t RequiredSize(value_type v = 0) { return MaxValueSize; }
 
   class Proxy {
 	value_type m_value;
 
-#ifdef _MSC_VER
+#if defined(__INTEL_COMPILER)
 	inline int generate(char* buffer) const
 	{
-	  char* p=buffer + MaxValueSize - 1;
+	  union { char* pc; uint16_t* pu; } b = { buffer + MaxValueSize };
 	  value_type value = m_value;
-	  unsigned_value_type v, u = value < 0 ? ~value + 1 : value;
-	  do { v = u / 10; *p-- = (char)('0' + (u - v * 10)); } while( (u = v) );
-	  *p = '-';
-	  return p - buffer + (value >= 0);
+	  unsigned_value_type u, v = value < 0 ? ~value + 1 : value;
+	  do { *--b.pu = padded_numbers[v % 100].u; u = v; } while ( (v /= 100) );
+	  *(b.pc -= (u >= 10)) = '-';
+	  return b.pc - buffer + (value >= 0);
 	}
+#elif defined(_MSC_VER)
+        inline int generate(char* buffer) const
+        {
+          char* p=buffer + MaxValueSize - 1;
+          value_type value = m_value;
+          unsigned_value_type v, u = value < 0 ? ~value + 1 : value;
+          do { v = u / 10; *p-- = (char)('0' + (u - v * 10)); } while( (u = v) );
+          *p = '-';
+          return p - buffer + (value >= 0);
+        }
 #else
 	inline int generate(char* buffer) const
 	{
 	  char* p=buffer;
 	  value_type value = m_value;
 	  unsigned_value_type v, u = value < 0 ? ~value + 1 : value;
-	  do { v = u / 10; *p++ = "0123456789" [u - v * 10]; } while( (u = v) );
+	  do { v = u / 10; *p++ = (char)('0' + (u - v * 10)); } while( (u = v) );
 	  *p = '-';
 	  return ((p - buffer) + (value < 0));
 	}
@@ -117,7 +134,7 @@ struct IntConvertor
 	template <typename S> S convert_to() const
 	{
 	  char buf[MaxValueSize];
-#ifdef _MSC_VER
+#if defined(_MSC_VER) || defined(__INTEL_COMPILER)
 	  int offt = generate(buf);
 	  return S(buf + offt, MaxValueSize - offt);
 #else
@@ -132,11 +149,11 @@ struct IntConvertor
 	template <typename S> void append_to(S& s) const
 	{
 	  char buf[MaxValueSize];
-#if _MSC_VER
+#if defined(_MSC_VER) || defined(__INTEL_COMPILER)
 	  int offt = generate(buf);
 	  s.append(buf + offt, MaxValueSize - offt);
 #else
-#if defined(HAVE_BOOST) && !defined(__INTEL_COMPILER)
+#ifdef HAVE_BOOST
 	  s.append(boost::rbegin(buf) + (MaxValueSize - generate(buf)), boost::rend(buf));
 #else
 	  s.append(Util::CharBuffer::reverse_iterator(buf + generate(buf)),
@@ -702,13 +719,6 @@ struct BoolConvertor
 
 struct UtcConvertorBase {
 
-  union NumberRange {
-    char     c[2];
-    uint16_t u;
-  };
-
-  static ALIGN_DECL_DEFAULT NumberRange padded_numbers[100]; /* string representations of "00" to "99" */
-
   static inline bool parse_date(const unsigned char*& p, int& year, int& mon, int& mday)
   {
       unsigned char v;
@@ -819,22 +829,22 @@ struct UtcTimeStampConvertor : public UtcConvertorBase
 
     if ( (unsigned)year < 10000 )
     {
-      *b.pu++ = padded_numbers[(unsigned)year / 100].u;
-      *b.pu++ = padded_numbers[(unsigned)year % 100].u;
-      *b.pu++ = padded_numbers[(unsigned)month].u;
-      *b.pu++ = padded_numbers[(unsigned)day].u;
+      *b.pu++ = IntConvertor::padded_numbers[(unsigned)year / 100].u;
+      *b.pu++ = IntConvertor::padded_numbers[(unsigned)year % 100].u;
+      *b.pu++ = IntConvertor::padded_numbers[(unsigned)month].u;
+      *b.pu++ = IntConvertor::padded_numbers[(unsigned)day].u;
       *b.pc++ = '-';
-      *b.pu++ = padded_numbers[(unsigned)hour].u;
+      *b.pu++ = IntConvertor::padded_numbers[(unsigned)hour].u;
       *b.pc++ = ':';
-      *b.pu++ = padded_numbers[(unsigned)minute].u;
+      *b.pu++ = IntConvertor::padded_numbers[(unsigned)minute].u;
       *b.pc++ = ':';
-      *b.pu++ = padded_numbers[(unsigned)second].u;
+      *b.pu++ = IntConvertor::padded_numbers[(unsigned)second].u;
 
       if (showMilliseconds)
       {
 	*b.pc++ = '.';
 	*b.pc++ = '0' + (unsigned)millis / 100;
-        *b.pu   = padded_numbers[(unsigned)millis % 100 ].u;
+        *b.pu   = IntConvertor::padded_numbers[(unsigned)millis % 100 ].u;
         result.append(buffer, 21);
       }
       else
@@ -942,17 +952,17 @@ struct UtcTimeOnlyConvertor : public UtcConvertorBase
 
     value.getHMS( hour, minute, second, millis );
 
-    *b.pu++ = padded_numbers[(unsigned)hour].u;
+    *b.pu++ = IntConvertor::padded_numbers[(unsigned)hour].u;
     *b.pc++ = ':';
-    *b.pu++ = padded_numbers[(unsigned)minute].u;
+    *b.pu++ = IntConvertor::padded_numbers[(unsigned)minute].u;
     *b.pc++ = ':';
-    *b.pu++ = padded_numbers[(unsigned)second].u;
+    *b.pu++ = IntConvertor::padded_numbers[(unsigned)second].u;
 
     if (showMilliseconds)
     {
       *b.pc++ = '.';
       *b.pc++ = '0' + (unsigned)millis / 100;
-      *b.pu   = padded_numbers[(unsigned)millis % 100 ].u;
+      *b.pu   = IntConvertor::padded_numbers[(unsigned)millis % 100 ].u;
       result.append(buffer, 12);
     } else
       result.append(buffer, 8);
@@ -1046,10 +1056,10 @@ struct UtcDateConvertor : public UtcConvertorBase
 
     if ( (unsigned)year < 10000 )
     {
-      *b.pu++ = padded_numbers[(unsigned)year / 100].u;
-      *b.pu++ = padded_numbers[(unsigned)year % 100].u;
-      *b.pu++ = padded_numbers[(unsigned)month].u;
-      *b.pu++ = padded_numbers[(unsigned)day].u;
+      *b.pu++ = IntConvertor::padded_numbers[(unsigned)year / 100].u;
+      *b.pu++ = IntConvertor::padded_numbers[(unsigned)year % 100].u;
+      *b.pu++ = IntConvertor::padded_numbers[(unsigned)month].u;
+      *b.pu++ = IntConvertor::padded_numbers[(unsigned)day].u;
       result.append(buffer, 8);
       return;
     }

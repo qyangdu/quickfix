@@ -27,7 +27,7 @@
 
 namespace FIX {
 
-ALIGN_DECL_DEFAULT UtcConvertorBase::NumberRange UtcConvertorBase::padded_numbers[100] = 
+ALIGN_DECL_DEFAULT IntConvertor::NumberRange IntConvertor::padded_numbers[100] = 
 {
 { {'0','0'} }, { {'0','1'} }, { {'0','2'} }, { {'0','3'} }, { {'0','4'} }, { {'0','5'} }, { {'0','6'} }, { {'0','7'} }, { {'0','8'} }, { {'0','9'} },
 { {'1','0'} }, { {'1','1'} }, { {'1','2'} }, { {'1','3'} }, { {'1','4'} }, { {'1','5'} }, { {'1','6'} }, { {'1','7'} }, { {'1','8'} }, { {'1','9'} },
