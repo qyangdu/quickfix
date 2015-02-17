@@ -530,7 +530,7 @@ namespace FIX
 
         double seconds() const
         {
-          return (double)data.tv_sec + (double)data.tv_nsec / 1.0E-9;
+          return (double)m_data.tv_sec + (double)m_data.tv_nsec / 1.0E-9;
         }
       };
 #endif
