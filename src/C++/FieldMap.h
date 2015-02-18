@@ -493,8 +493,11 @@ protected:
   struct Sequence {
     /// Adds a field without type checking to the end of the map without order checking
     template <typename Packed>
-    static inline store_type::value_type* push_back_to( FieldMap& map, const Packed& packed )
+    static inline const store_type::value_type* push_back_to( FieldMap& map, const Packed& packed ) // in sequence
     { return &map.push_back( packed ); }
+    template <typename Packed>
+    static inline const store_type::value_type* insert_into( FieldMap& map, const Packed& packed ) // out of sequence
+    { return &*map.add( packed ); }
     static inline bool header_compare( const FieldMap&, int x, int y )
     { return message_order::header_compare( x, y ); }
     static inline bool trailer_compare( const FieldMap&, int x, int y )

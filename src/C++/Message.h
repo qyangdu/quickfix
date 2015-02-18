@@ -181,7 +181,7 @@ class Message : public FieldMap
     {
       const FieldBase& r = ( LIKELY(Sequence::header_compare(map, m_hdr, m_field)) )
                             ? m_hdr = m_field, Sequence::push_back_to( map, *this )->second
-                            : map.addField( *this )->second;
+                            : Sequence::insert_into( map, *this )->second;
       step();
       return &r;
     }
@@ -194,7 +194,7 @@ class Message : public FieldMap
         m_body = m_field;
       }
       else
-        map.addField( *this )->second;
+        Sequence::insert_into( map, *this )->second;
       step();
     }
 
@@ -206,7 +206,7 @@ class Message : public FieldMap
         m_trl = m_field;
       }
       else
-        map.addField( *this )->second;
+        Sequence::insert_into( map, *this )->second;
       step();
     }
 
@@ -218,7 +218,7 @@ class Message : public FieldMap
         m_grp = m_field;
       }
       else
-        map.addField( *this )->second;
+        Sequence::insert_into( map, *this )->second;
       step();
       return m_grp;
     }
