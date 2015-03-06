@@ -71,8 +71,8 @@ double testValidateNewOrderSingle( int );
 double testValidateDictNewOrderSingle( int );
 double testValidateQuoteRequest( int );
 double testValidateDictQuoteRequest( int );
-double testSendOnSocket( int, short );
-double testSendOnThreadedSocket( int, short );
+double testSendOnSocket( int, short, bool );
+double testSendOnThreadedSocket( int, short, bool );
 void report( double, int );
 
 std::auto_ptr<FIX::DataDictionary> s_dataDictionary;
@@ -185,10 +185,16 @@ int main( int argc, char** argv )
   report( testValidateDictQuoteRequest( count ), count );
 
   std::cout << "Sending/Receiving NewOrderSingle/ExecutionReports on Socket";
-  report( testSendOnSocket( count, port ), count );
+  report( testSendOnSocket( count, port, false ), count );
 
   std::cout << "Sending/Receiving NewOrderSingle/ExecutionReports on ThreadedSocket";
-  report( testSendOnThreadedSocket( count, port ), count );
+  report( testSendOnThreadedSocket( count, port, false ), count );
+
+  std::cout << "Sending/Receiving NewOrderSingle/ExecutionReports on Socket with data dictionary";
+  report( testSendOnSocket( count, port, true ), count );
+
+  std::cout << "Sending/Receiving NewOrderSingle/ExecutionReports on ThreadedSocket with data dictionary";
+  report( testSendOnThreadedSocket( count, port, true ), count );
 
   return 0;
 }
@@ -829,7 +835,7 @@ private:
   int m_count;
 };
 
-double testSendOnSocket( int count, short port )
+double testSendOnSocket( int count, short port, bool dictionary )
 {
   std::stringstream stream;
   stream
@@ -839,8 +845,14 @@ double testSendOnSocket( int count, short port )
     << "SocketAcceptPort=" << (unsigned short)port << std::endl
     << "SocketReuseAddress=Y" << std::endl
     << "StartTime=00:00:00" << std::endl
-    << "EndTime=00:00:00" << std::endl
-    << "UseDataDictionary=N" << std::endl
+    << "EndTime=00:00:00" << std::endl;
+  if ( dictionary )
+    stream << "UseDataDictionary=Y" << std::endl
+           << "DataDictionary=../spec/FIX42.xml" << std::endl;
+  else
+    stream << "UseDataDictionary=N" << std::endl;
+
+  stream
     << "BeginString=FIX.4.2" << std::endl
     << "PersistMessages=N" << std::endl
     << "[SESSION]" << std::endl
@@ -892,7 +904,7 @@ double testSendOnSocket( int count, short port )
   return ticks;
 }
 
-double testSendOnThreadedSocket( int count, short port )
+double testSendOnThreadedSocket( int count, short port, bool dictionary )
 {
   std::stringstream stream;
   stream
@@ -902,8 +914,14 @@ double testSendOnThreadedSocket( int count, short port )
     << "SocketAcceptPort=" << (unsigned short)port << std::endl
     << "SocketReuseAddress=Y" << std::endl
     << "StartTime=00:00:00" << std::endl
-    << "EndTime=00:00:00" << std::endl
-    << "UseDataDictionary=N" << std::endl
+    << "EndTime=00:00:00" << std::endl;
+  if ( dictionary )
+    stream << "UseDataDictionary=Y" << std::endl
+           << "DataDictionary=../spec/FIX42.xml" << std::endl;
+  else
+    stream << "UseDataDictionary=N" << std::endl;
+
+  stream
     << "BeginString=FIX.4.2" << std::endl
     << "PersistMessages=N" << std::endl
     << "[SESSION]" << std::endl

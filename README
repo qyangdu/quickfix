@@ -218,5 +218,11 @@ Sending/Receiving
 NewOrderSingle/ExecutionReport
 on ThreadedSocket			59862.3		92850.5		234580
 
+Sending/Receiving
+NewOrderSingle/ExecutionReports
+on Socket with data dictionary          -               70681.4         150274
 
+Sending/Receiving
+NewOrderSingle/ExecutionReports
+on ThreadedSocket with data dictionary  -               73367.6         153744
 
