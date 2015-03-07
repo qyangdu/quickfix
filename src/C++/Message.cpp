@@ -115,105 +115,6 @@ HEAVYUSE Message::Message( const std::string& string,
     setString( string, validate, &sessionDataDictionary, &applicationDataDictionary );
 }
 
-bool Message::InitializeXML( const std::string& url )
-{
-  try
-  {
-    std::auto_ptr<DataDictionary> p =
-      std::auto_ptr<DataDictionary>(new DataDictionary(url));
-    s_dataDictionary = p;
-    return true;
-  }
-  catch( ConfigError& )
-  { return false; }
-}
-
-void Message::reverseRoute( const Header& header )
-{
-  // required routing tags
-  BeginString beginString;
-  SenderCompID senderCompID;
-  TargetCompID targetCompID;
-
-  m_header.removeField( beginString.getTag() );
-  m_header.removeField( senderCompID.getTag() );
-  m_header.removeField( targetCompID.getTag() );
-
-  if( header.getFieldIfSet( beginString ) )
-  {
-    if( beginString.hasValue() )
-      m_header.setField( beginString );
-
-    OnBehalfOfLocationID onBehalfOfLocationID;
-    DeliverToLocationID deliverToLocationID;
-
-    m_header.removeField( onBehalfOfLocationID.getTag() );
-    m_header.removeField( deliverToLocationID.getTag() );
-
-    if( beginString >= BeginString_FIX41 )
-    {
-      if( header.getFieldIfSet( onBehalfOfLocationID ) )
-      {
-        if( onBehalfOfLocationID.hasValue() )
-          m_header.setField( DeliverToLocationID( onBehalfOfLocationID ) );
-      }
-
-      if( header.getFieldIfSet( deliverToLocationID ) )
-      {
-        if( deliverToLocationID.hasValue() )
-          m_header.setField( OnBehalfOfLocationID( deliverToLocationID ) );
-      }
-    }
-  }
-
-  if( header.getFieldIfSet( senderCompID ) )
-  {
-    if( senderCompID.hasValue() )
-      m_header.setField( TargetCompID( senderCompID ) );
-  }
-
-  if( header.getFieldIfSet( targetCompID ) )
-  {
-    if( targetCompID.hasValue() )
-      m_header.setField( SenderCompID( targetCompID ) );
-  }
-
-  // optional routing tags
-  OnBehalfOfCompID onBehalfOfCompID;
-  OnBehalfOfSubID onBehalfOfSubID;
-  DeliverToCompID deliverToCompID;
-  DeliverToSubID deliverToSubID;
-
-  m_header.removeField( onBehalfOfCompID.getTag() );
-  m_header.removeField( onBehalfOfSubID.getTag() );
-  m_header.removeField( deliverToCompID.getTag() );
-  m_header.removeField( deliverToSubID.getTag() );
-
-  if( header.getFieldIfSet( onBehalfOfCompID ) )
-  {
-    if( onBehalfOfCompID.hasValue() )
-      m_header.setField( DeliverToCompID( onBehalfOfCompID ) );
-  }
-
-  if( header.getFieldIfSet( onBehalfOfSubID ) )
-  {
-    if( onBehalfOfSubID.hasValue() )
-      m_header.setField( DeliverToSubID( onBehalfOfSubID ) );
-  }
-
-  if( header.getFieldIfSet( deliverToCompID ) )
-  {
-    if( deliverToCompID.hasValue() )
-      m_header.setField( OnBehalfOfCompID( deliverToCompID ) );
-  }
-
-  if( header.getFieldIfSet( deliverToSubID ) )
-  {
-    if( deliverToSubID.hasValue() )
-      m_header.setField( OnBehalfOfSubID( deliverToSubID ) );
-  }
-}
-
 namespace detail {
 	class ProxyBuffer {
 
@@ -301,71 +202,6 @@ Message::toString( const FieldCounter& c, std::string& str ) const
         m_header.serializeTo( sbuf ) ) );
   }
   return str;
-}
-
-std::string Message::toXML() const
-{
-  std::string str;
-  return toXML( str );
-}
-
-std::string& Message::toXML( std::string& str ) const
-{
-  std::stringstream stream;
-  stream << "<message>"                         << std::endl
-         << std::setw(2) << " " << "<header>"   << std::endl
-         << toXMLFields(getHeader(), 4)
-         << std::setw(2) << " " << "</header>"  << std::endl
-         << std::setw(2) << " " << "<body>"     << std::endl
-         << toXMLFields(*this, 4)
-         << std::setw(2) << " " << "</body>"    << std::endl
-         << std::setw(2) << " " << "<trailer>"  << std::endl
-         << toXMLFields(getTrailer(), 4)
-         << std::setw(2) << " " << "</trailer>" << std::endl
-         << "</message>";
-
-  return str = stream.str();
-}
-
-std::string Message::toXMLFields(const FieldMap& fields, int space) const
-{
-  std::stringstream stream;
-  FieldMap::iterator i;
-  std::string name;
-  for(i = fields.begin(); i != fields.end(); ++i)
-  {
-    int field = i->first;
-    std::string value = i->second.getString();
-
-    stream << std::setw(space) << " " << "<field ";
-    if(s_dataDictionary.get() && s_dataDictionary->getFieldName(field, name))
-    {
-      stream << "name=\"" << name << "\" ";
-    }
-    stream << "number=\"" << field << "\"";
-    if(s_dataDictionary.get()
-       && s_dataDictionary->getValueName(field, value, name))
-    {
-      stream << " enum=\"" << name << "\"";
-    }
-    stream << ">";
-    stream << "<![CDATA[" << value << "]]>";
-    stream << "</field>" << std::endl;
-  }
-
-  FieldMap::g_iterator j;
-  for(j = fields.g_begin(); j != fields.g_end(); ++j)
-  {
-    FieldMap::g_item_const_iterator k, kend = j->second.end();
-    for(k = j->second.begin(); k != kend; ++k)
-    {
-      stream << std::setw(space) << " " << "<group>" << std::endl
-             << toXMLFields(*(*k), space+2)
-             << std::setw(space) << " " << "</group>" << std::endl;
-    }
-  }
-
-  return stream.str();
 }
 
 inline bool Message::extractFieldDataLength( Message::FieldReader& reader, const Group* pGroup, int field )
@@ -534,7 +370,7 @@ void Message::setGroup( const std::string& msg,
   pos = reader.pos() - String::c_str(str);
 }
 
-void Message::setGroup( Message::FieldReader& reader,
+void HEAVYUSE Message::setGroup( Message::FieldReader& reader,
 			const DataDictionary::FieldPresenceMap::key_type& msg, const int group,
                         FieldMap& map, const DataDictionary& dataDictionary )
 {
@@ -608,63 +444,6 @@ bool Message::setStringHeader( const std::string& str )
   return true;
 }
 
-ALIGN_DECL_DEFAULT const int Message::HeaderFieldSet::m_fields[] =
-{
-FIELD::BeginString,
-FIELD::BodyLength,
-FIELD::MsgType,
-FIELD::SenderCompID,
-FIELD::TargetCompID,
-FIELD::OnBehalfOfCompID,
-FIELD::DeliverToCompID,
-FIELD::SecureDataLen,
-FIELD::MsgSeqNum,
-FIELD::SenderSubID,
-FIELD::SenderLocationID,
-FIELD::TargetSubID,
-FIELD::TargetLocationID,
-FIELD::OnBehalfOfSubID,
-FIELD::OnBehalfOfLocationID,
-FIELD::DeliverToSubID,
-FIELD::DeliverToLocationID,
-FIELD::PossDupFlag,
-FIELD::PossResend,
-FIELD::SendingTime,
-FIELD::OrigSendingTime,
-FIELD::XmlDataLen,
-FIELD::XmlData,
-FIELD::MessageEncoding,
-FIELD::LastMsgSeqNumProcessed,
-FIELD::OnBehalfOfSendingTime,
-FIELD::ApplVerID,
-FIELD::CstmApplVerID,
-FIELD::NoHops,
-0
-};
-
-ALIGN_DECL_DEFAULT Message::HeaderFieldSet Message::headerFieldSet;
-
-SessionID Message::getSessionID( const std::string& qualifier ) const
-throw( FieldNotFound )
-{
-  BeginString beginString;
-  SenderCompID senderCompID;
-  TargetCompID targetCompID;
-
-  getHeader().getField( beginString );
-  getHeader().getField( senderCompID );
-  getHeader().getField( targetCompID );
-
-  return SessionID( beginString, senderCompID, targetCompID, qualifier );
-}
-
-void Message::setSessionID( const SessionID& sessionID )
-{
-  getHeader().setField( sessionID.getBeginString() );
-  getHeader().setField( sessionID.getSenderCompID() );
-  getHeader().setField( sessionID.getTargetCompID() );
-}
-
 void Message::validate(const BodyLength* pBodyLength)
 {
   if ( pBodyLength )
@@ -700,4 +479,203 @@ void Message::validate(const BodyLength* pBodyLength)
     throw InvalidMessage("BodyLength missing");
 }
 
+ALIGN_DECL_DEFAULT Message::HeaderFieldSet Message::headerFieldSet;
+
+ALIGN_DECL_DEFAULT const int Message::HeaderFieldSet::m_fields[] =
+{
+FIELD::BeginString,
+FIELD::BodyLength,
+FIELD::MsgType,
+FIELD::SenderCompID,
+FIELD::TargetCompID,
+FIELD::OnBehalfOfCompID,
+FIELD::DeliverToCompID,
+FIELD::SecureDataLen,
+FIELD::MsgSeqNum,
+FIELD::SenderSubID,
+FIELD::SenderLocationID,
+FIELD::TargetSubID,
+FIELD::TargetLocationID,
+FIELD::OnBehalfOfSubID,
+FIELD::OnBehalfOfLocationID,
+FIELD::DeliverToSubID,
+FIELD::DeliverToLocationID,
+FIELD::PossDupFlag,
+FIELD::PossResend,
+FIELD::SendingTime,
+FIELD::OrigSendingTime,
+FIELD::XmlDataLen,
+FIELD::XmlData,
+FIELD::MessageEncoding,
+FIELD::LastMsgSeqNumProcessed,
+FIELD::OnBehalfOfSendingTime,
+FIELD::ApplVerID,
+FIELD::CstmApplVerID,
+FIELD::NoHops,
+0
+};
+
+void Message::reverseRoute( const Header& header )
+{
+  // required routing tags
+  BeginString beginString;
+  SenderCompID senderCompID;
+  TargetCompID targetCompID;
+
+  m_header.removeField( beginString.getTag() );
+  m_header.removeField( senderCompID.getTag() );
+  m_header.removeField( targetCompID.getTag() );
+
+  if( header.getFieldIfSet( beginString ) )
+  {
+    if( beginString.hasValue() )
+      m_header.setField( beginString );
+
+    OnBehalfOfLocationID onBehalfOfLocationID;
+    DeliverToLocationID deliverToLocationID;
+
+    m_header.removeField( onBehalfOfLocationID.getTag() );
+    m_header.removeField( deliverToLocationID.getTag() );
+
+    if( beginString >= BeginString_FIX41 )
+    {
+      if( header.getFieldIfSet( onBehalfOfLocationID ) )
+      {
+        if( onBehalfOfLocationID.hasValue() )
+          m_header.setField( DeliverToLocationID( onBehalfOfLocationID ) );
+      }
+
+      if( header.getFieldIfSet( deliverToLocationID ) )
+      {
+        if( deliverToLocationID.hasValue() )
+          m_header.setField( OnBehalfOfLocationID( deliverToLocationID ) );
+      }
+    }
+  }
+
+  if( header.getFieldIfSet( senderCompID ) )
+  {
+    if( senderCompID.hasValue() )
+      m_header.setField( TargetCompID( senderCompID ) );
+  }
+
+  if( header.getFieldIfSet( targetCompID ) )
+  {
+    if( targetCompID.hasValue() )
+      m_header.setField( SenderCompID( targetCompID ) );
+  }
+
+  // optional routing tags
+  OnBehalfOfCompID onBehalfOfCompID;
+  OnBehalfOfSubID onBehalfOfSubID;
+  DeliverToCompID deliverToCompID;
+  DeliverToSubID deliverToSubID;
+
+  m_header.removeField( onBehalfOfCompID.getTag() );
+  m_header.removeField( onBehalfOfSubID.getTag() );
+  m_header.removeField( deliverToCompID.getTag() );
+  m_header.removeField( deliverToSubID.getTag() );
+
+  if( header.getFieldIfSet( onBehalfOfCompID ) )
+  {
+    if( onBehalfOfCompID.hasValue() )
+      m_header.setField( DeliverToCompID( onBehalfOfCompID ) );
+  }
+
+  if( header.getFieldIfSet( onBehalfOfSubID ) )
+  {
+    if( onBehalfOfSubID.hasValue() )
+      m_header.setField( DeliverToSubID( onBehalfOfSubID ) );
+  }
+
+  if( header.getFieldIfSet( deliverToCompID ) )
+  {
+    if( deliverToCompID.hasValue() )
+      m_header.setField( OnBehalfOfCompID( deliverToCompID ) );
+  }
+
+  if( header.getFieldIfSet( deliverToSubID ) )
+  {
+    if( deliverToSubID.hasValue() )
+      m_header.setField( OnBehalfOfSubID( deliverToSubID ) );
+  }
+}
+
+bool Message::InitializeXML( const std::string& url )
+{
+  try
+  {
+    std::auto_ptr<DataDictionary> p =
+      std::auto_ptr<DataDictionary>(new DataDictionary(url));
+    s_dataDictionary = p;
+    return true;
+  }
+  catch( ConfigError& )
+  { return false; }
+}
+
+std::string Message::toXML() const
+{
+  std::string str;
+  return toXML( str );
+}
+
+std::string& Message::toXML( std::string& str ) const
+{
+  std::stringstream stream;
+  stream << "<message>"                         << std::endl
+         << std::setw(2) << " " << "<header>"   << std::endl
+         << toXMLFields(getHeader(), 4)
+         << std::setw(2) << " " << "</header>"  << std::endl
+         << std::setw(2) << " " << "<body>"     << std::endl
+         << toXMLFields(*this, 4)
+         << std::setw(2) << " " << "</body>"    << std::endl
+         << std::setw(2) << " " << "<trailer>"  << std::endl
+         << toXMLFields(getTrailer(), 4)
+         << std::setw(2) << " " << "</trailer>" << std::endl
+         << "</message>";
+
+  return str = stream.str();
+}
+
+std::string Message::toXMLFields(const FieldMap& fields, int space) const
+{
+  std::stringstream stream;
+  FieldMap::iterator i;
+  std::string name;
+  for(i = fields.begin(); i != fields.end(); ++i)
+  {
+    int field = i->first;
+    std::string value = i->second.getString();
+
+    stream << std::setw(space) << " " << "<field ";
+    if(s_dataDictionary.get() && s_dataDictionary->getFieldName(field, name))
+    {
+      stream << "name=\"" << name << "\" ";
+    }
+    stream << "number=\"" << field << "\"";
+    if(s_dataDictionary.get()
+       && s_dataDictionary->getValueName(field, value, name))
+    {
+      stream << " enum=\"" << name << "\"";
+    }
+    stream << ">";
+    stream << "<![CDATA[" << value << "]]>";
+    stream << "</field>" << std::endl;
+  }
+
+  FieldMap::g_iterator j;
+  for(j = fields.g_begin(); j != fields.g_end(); ++j)
+  {
+    FieldMap::g_item_const_iterator k, kend = j->second.end();
+    for(k = j->second.begin(); k != kend; ++k)
+    {
+      stream << std::setw(space) << " " << "<group>" << std::endl
+             << toXMLFields(*(*k), space+2)
+             << std::setw(space) << " " << "</group>" << std::endl;
+    }
+  }
+
+  return stream.str();
+}
 }

@@ -186,7 +186,7 @@ class Message : public FieldMap
       return &r;
     }
 
-    void flushField(FieldMap& map)
+    void HEAVYUSE flushField(FieldMap& map)
     {
       if ( LIKELY(m_body < m_field) )
       {
@@ -792,7 +792,8 @@ inline void Message::FieldReader::skip()
   throw InvalidMessage(ErrSOH);
 }
 
-inline void Message::FieldCounter::countHeader( const FieldMap& fields )
+inline void HEAVYUSE
+Message::FieldCounter::countHeader( const FieldMap& fields )
 {
   FieldMap::const_iterator it = fields.begin();
   const FieldMap::const_iterator end = fields.end();
@@ -819,9 +820,10 @@ inline void Message::FieldCounter::countHeader( const FieldMap& fields )
   m_length += countGroups(fields.g_begin(), fields.g_end());
 }
 
-inline void Message::FieldCounter::countHeader( int beginStringField,
-                                                int bodyLengthField,
-                                                const FieldMap& fields )
+inline void HEAVYUSE
+Message::FieldCounter::countHeader( int beginStringField,
+                                    int bodyLengthField,
+                                    const FieldMap& fields )
 {
   const FieldMap::const_iterator end = fields.end();
   for( FieldMap::const_iterator it = fields.begin(); it != end; ++it )
@@ -838,7 +840,8 @@ inline void Message::FieldCounter::countHeader( int beginStringField,
   m_length += countGroups(fields.g_begin(), fields.g_end());
 }
 
-inline int Message::FieldCounter::countBody(const FieldMap& fields)
+inline int HEAVYUSE
+Message::FieldCounter::countBody(const FieldMap& fields)
 {
   int result = 0;
   const FieldMap::const_iterator end = fields.end();
@@ -850,7 +853,8 @@ inline int Message::FieldCounter::countBody(const FieldMap& fields)
   return result + countGroups(fields.g_begin(), fields.g_end());
 }
 
-inline void Message::FieldCounter::countTrailer(const FieldMap& fields)
+inline void HEAVYUSE
+Message::FieldCounter::countTrailer(const FieldMap& fields)
 {
   const FieldMap::const_iterator end = fields.end();
   for ( FieldMap::const_iterator it = fields.begin();
@@ -870,31 +874,45 @@ inline std::ostream& operator <<
   return stream;
 }
 
-/// Parse the type of a message from a string.
-inline MsgType identifyType( const std::string& message )
-throw( MessageParseError )
+inline SessionID Message::getSessionID( const std::string& qualifier ) const
+throw( FieldNotFound )
 {
-  std::string::size_type pos = message.find( "\00135=" );
-  if ( pos == std::string::npos ) throw MessageParseError();
+  BeginString beginString;
+  SenderCompID senderCompID;
+  TargetCompID targetCompID;
 
-  std::string::size_type startValue = pos + 4;
-  std::string::size_type soh = message.find_first_of( '\001', startValue );
-  if ( soh == std::string::npos ) throw MessageParseError();
+  getHeader().getField( beginString );
+  getHeader().getField( senderCompID );
+  getHeader().getField( targetCompID );
 
-  std::string value = message.substr( startValue, soh - startValue );
-  return MsgType( value );
+  return SessionID( beginString, senderCompID, targetCompID, qualifier );
 }
+
+inline void Message::setSessionID( const SessionID& sessionID )
+{
+  getHeader().setField( sessionID.getBeginString() );
+  getHeader().setField( sessionID.getSenderCompID() );
+  getHeader().setField( sessionID.getTargetCompID() );
+}
+
+/// Parse the type of a message from a string.
 inline MsgType identifyType( const char* message, std::size_t length )
 throw( MessageParseError )
 {
   const char* p = Util::CharBuffer::memmem( message, length, "\00135=", 4 );
-  if ( p == NULL ) throw MessageParseError();
-
-  p += 4;
-  const char* e = (const char*)::memchr( p, '\001', length - (p - message) );
-  if ( e == NULL ) throw MessageParseError();
-
-  return MsgType( p, e - p );
+  if ( p != NULL )
+  {
+    p += 4;
+    const char* e = (const char*)::memchr( p, '\001', length - (p - message) );
+    if ( e != NULL )
+      return MsgType( p, e - p );
+  }
+  throw MessageParseError();
+}
+inline MsgType identifyType( const std::string& message )
+throw( MessageParseError )
+{
+  return identifyType( String::c_str(message), String::length(message) );
 }
 }
 

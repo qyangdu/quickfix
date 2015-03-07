@@ -1213,6 +1213,10 @@ namespace FIX
 
     public:
 
+      struct Identity : public std::unary_function<int, std::size_t> {
+        inline std::size_t operator()(int tag) const { return tag; }
+      };
+
       template <typename S> static void generate(S& result, int value, int digits)
       {
         Convertor(value).append_to(result, digits);

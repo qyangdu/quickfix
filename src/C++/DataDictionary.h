@@ -30,28 +30,39 @@
 #include "FieldMap.h"
 #include "DOMDocument.h"
 #include "Exceptions.h"
-#include <bitset>
+#include "ItemAllocator.h"
+#include "Container.h"
 #include <set>
 #include <map>
 #include <string.h>
-
-#ifdef HAVE_BOOST
-#include <boost/pool/pool_alloc.hpp>
-#include <boost/unordered_map.hpp>
-#include <boost/unordered_set.hpp>
-#include <boost/container/flat_map.hpp>
-#include <boost/container/flat_set.hpp>
-#endif
-
-#ifdef HAVE_SPARSEHASH
-#include <sparsehash/dense_hash_map>
-#include <sparsehash/dense_hash_set>
-#endif
 
 namespace FIX
 {
 class FieldMap;
 class Message;
+
+class DataDictionaryBase {
+  protected:
+#if defined(HAVE_BOOST)
+  template <typename T> struct pool_allocator {
+    typedef boost::pool_allocator<T> type;
+  };
+
+  template <typename T>
+  static typename T::allocator_type get_allocator() {
+    return typename T::allocator_type();
+  }
+#else
+  template <typename T> struct pool_allocator {
+    typedef std::allocator<T> type;
+  };
+
+  template <typename T>
+  static typename T::allocator_type get_allocator() {
+    return typename T::allocator_type();
+  }
+#endif
+};
 
 /**
  * Represents a data dictionary for a version of %FIX.
@@ -60,7 +71,7 @@ class Message;
  * responsible for validation beyond the basic structure of a message.
  */
 
-class DataDictionary
+class DataDictionary : public DataDictionaryBase
 {
   static const int HeaderTypeBits = 8192;
   static const int TrailerTypeBits = 8192;
@@ -101,193 +112,350 @@ class DataDictionary
 
 public:
 
+  typedef message_order OrderedFieldsArray;
+
 #if defined(HAVE_BOOST)
+  #ifndef DICTIONARY_MSGFIELDS_TYPE_SET
   typedef boost::container::flat_set <
     int,
     std::less<int>,
-    boost::pool_allocator<int>
+    pool_allocator<int>::type
   > MsgFields;
+  #define DICTIONARY_MSGFIELDS_TYPE_SET(c, a) c(std::less<int>(), (a))
+  #endif
 
-  typedef boost::unordered_map <
-    String::value_type,
-    MsgFields,
-    ItemHash,
-    String::equal_to,
-    boost::fast_pool_allocator< std::pair<String::value_type, MsgFields> >
-  > MsgTypeToField;
-
+  #ifndef DICTIONARY_NONBODYFIELDS_TYPE_SET
   typedef boost::container::flat_map <
     int,
     bool,
     std::less<int>,
-    boost::pool_allocator< std::pair<int, bool> >
+    pool_allocator< std::pair<int, bool> >::type
   > NonBodyFields;
+  #define DICTIONARY_NONBODYFIELDS_TYPE_SET(c, a) c(std::less<int>(), (a))
+  #endif
+#endif
 
-  typedef std::vector<
+  #ifndef DICTIONARY_MSGFIELDS_TYPE_SET
+  typedef std::set <
     int,
-    boost::pool_allocator<int>
-  > OrderedFields;
+    std::less<int>,
+    pool_allocator<int>::type
+  > MsgFields;
+  #define DICTIONARY_MSGFIELDS_TYPE_SET(c, a) c(std::less<int>(), (a))
+  #endif
 
-  typedef message_order OrderedFieldsArray;
+  #ifndef DICTIONARY_NONBODYFIELDS_TYPE_SET
+  typedef std::map <
+    int,
+    bool,
+    std::less<int>,
+    pool_allocator<int>::type
+  > NonBodyFields;
+  #define DICTIONARY_NONBODYFIELDS_TYPE_SET(c, a) c(std::less<int>(), (a))
+  #endif
 
-  typedef boost::unordered_set <
-    String::value_type,
-    ItemHash,
-    String::equal_to,
-    boost::fast_pool_allocator<String::value_type>
-  > Values;
-
-  typedef boost::unordered_map <
+// RDESTL nested container definition
+#if defined(HAVE_RDESTL)
+  #ifndef DICTIONARY_FIELDPRESENCEMAP_TYPE_SET
+  typedef Container::rde_hash_map <
     String::value_type,
     std::pair < int, DataDictionary* >,
     ItemHash,
-    std::equal_to< String::value_type >,
-    boost::fast_pool_allocator< std::pair<String::value_type,
-    std::pair<int, DataDictionary*> > >
-  > FieldPresenceMap;
-
-#ifdef HAVE_SPARSEHASH
-  typedef google::dense_hash_set <
-    String::value_type,
-    ItemHash,
     String::equal_to,
-    boost::pool_allocator<String::value_type>
-  > MsgTypes;
+    pool_allocator<
+      std::pair< String::value_type,
+        std::pair<int, DataDictionary*>
+      >
+    >::type
+  >::type FieldPresenceMap;
+  #define DICTIONARY_FIELDPRESENCEMAP_TYPE_SET(c, a) c(FieldPresenceMap::allocator_type(a))
+  #endif
 
-  typedef google::dense_hash_set <
-    int,
-    boost::hash<int>,
-    std::equal_to<int>,
-    boost::pool_allocator<int>
-  > Fields;
-
-  typedef google::dense_hash_map <
-    int,
-    TYPE::Type,
-    boost::hash<int>,
-    std::equal_to<int>,
-    boost::pool_allocator< std::pair<int, TYPE::Type> >
-  > FieldTypes;
-
-  typedef google::dense_hash_map <
-    int,
-    Values,
-    boost::hash<int>,
-    std::equal_to<int>,
-    boost::pool_allocator< std::pair<int, Values> >
-  > FieldToValue;
-
-  typedef google::dense_hash_map <
-    int,
-    FieldPresenceMap,
-    boost::hash<int>,
-    std::equal_to<int>,
-    boost::pool_allocator< std::pair<int, FieldPresenceMap> >
-  > FieldToGroup;
-
-#else
-  typedef boost::unordered_set <
-    String::value_type,
-    ItemHash,
-    String::equal_to,
-    boost::fast_pool_allocator<String::value_type>
-  > MsgTypes;
-
-  typedef boost::unordered_set <
-    int,
-    boost::hash<int>,
-    std::equal_to<int>,
-    boost::fast_pool_allocator<int>
-  > Fields;
-
-  typedef boost::unordered_map <
-    int,
-    TYPE::Type,
-    boost::hash<int>,
-    std::equal_to<int>,
-    boost::fast_pool_allocator< std::pair<int, TYPE::Type> >
-  > FieldTypes;
-
-  typedef boost::unordered_map <
-    int,
-    Values,
-    boost::hash<int>,
-    std::equal_to<int>,
-    boost::fast_pool_allocator< std::pair<int, Values> >
-  > FieldToValue;
-
-  typedef boost::unordered_map <
-    int,
-    FieldPresenceMap,
-    boost::hash<int>,
-    std::equal_to<int>,
-    boost::fast_pool_allocator< std::pair<int, FieldPresenceMap> >
-  > FieldToGroup;
-
+  #ifndef DICTIONARY_VALUES_TYPE_SET
+  typedef Container::rde_hash_set <
+    String::value_type, ItemHash, String::equal_to, pool_allocator<String::value_type>::type
+  >::type Values;
+  #define DICTIONARY_VALUES_TYPE_SET(c, a) c(Values::allocator_type(a))
+  #endif
 #endif
-  typedef boost::unordered_map <
-    int,
-    std::string,
-    boost::hash<int>,
-    std::equal_to<int>,
-    boost::fast_pool_allocator< std::pair<int, std::string> >
-  > FieldToName;
 
-  typedef boost::unordered_map <
-    std::string,
-    int,
-    ItemHash,
-    String::equal_to,
-    boost::fast_pool_allocator< std::pair<std::string, int> >
-  > NameToField;
-
-  typedef boost::unordered_map <
-    std::pair < int, std::string >,
-    std::string,
-    ItemHash,
-    std::equal_to<std::pair< int, std::string> >,
-    boost::fast_pool_allocator<
-      std::pair<std::pair<int, std::string>,
-      std::string>
+// Default nested container definition
+#ifndef DICTIONARY_FIELDPRESENCEMAP_TYPE_SET
+typedef Container::DictionaryMap <
+  String::value_type,
+  std::pair < int, DataDictionary* >,
+  ItemHash,
+  String::equal_to,
+  pool_allocator<
+    std::pair< String::value_type,
+      std::pair<int, DataDictionary*>
     >
-  > ValueToName;
+  >::type
+> FieldPresenceMap;
+#define DICTIONARY_FIELDPRESENCEMAP_TYPE_SET(c, a) c(FieldPresenceMap::allocator_type(a))
+#endif
 
-#else /* !HAVE_BOOST */
-  typedef std::set < int > MsgFields;
-  typedef std::map < String::value_type, MsgFields > MsgTypeToField;
-  typedef std::map < int, bool > NonBodyFields;
-  typedef std::vector< int > OrderedFields;
-  typedef message_order OrderedFieldsArray;
-  typedef std::set < String::value_type > Values;
-  typedef std::map < String::value_type, std::pair < int, DataDictionary* > > FieldPresenceMap;
-#ifdef HAVE_SPARSEHASH
+#ifndef DICTIONARY_VALUES_TYPE_SET
+typedef Container::DictionarySet <
+  String::value_type, ItemHash, String::equal_to, pool_allocator<String::value_type>::type
+> Values;
+#define DICTIONARY_VALUES_TYPE_SET(c, a) c(Values::allocator_type(a))
+#endif
+
+// ULIB container definitions
+#if defined(HAVE_ULIB)
+  #ifndef DICTIONARY_FIELDS_TYPE_SET
+  typedef Container::ulib_hash_set<int, Util::Tag::Identity > Fields;
+  #define DICTIONARY_FIELDS_TYPE_SET(c, a) c()
+  #endif
+
+  #ifndef DICTIONARY_FIELDTYPES_TYPE_SET
+  typedef Container::ulib_hash_map <
+    int, TYPE::Type, Util::Tag::Identity,
+    pool_allocator< std::pair<int, TYPE::Type> >::type
+  > FieldTypes;
+  #define DICTIONARY_FIELDTYPES_TYPE_SET(c, a) c(a)
+  #endif
+
+  #ifndef DICTIONARY_FIELDTOVALUE_TYPE_SET
+  typedef Container::ulib_hash_map <
+    int, Values, Util::Tag::Identity,
+    pool_allocator< std::pair<int, Values> >::type
+  > FieldToValue;
+  #define DICTIONARY_FIELDTOVALUE_TYPE_SET(c, a) c(a)
+  #endif
+
+  #ifndef DICTIONARY_FIELDTOGROUP_TYPE_SET
+  typedef Container::ulib_hash_map <
+    int, FieldPresenceMap, Util::Tag::Identity,
+    pool_allocator< std::pair<int, FieldPresenceMap> >::type
+  > FieldToGroup;
+  #define DICTIONARY_FIELDTOGROUP_TYPE_SET(c, a) c(a)
+  #endif
+#endif // ULIB
+
+// RDESTL container definitions
+#if defined(HAVE_RDESTL)
+  #ifndef DICTIONARY_MSGTYPETOFIELD_TYPE_SET
+  typedef Container::rde_hash_map <
+    String::value_type,
+    MsgFields,
+    ItemHash,
+    String::equal_to,
+    pool_allocator<
+      std::pair<String::value_type, MsgFields>
+    >::type
+  >::type MsgTypeToField;
+  #define DICTIONARY_MSGTYPETOFIELD_TYPE_SET(c, a) c(MsgTypeToField::allocator_type(a))
+  #endif
+
+  #ifndef DICTIONARY_FIELDS_TYPE_SET
+  typedef Container::rde_hash_set <
+    int, Util::Tag::Identity, std::equal_to<int>, pool_allocator<int>::type
+  >::type Fields;
+  #define DICTIONARY_FIELDS_TYPE_SET(c, a) c(Fields::allocator_type(a))
+  #endif
+
+  #ifndef DICTIONARY_MSGTYPES_TYPE_SET
+  typedef Container::rde_hash_set <
+    String::value_type, ItemHash, String::equal_to, pool_allocator<String::value_type>::type
+  >::type MsgTypes;
+  #define DICTIONARY_MSGTYPES_TYPE_SET(c, a) c(MsgTypes::allocator_type(a))
+  #endif
+
+  #ifndef DICTIONARY_FIELDTYPES_TYPE_SET
+  typedef Container::rde_hash_map <
+    int,
+    TYPE::Type,
+    Util::Tag::Identity,
+    std::equal_to<int>,
+    pool_allocator<
+      std::pair<int, TYPE::Type>
+    >::type
+  >::type FieldTypes;
+  #define DICTIONARY_FIELDTYPES_TYPE_SET(c, a) c(FieldTypes::allocator_type(a))
+  #endif
+
+  #ifndef DICTIONARY_FIELDTOVALUE_TYPE_SET
+  typedef Container::rde_hash_map <
+    int,
+    Values,
+    Util::Tag::Identity,
+    std::equal_to<int>,
+    pool_allocator<
+      std::pair<int, Values>
+    >::type
+  >::type FieldToValue;
+  #define DICTIONARY_FIELDTOVALUE_TYPE_SET(c, a) c(FieldToValue::allocator_type(a))
+  #endif
+
+  #ifndef DICTIONARY_FIELDTOGROUP_TYPE_SET
+  typedef Container::rde_hash_map <
+    int,
+    FieldPresenceMap,
+    Util::Tag::Identity,
+    std::equal_to<int>,
+    pool_allocator<
+      std::pair<int, FieldPresenceMap>
+    >::type
+  >::type FieldToGroup;
+  #define DICTIONARY_FIELDTOGROUP_TYPE_SET(c, a) c(FieldToGroup::allocator_type(a))
+  #endif
+
+  #ifndef DICTIONARY_ORDEREDFIELDS_TYPE_SET
+  typedef Container::rde_vector <
+    int,
+    pool_allocator<int>::type
+  >::type OrderedFields;
+  #define DICTIONARY_ORDEREDFIELDS_TYPE_SET(c, a) c(OrderedFields::allocator_type(a))
+  #endif
+#endif // RDESTL
+
+// Google Sparsehash container definitions
+#if defined(HAVE_SPARSEHASH)
+  #ifndef DICTIONARY_MSGTYPES_TYPE_SET
   typedef google::dense_hash_set <
     String::value_type,
     ItemHash,
-    String::equal_to
+    String::equal_to,
+    pool_allocator<String::value_type>::type
   > MsgTypes;
+  #define SPARSEHASH_MSGTYPES_TYPE
+  #define DICTIONARY_MSGTYPES_TYPE_SET(c, a) c()
+  #endif
 
-  typedef google::dense_hash_set < int > Fields;
-  typedef google::dense_hash_map < int, TYPE::Type > FieldTypes;
-  typedef google::dense_hash_map < int, Values > FieldToValue;
-  typedef google::dense_hash_map < int, FieldPresenceMap > FieldToGroup;
-#else
-  typedef std::set < String::value_type > MsgTypes;
-  typedef std::set < int > Fields;
-  typedef std::map < int, TYPE::Type > FieldTypes;
-  typedef std::map < int, Values > FieldToValue;
-  typedef std::map < int, FieldPresenceMap > FieldToGroup;
+  #ifndef DICTIONARY_FIELDS_TYPE_SET
+  typedef google::dense_hash_set <
+    int,
+    Util::Tag::Identity,
+    std::equal_to<int>,
+    pool_allocator<int>::type
+  > Fields;
+  #define SPARSEHASH_FIELDS_TYPE
+  #define DICTIONARY_FIELDS_TYPE_SET(c, a) c(128, Util::Tag::Identity(), std::equal_to<int>(), (a))
+  #endif
+
+  #ifndef DICTIONARY_FIELDTYPES_TYPE_SET
+  typedef google::dense_hash_map <
+    int,
+    TYPE::Type,
+    Util::Tag::Identity,
+    std::equal_to<int>,
+    pool_allocator< std::pair<int, TYPE::Type> >::type
+  > FieldTypes;
+  #define SPARSEHASH_FIELDTYPES_TYPE
+  #define DICTIONARY_FIELDTYPES_TYPE_SET(c, a) c(128, Util::Tag::Identity(), std::equal_to<int>(), (a))
+  #endif
+
+  #ifndef DICTIONARY_FIELDTOVALUE_TYPE_SET
+  typedef google::dense_hash_map <
+    int,
+    Values,
+    Util::Tag::Identity,
+    std::equal_to<int>,
+    pool_allocator< std::pair<int, Values> >::type
+  > FieldToValue;
+  #define SPARSEHASH_FIELDTOVALUE_TYPE
+  #define DICTIONARY_FIELDTOVALUE_TYPE_SET(c, a) c(128, Util::Tag::Identity(), std::equal_to<int>(), (a))
+  #endif
+
+  #ifndef DICTIONARY_FIELDTOGROUP_TYPE_SET
+  typedef google::dense_hash_map <
+    int,
+    FieldPresenceMap,
+    Util::Tag::Identity,
+    std::equal_to<int>,
+    pool_allocator< std::pair<int, FieldPresenceMap> >::type
+  > FieldToGroup;
+  #define SPARSEHASH_FIELDTOGROUP_TYPE
+  #define DICTIONARY_FIELDTOGROUP_TYPE_SET(c, a) c(128, Util::Tag::Identity(), std::equal_to<int>(), (a))
+  #endif
+#endif // SPARSEHASH
+
+// By default use internal DictionaryMap/Set
+#ifndef DICTIONARY_MSGTYPETOFIELD_TYPE_SET
+typedef Container::DictionaryMap <
+  String::value_type,
+  MsgFields,
+  ItemHash,
+  String::equal_to,
+  pool_allocator<
+    std::pair<String::value_type, MsgFields>
+  >::type
+> MsgTypeToField;
+#define DICTIONARY_MSGTYPETOFIELD_TYPE_SET(c, a) c(MsgTypeToField::allocator_type(a))
 #endif
-  typedef std::map < int, std::string > FieldToName;
-  typedef std::map < std::string, int > NameToField;
-  typedef std::map < std::pair < int, std::string > ,
-  std::string  > ValueToName;
-#endif /* !HAVE_BOOST */
 
-  typedef Util::BitSet<DataTypeBits> FieldTypeDataBits;
-  typedef Util::BitSet<HeaderTypeBits> FieldTypeHeaderBits;
-  typedef Util::BitSet<TrailerTypeBits> FieldTypeTrailerBits;
-  typedef Util::BitSet<GroupTypeBits> FieldTypeGroupBits;
+#ifndef DICTIONARY_MSGTYPES_TYPE_SET
+typedef Container::DictionarySet <
+  String::value_type, ItemHash, String::equal_to, pool_allocator<String::value_type>::type
+> MsgTypes;
+#define DICTIONARY_MSGTYPES_TYPE_SET(c, a) c(MsgTypes::allocator_type(a))
+#endif
+
+#ifndef DICTIONARY_FIELDS_TYPE_SET
+typedef Container::DictionarySet <
+  int, Util::Tag::Identity, std::equal_to<int>, pool_allocator<int>::type
+> Fields;
+#define DICTIONARY_FIELDS_TYPE_SET(c, a) c(Fields::allocator_type(a))
+#endif
+
+#ifndef DICTIONARY_FIELDTYPES_TYPE_SET
+typedef Container::DictionaryMap <
+  int,
+  TYPE::Type,
+  Util::Tag::Identity,
+  std::equal_to<int>,
+  pool_allocator<
+    std::pair<int, TYPE::Type>
+  >::type
+> FieldTypes;
+#define DICTIONARY_FIELDTYPES_TYPE_SET(c, a) c(FieldTypes::allocator_type(a))
+#endif
+
+#ifndef DICTIONARY_FIELDTOVALUE_TYPE_SET
+typedef Container::DictionaryMap <
+  int,
+  Values,
+  Util::Tag::Identity,
+  std::equal_to<int>,
+  pool_allocator<
+    std::pair<int, Values>
+  >::type
+> FieldToValue;
+#define DICTIONARY_FIELDTOVALUE_TYPE_SET(c, a) c(FieldToValue::allocator_type(a))
+#endif
+
+#ifndef DICTIONARY_FIELDTOGROUP_TYPE_SET
+typedef Container::DictionaryMap <
+  int,
+  FieldPresenceMap,
+  Util::Tag::Identity,
+  std::equal_to<int>,
+  pool_allocator<
+    std::pair<int, FieldPresenceMap>
+  >::type
+> FieldToGroup;
+#define DICTIONARY_FIELDTOGROUP_TYPE_SET(c, a) c(FieldToGroup::allocator_type(a))
+#endif
+
+#ifndef DICTIONARY_ORDEREDFIELDS_TYPE_SET
+typedef std::vector <
+  int,
+  pool_allocator<int>::type
+> OrderedFields;
+#define DICTIONARY_ORDEREDFIELDS_TYPE_SET(c, a) c(a)
+#endif
+
+typedef std::map < int, std::string > FieldToName;
+typedef std::map < std::string, int > NameToField;
+typedef std::map < std::pair < int, std::string > ,
+                   std::string  > ValueToName;
+
+typedef Util::BitSet<DataTypeBits> FieldTypeDataBits;
+typedef Util::BitSet<HeaderTypeBits> FieldTypeHeaderBits;
+typedef Util::BitSet<TrailerTypeBits> FieldTypeTrailerBits;
+typedef Util::BitSet<GroupTypeBits> FieldTypeGroupBits;
 
   DataDictionary();
   DataDictionary( const DataDictionary& copy );
@@ -312,19 +480,9 @@ public:
     return m_beginString;
   }
 
-  void addField( int field )
-  {
-    m_fields.insert( field );
-    m_orderedFields.push_back( field );
-  }
+  void addField( int field );
 
-  void addFieldName( int field, const std::string& name )
-  {
-    if( m_names.insert( std::make_pair(name, field) ).second == false )
-      throw ConfigError( "Field named " + name + " defined multiple times" );
-    m_fieldNames[field] = name;
-  }
-
+  void addFieldName( int field, const std::string& name );
   bool getFieldName( int field, std::string& name ) const
   {
     FieldToName::const_iterator i = m_fieldNames.find( field );
@@ -341,11 +499,7 @@ public:
     return true;
   }
 
-  void addValueName( int field, const std::string& value, const std::string& name )
-  {
-    m_valueNames[std::make_pair(field, value)] = name;
-  }
-
+  void addValueName( int field, const std::string& value, const std::string& name );
   bool getValueName( int field, const std::string& value, std::string& name ) const
   {
     ValueToName::const_iterator i = m_valueNames.find( std::make_pair(field, value) );
@@ -359,21 +513,13 @@ public:
     return m_fields.find( field ) != m_fields.end();
   }
 
-  void addMsgType( const std::string& msgType )
-  {
-    m_messages.insert( msgType );
-  }
-
+  void addMsgType( const std::string& msgType );
   bool isMsgType( const String::value_type& msgType ) const
   {
     return m_messages.find( msgType ) != m_messages.end();
   }
 
-  void addMsgField( const std::string& msgType, int field )
-  {
-    m_messageFields[ msgType ].insert( field );
-  }
-
+  void addMsgField( const std::string& msgType, int field );
   bool isMsgField( const String::value_type& msgType, int field ) const
   {
     MsgTypeToField::const_iterator i = m_messageFields.find( msgType );
@@ -382,39 +528,21 @@ public:
     return false;
   }
 
-  void addHeaderField( int field, bool required )
-  {
-    m_headerFields[ field ] = required;
-    if ( field < HeaderTypeBits )
-	m_fieldTypeHeader.set(field);
-  }
-
-  bool isHeaderField( int field ) const
+  void addHeaderField( int field, bool required );
+  bool HEAVYUSE PURE_DECL isHeaderField( int field ) const
   {
     return ( LIKELY(field < HeaderTypeBits) )
       ? m_fieldTypeHeader[ field ] : (m_headerFields.find( field ) != m_headerFields.end());
   }
 
-  void addTrailerField( int field, bool required )
-  {
-    m_trailerFields[ field ] = required;
-    if ( field < TrailerTypeBits )
-	m_fieldTypeTrailer.set(field);
-  }
-
-  bool isTrailerField( int field ) const
+  void addTrailerField( int field, bool required );
+  bool HEAVYUSE PURE_DECL isTrailerField( int field ) const
   {
     return ( LIKELY(field < TrailerTypeBits) )
       ? m_fieldTypeTrailer[ field ] : (m_trailerFields.find( field ) != m_trailerFields.end());
   }
 
-  void addFieldType( int field, FIX::TYPE::Type type )
-  {
-    m_fieldTypes[ field ] = type;
-    if (field < DataTypeBits && type == TYPE::Data)
-	m_fieldTypeData.set(field);
-  }
-
+  void addFieldType( int field, FIX::TYPE::Type type );
   bool getFieldType( int field, FIX::TYPE::Type& type ) const
   {
     FieldTypes::const_iterator i = m_fieldTypes.find( field );
@@ -423,11 +551,7 @@ public:
     return true;
   }
 
-  void addRequiredField( const std::string& msgType, int field )
-  {
-    m_requiredFields[ msgType ].insert( field );
-  }
-
+  void addRequiredField( const std::string& msgType, int field );
   bool isRequiredField( const String::value_type& msgType, int field ) const
   {
     MsgTypeToField::const_iterator i = m_requiredFields.find( msgType );
@@ -435,11 +559,7 @@ public:
     return i->second.find( field ) != i->second.end();
   }
 
-  void addFieldValue( int field, const String::value_type& value )
-  {
-    m_fieldValues[ field ].insert( value );
-  }
-
+  void addFieldValue( int field, const String::value_type& value );
   bool hasFieldValue( int field ) const
   {
     FieldToValue::const_iterator i = m_fieldValues.find( field );
@@ -453,19 +573,10 @@ public:
   }
 
   void addGroup( const FieldPresenceMap::key_type& msg, int field, int delim,
-                 const DataDictionary& dataDictionary )
-  {
-    DataDictionary * pDD = new DataDictionary( dataDictionary );
-    pDD->setVersion( getVersion() );
- 
-    if (field < GroupTypeBits) m_fieldTypeGroup.set(field);
-    FieldPresenceMap& presenceMap = m_groups[ field ];
-    presenceMap[ String::CopyFunc()(msg) ] = std::make_pair( delim, pDD );
-  }
-
+                 const DataDictionary& dataDictionary );
   bool isGroup( const FieldPresenceMap::key_type& msg, int field ) const
   {
-    if (LIKELY(field < GroupTypeBits && !m_fieldTypeGroup[field])) return false;
+    if ( LIKELY(field < GroupTypeBits && !m_fieldTypeGroup[field]) ) return false;
     FieldToGroup::const_iterator i = m_groups.find( field );
     if ( i == m_groups.end() ) return false;
 
@@ -475,10 +586,10 @@ public:
     return ( iter != presenceMap.end() );
   }
 
-  bool getGroup( const FieldPresenceMap::key_type& msg, int field, int& delim,
-                 const DataDictionary*& pDataDictionary ) const
+  bool HEAVYUSE getGroup( const FieldPresenceMap::key_type& msg,
+    int field, int& delim, const DataDictionary*& pDataDictionary ) const
   {
-    if (LIKELY(field < GroupTypeBits && !m_fieldTypeGroup[field])) return false;
+    if ( LIKELY(field < GroupTypeBits && !m_fieldTypeGroup[field]) ) return false;
     FieldToGroup::const_iterator i = m_groups.find( field );
     if ( i == m_groups.end() ) return false;
 
@@ -544,11 +655,19 @@ private:
 
   void init()
   {
-#ifdef HAVE_SPARSEHASH
-    m_fieldTypes.set_empty_key(-1);
+#ifdef SPARSEHASH_MSGTYPES_TYPE
     m_messages.set_empty_key(String::value_type());
-    m_fieldValues.set_empty_key(-1);
+#endif
+#ifdef SPARSEHASH_FIELDS_TYPE
     m_fields.set_empty_key(-1);
+#endif
+#ifdef SPARSEHASH_FIELDTYPES_TYPE
+    m_fieldTypes.set_empty_key(-1);
+#endif
+#ifdef SPARSEHASH_FIELDTOVALUE_TYPE
+    m_fieldValues.set_empty_key(-1);
+#endif
+#ifdef SPARSEHASH_FIELDTOGROUP_TYPE
     m_groups.set_empty_key(-1);
 #endif
   }
@@ -736,11 +855,11 @@ private:
   FieldTypeDataBits m_fieldTypeData;
   FieldTypes m_fieldTypes;
   FieldToValue m_fieldValues;
+  FieldTypeGroupBits m_fieldTypeGroup;
+  FieldToGroup m_groups;
   FieldToName m_fieldNames;
   NameToField m_names;
   ValueToName m_valueNames;
-  FieldTypeGroupBits m_fieldTypeGroup;
-  FieldToGroup m_groups;
 };
 }
 

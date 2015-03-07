@@ -106,6 +106,7 @@ libquickfix_la_SOURCES = \
         FixString.h \
 	ItemAllocator.h \
 	AtomicCount.h \
+	Container.h \
 	Values.h \
 	DeprecatedValues.h \
 	FlexLexer.h \

@@ -45,12 +45,32 @@
 namespace FIX
 {
 DataDictionary::DataDictionary()
-: m_hasVersion( false ), m_checks(AllChecks)
+: m_hasVersion( false ), m_checks(AllChecks),
+  DICTIONARY_MSGTYPETOFIELD_TYPE_SET(m_messageFields, get_allocator<MsgTypeToField>()),
+  DICTIONARY_MSGTYPETOFIELD_TYPE_SET(m_requiredFields, get_allocator<MsgTypeToField>()),
+  DICTIONARY_MSGTYPES_TYPE_SET(m_messages, get_allocator<MsgTypes>()),
+  DICTIONARY_FIELDS_TYPE_SET(m_fields, get_allocator<Fields>()),
+  DICTIONARY_ORDEREDFIELDS_TYPE_SET(m_orderedFields, get_allocator<OrderedFields>()),
+  DICTIONARY_NONBODYFIELDS_TYPE_SET(m_headerFields, get_allocator<NonBodyFields>()),
+  DICTIONARY_NONBODYFIELDS_TYPE_SET(m_trailerFields, get_allocator<NonBodyFields>()),
+  DICTIONARY_FIELDTYPES_TYPE_SET(m_fieldTypes, get_allocator<FieldTypes>()),
+  DICTIONARY_FIELDTOVALUE_TYPE_SET(m_fieldValues, get_allocator<FieldToValue>()),
+  DICTIONARY_FIELDTOGROUP_TYPE_SET(m_groups, get_allocator<FieldToGroup>())
 { init(); }
 
 DataDictionary::DataDictionary( std::istream& stream )
 throw( ConfigError )
-: m_hasVersion( false ), m_checks(AllChecks)
+: m_hasVersion( false ), m_checks(AllChecks),
+  DICTIONARY_MSGTYPETOFIELD_TYPE_SET(m_messageFields, get_allocator<MsgTypeToField>()),
+  DICTIONARY_MSGTYPETOFIELD_TYPE_SET(m_requiredFields, get_allocator<MsgTypeToField>()),
+  DICTIONARY_MSGTYPES_TYPE_SET(m_messages, get_allocator<MsgTypes>()),
+  DICTIONARY_FIELDS_TYPE_SET(m_fields, get_allocator<Fields>()),
+  DICTIONARY_ORDEREDFIELDS_TYPE_SET(m_orderedFields, get_allocator<OrderedFields>()),
+  DICTIONARY_NONBODYFIELDS_TYPE_SET(m_headerFields, get_allocator<NonBodyFields>()),
+  DICTIONARY_NONBODYFIELDS_TYPE_SET(m_trailerFields, get_allocator<NonBodyFields>()),
+  DICTIONARY_FIELDTYPES_TYPE_SET(m_fieldTypes, get_allocator<FieldTypes>()),
+  DICTIONARY_FIELDTOVALUE_TYPE_SET(m_fieldValues, get_allocator<FieldToValue>()),
+  DICTIONARY_FIELDTOGROUP_TYPE_SET(m_groups, get_allocator<FieldToGroup>())
 {
   init();
   readFromStream( stream );
@@ -58,22 +78,43 @@ throw( ConfigError )
 
 DataDictionary::DataDictionary( const std::string& url )
 throw( ConfigError )
-: m_hasVersion( false ), m_checks(AllChecks)
+: m_hasVersion( false ), m_checks(AllChecks),
+  DICTIONARY_MSGTYPETOFIELD_TYPE_SET(m_messageFields, get_allocator<MsgTypeToField>()),
+  DICTIONARY_MSGTYPETOFIELD_TYPE_SET(m_requiredFields, get_allocator<MsgTypeToField>()),
+  DICTIONARY_MSGTYPES_TYPE_SET(m_messages, get_allocator<MsgTypes>()),
+  DICTIONARY_FIELDS_TYPE_SET(m_fields, get_allocator<Fields>()),
+  DICTIONARY_ORDEREDFIELDS_TYPE_SET(m_orderedFields, get_allocator<OrderedFields>()),
+  DICTIONARY_NONBODYFIELDS_TYPE_SET(m_headerFields, get_allocator<NonBodyFields>()),
+  DICTIONARY_NONBODYFIELDS_TYPE_SET(m_trailerFields, get_allocator<NonBodyFields>()),
+  DICTIONARY_FIELDTYPES_TYPE_SET(m_fieldTypes, get_allocator<FieldTypes>()),
+  DICTIONARY_FIELDTOVALUE_TYPE_SET(m_fieldValues, get_allocator<FieldToValue>()),
+  DICTIONARY_FIELDTOGROUP_TYPE_SET(m_groups, get_allocator<FieldToGroup>())
 {
   init();
   readFromURL( url );
 }
 
-DataDictionary::DataDictionary( const DataDictionary& copy )
+DataDictionary::DataDictionary( const DataDictionary& src )
+: DataDictionaryBase(src),
+  m_hasVersion( false ), m_checks(AllChecks),
+  DICTIONARY_MSGTYPETOFIELD_TYPE_SET(m_messageFields, get_allocator<MsgTypeToField>()),
+  DICTIONARY_MSGTYPETOFIELD_TYPE_SET(m_requiredFields, get_allocator<MsgTypeToField>()),
+  DICTIONARY_MSGTYPES_TYPE_SET(m_messages, get_allocator<MsgTypes>()),
+  DICTIONARY_FIELDS_TYPE_SET(m_fields, get_allocator<Fields>()),
+  DICTIONARY_ORDEREDFIELDS_TYPE_SET(m_orderedFields, get_allocator<OrderedFields>()),
+  DICTIONARY_NONBODYFIELDS_TYPE_SET(m_headerFields, get_allocator<NonBodyFields>()),
+  DICTIONARY_NONBODYFIELDS_TYPE_SET(m_trailerFields, get_allocator<NonBodyFields>()),
+  DICTIONARY_FIELDTYPES_TYPE_SET(m_fieldTypes, get_allocator<FieldTypes>()),
+  DICTIONARY_FIELDTOVALUE_TYPE_SET(m_fieldValues, get_allocator<FieldToValue>()),
+  DICTIONARY_FIELDTOGROUP_TYPE_SET(m_groups, get_allocator<FieldToGroup>())
 {
   init();
-  *this = copy;
+  *this = src;
 }
 
 DataDictionary::~DataDictionary()
 {
-  FieldToGroup::iterator i;
-  for ( i = m_groups.begin(); i != m_groups.end(); ++i )
+  for ( FieldToGroup::iterator i = m_groups.begin(); i != m_groups.end(); ++i )
   {
     const FieldPresenceMap& presenceMap = i->second;
 
@@ -88,8 +129,50 @@ DataDictionary& DataDictionary::operator=( const DataDictionary& rhs )
   m_hasVersion = rhs.m_hasVersion;
   m_checks = rhs.m_checks;
   m_beginString = rhs.m_beginString;
-  m_messageFields = rhs.m_messageFields;
-  m_requiredFields = rhs.m_requiredFields;
+
+  for (MsgTypeToField::const_iterator i = rhs.m_messageFields.begin();
+       i != rhs.m_messageFields.end(); ++i)
+  {
+    MsgTypeToField::iterator it = m_messageFields.insert(
+     MsgTypeToField::value_type( i->first,
+      DICTIONARY_MSGFIELDS_TYPE_SET(MsgFields,
+        get_allocator<MsgFields>() ) ) ).first;
+    it->second = i->second;
+  }
+
+  for (MsgTypeToField::const_iterator i = rhs.m_requiredFields.begin();
+       i != rhs.m_requiredFields.end(); ++i)
+  {
+    MsgTypeToField::iterator it = m_requiredFields.insert(
+     MsgTypeToField::value_type( i->first,
+      DICTIONARY_MSGFIELDS_TYPE_SET(MsgFields,
+        get_allocator<MsgFields>() ) ) ).first;
+    it->second = i->second;
+  }
+
+  for (FieldToValue::const_iterator i = rhs.m_fieldValues.begin();
+       i != rhs.m_fieldValues.end(); ++i)
+  {
+    FieldToValue::iterator it = m_fieldValues.insert(
+      FieldToValue::value_type( i->first,
+        DICTIONARY_VALUES_TYPE_SET(Values,
+          get_allocator<Values>() ) ) ).first;
+    it->second = i->second;
+  }
+
+  m_fieldTypeGroup = rhs.m_fieldTypeGroup;
+  for (FieldToGroup::const_iterator i = rhs.m_groups.begin();
+       i != rhs.m_groups.end(); ++i )
+  {
+    const FieldPresenceMap& presenceMap = i->second;
+
+    FieldPresenceMap::const_iterator iter = presenceMap.begin();
+    for ( ; iter != presenceMap.end(); ++iter )
+    {
+      addGroup( iter->first, i->first, iter->second.first, *iter->second.second );
+    }
+  }
+
   m_messages = rhs.m_messages;
   m_fields = rhs.m_fields;
   m_orderedFields = rhs.m_orderedFields;
@@ -100,23 +183,10 @@ DataDictionary& DataDictionary::operator=( const DataDictionary& rhs )
   m_fieldTypeData = rhs.m_fieldTypeData;
   m_fieldTypeHeader = rhs.m_fieldTypeHeader;
   m_fieldTypeTrailer = rhs.m_fieldTypeTrailer;
-  m_fieldValues = rhs.m_fieldValues;
   m_fieldNames = rhs.m_fieldNames;
   m_names = rhs.m_names;
   m_valueNames = rhs.m_valueNames;
 
-  m_fieldTypeGroup = rhs.m_fieldTypeGroup;
-  FieldToGroup::const_iterator i = rhs.m_groups.begin();
-  for ( ; i != rhs.m_groups.end(); ++i )
-  {
-    const FieldPresenceMap& presenceMap = i->second;
-
-    FieldPresenceMap::const_iterator iter = presenceMap.begin();
-    for ( ; iter != presenceMap.end(); ++iter )
-    {
-      addGroup( iter->first, i->first, iter->second.first, *iter->second.second );
-    }
-  }
   return *this;
 }
 
@@ -681,5 +751,97 @@ TYPE::Type DataDictionary::XMLTypeToType( const std::string& type ) const
   if ( type == "COUNTRY" ) return TYPE::Country;
   if ( type == "TIME" ) return TYPE::UtcTimeStamp;
   return TYPE::Unknown;
+}
+
+void DataDictionary::addField( int field )
+{
+  m_fields.insert( field );
+  m_orderedFields.push_back( field );
+}
+
+void DataDictionary::addFieldName( int field, const std::string& name )
+{
+  if( m_names.insert( std::make_pair(name, field) ).second == false )
+    throw ConfigError( "Field named " + name + " defined multiple times" );
+  m_fieldNames[field] = name;
+}
+
+void DataDictionary::addValueName( int field, const std::string& value, const std::string& name )
+{
+  m_valueNames[std::make_pair(field, value)] = name;
+}
+
+void DataDictionary::addMsgType( const std::string& msgType )
+{
+  m_messages.insert( String::value_type( msgType.c_str(), msgType.length() ) );
+}
+
+void DataDictionary::addMsgField( const std::string& msgType, int field )
+{
+  MsgTypeToField::iterator i = m_messageFields.find( msgType );
+  if ( i == m_messageFields.end() )
+    m_messageFields.insert(
+      MsgTypeToField::value_type(
+        String::value_type( msgType.c_str(), msgType.length() ),
+          DICTIONARY_MSGFIELDS_TYPE_SET(MsgFields, get_allocator<MsgFields>()) ) );
+  m_messageFields[ msgType ].insert( field );
+}
+
+void DataDictionary::addHeaderField( int field, bool required )
+{
+  m_headerFields[ field ] = required;
+  if ( field < HeaderTypeBits )
+      m_fieldTypeHeader.set(field);
+}
+
+void DataDictionary::addTrailerField( int field, bool required )
+{
+  m_trailerFields[ field ] = required;
+  if ( field < TrailerTypeBits )
+      m_fieldTypeTrailer.set(field);
+}
+
+void DataDictionary::addFieldType( int field, FIX::TYPE::Type type )
+{
+  m_fieldTypes[ field ] = type;
+  if (field < DataTypeBits && type == TYPE::Data)
+      m_fieldTypeData.set(field);
+}
+
+void DataDictionary::addRequiredField( const std::string& msgType, int field )
+{
+  MsgTypeToField::iterator i = m_requiredFields.find( msgType );
+  if ( i == m_requiredFields.end() )
+    m_requiredFields.insert(
+      MsgTypeToField::value_type(
+        String::value_type( msgType.c_str(), msgType.length() ),
+          DICTIONARY_MSGFIELDS_TYPE_SET(MsgFields, get_allocator<MsgFields>()) ) );
+  m_requiredFields[ msgType ].insert( field );
+}
+
+void DataDictionary::addFieldValue( int field, const String::value_type& value )
+{
+  FieldToValue::iterator i = m_fieldValues.find( field );
+  if (i == m_fieldValues.end())
+    m_fieldValues.insert(
+      FieldToValue::value_type(
+        field, DICTIONARY_VALUES_TYPE_SET(Values, get_allocator<Values>()) ) );
+  m_fieldValues[ field ].insert( value );
+}
+
+void DataDictionary::addGroup( const FieldPresenceMap::key_type& msg, int field, int delim,
+               const DataDictionary& dataDictionary )
+{
+  DataDictionary * pDD = new DataDictionary( dataDictionary );
+  pDD->setVersion( getVersion() );
+
+  if ( field < GroupTypeBits ) m_fieldTypeGroup.set(field);
+  FieldToGroup::iterator it = m_groups.find( field );
+  if ( it == m_groups.end() )
+    m_groups.insert(
+      FieldToGroup::value_type( field,
+        DICTIONARY_FIELDPRESENCEMAP_TYPE_SET(FieldPresenceMap, get_allocator<FieldPresenceMap>()) ) ); 
+  FieldPresenceMap& presenceMap = m_groups[ field ];
+  presenceMap[ String::CopyFunc()(msg) ] = std::make_pair( delim, pDD );
 }
 }
