@@ -58,7 +58,7 @@ namespace Container {
 // Minimal dictionary without erase capability
 // based on open addressing hash table with power of 2 size,
 // triangular sequence quadratic probing and cached key hashes.
-// Optimized specializations for tag indices assume tags to be < 99999999.
+// Optimized specializations for indexing by tag presume that keys are non-negative
 template <typename Dictionary, typename Traits> class DictionaryBase {
 public:
 

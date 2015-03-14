@@ -438,7 +438,7 @@ class FieldMap
 
 #ifdef ENABLE_BOOST_MAP
   template <typename Arg> store_type::value_type& HEAVYUSE push_back(const Arg& arg) {
-    return *m_fields.emplace( m_fields.end(), arg.getField(), arg );
+    return *m_fields.emplace_hint( m_fields.end(), arg.getField(), arg );
   }
   template <typename Arg> store_type::const_iterator HEAVYUSE add(const Arg& arg) {
     return m_fields.emplace( arg.getField(), arg );
