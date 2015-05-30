@@ -1545,6 +1545,13 @@ namespace FIX
 #define IOV_BUF(b) ((b).buf)
 #define IOV_LEN(b) ((b).len)
 
+    static inline void NOTHROW append(sg_buf_t& buf, const char* s, std::size_t len)
+    {
+      char* pc = (char*)IOV_BUF(buf) + IOV_LEN(buf);
+      IOV_LEN(buf) += len;
+      while(len--) *pc++ = *s++;
+    }
+
     static inline std::size_t NOTHROW send(SOCKET socket, sg_buf_ptr bufs, int n)
     {
       DWORD bytes;
@@ -1579,6 +1586,64 @@ namespace FIX
 #define IOV_BUF_INITIALIZER(ptr, len) { (void*)(ptr), (size_t)(len) } 
 #define IOV_BUF(b) ((b).iov_base)
 #define IOV_LEN(b) ((b).iov_len)
+
+    // optimize for short strings
+    static inline void NOTHROW append(sg_buf_t& buf, const char* s, std::size_t len)
+    {
+      register char* p = (char*)IOV_BUF(buf) + IOV_LEN(buf);
+      IOV_LEN(buf) += len;
+#if defined(__GNUC__) && (defined(__x86_64__) || defined(__i386__))
+      while (len > 3)
+      {
+        __asm__ __volatile__ (
+          " movl (%1), %%ecx; \n\t"
+          " subq $4, %2;      \n\t"
+          " addq $4, %1;      \n\t"
+          " movl %%ecx, (%0); \n\t"
+          " addq $4, %0;      \n\t"
+          : "+r"(p), "+r"(s), "+r"(len)
+          :
+          : "ecx", "memory" );
+      }
+      if (len > 0)
+      {
+        __asm__ __volatile__ (
+	  "1:		     \n\t"
+          " movb (%1), %%cl; \n\t"
+          " incq %1;         \n\t"
+          " movb %%cl, (%0); \n\t"
+          " incq %0;         \n\t"
+          " decq %2;         \n\t"
+          " jne 1b;          \n\t"
+          : "+r"(p), "+r"(s), "+r"(len)
+          :
+          : "ecx", "memory" );
+/*
+        __asm__ __volatile__ (
+          " movb (%1), %%cl; \n\t"
+          " incq %1;         \n\t"
+          " movb %%cl, (%0); \n\t"
+          " decq %2;         \n\t"
+          " je 1f;           \n\t"
+          " incq %0;         \n\t"
+          " movb (%1), %%cl; \n\t"
+          " incq %1;         \n\t"
+          " movb %%cl, (%0); \n\t"
+          " decq %2;         \n\t"
+          " je 1f;           \n\t"
+          " movb (%1), %%cl; \n\t"
+          " incq %0;         \n\t"
+          " movb %%cl, (%0); \n\t"
+          "1:                \n\t"
+          : "+r"(p), "+r"(s), "+r"(len)
+          :
+          : "ecx", "memory" );
+*/
+      }
+#else
+      while(len--) *p++ = *s++;
+#endif
+    }
 
     static inline std::size_t NOTHROW send(int socket, sg_buf_ptr bufs, int n)
     {

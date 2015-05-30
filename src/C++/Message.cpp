@@ -125,12 +125,8 @@ namespace detail {
 			ProxyBuffer(std::string& s) {
 				buf_ = IOV_BUF_INITIALIZER(const_cast<char*>( String::c_str(s) ), 0);
 			}
-			ProxyBuffer& append(const char* s, std::size_t len) {
-				union { char* pc; word_type* pw; } dst = { (char*)IOV_BUF(buf_) + IOV_LEN(buf_) };
-				union { const char* pc; const word_type* pw; } src = { s };
-				IOV_LEN(buf_) += len;
-                                for (;len >= sizeof(word_type); len -= sizeof(word_type)) *dst.pw++ = *src.pw++;
-				while (len--) *dst.pc++ = *src.pc++;
+			ProxyBuffer& append(const char* src, std::size_t len) {
+				Sg::append(buf_, src, len);
 				return *this;
 			}
 			ProxyBuffer& append(int field, int sz, const char* src, std::size_t len) {
@@ -138,7 +134,7 @@ namespace detail {
                                 Util::Tag::generate(dst, field, sz);
                                 dst[sz++] = '=';
                                 IOV_LEN(buf_) += sz;
-                                append(src, len);
+                                Sg::append(buf_, src, len);
                                 IOV_LEN(buf_)++;
                                 dst[sz + len] = '\001';
                                 return *this;
