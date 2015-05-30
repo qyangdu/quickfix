@@ -16,9 +16,9 @@ AC_SUBST(BOOST_PREFIX)
 
 has_fieldmap=
 AC_ARG_WITH(fieldmap,
-    [  --with-fieldmap=<type>  select field map implementation, "std::multimap",
-                          "boost::container::multimap", "boost::intrusive::sgtree",
-                          "boost::intrusive::rbtree", or "boost::intrusive::avltree"], 
+    [  --with-fieldmap=<type>  select non-default field map implementation -
+                          "boost::intrusive::sgtree", "boost::intrusive::rbtree",
+                          or "boost::intrusive::avltree"], 
     [has_fieldmap=$withval],
     has_fieldmap="default"
 )
@@ -49,11 +49,6 @@ then
 fi
 AC_MSG_CHECKING(for FieldMap container type)
 case $has_fieldmap in
-     std::multimap)
-       AC_MSG_RESULT(std::multimap);;
-     boost::container::multimap)
-       AC_DEFINE(ENABLE_BOOST_MAP, 1, Define for boost::container::multimap)
-       AC_MSG_RESULT(boost::container::multimap);;
      boost::intrusive::sgtree)
        AC_DEFINE(ENABLE_BOOST_SGTREE, 1, Define for boost::intrusive::sgtree)
        if test $has_slist = true
@@ -82,13 +77,7 @@ case $has_fieldmap in
          AC_MSG_RESULT(boost::intrusive::avltree)
        fi;;
      *)
-       if test $has_boost = true
-       then
-         AC_DEFINE(ENABLE_BOOST_AVLTREE, 1, Define for boost::intrusive::avltree)
-         AC_DEFINE(ENABLE_SLIST_TREE_TRAVERSAL, 1, Define for tree with an ordered field list)
-         AC_MSG_RESULT(defaulting to boost::intrusive::avltree with list)
-       else
-         AC_MSG_RESULT(defaulting to stl)
-       fi ;;
+       AC_MSG_RESULT(defaulting to the Container::avlTree)
+       ;;
 esac
 ])

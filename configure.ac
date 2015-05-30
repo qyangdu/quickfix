@@ -9,7 +9,6 @@ m4_include([m4/ax_sso.m4])
 m4_include([m4/ax_lib_mysql.m4])
 m4_include([m4/ax_lib_postgresql.m4])
 m4_include([m4/ax_lib_boost.m4])
-m4_include([m4/ax_lib_sparsehash.m4])
 m4_include([m4/ax_lib_tbb.m4])
 m4_include([m4/ax_lib_stlport.m4])
 m4_include([m4/ax_allocator.m4])
@@ -34,7 +33,6 @@ AX_SSO()
 AX_LIB_MYSQL()
 AX_LIB_POSTGRESQL()
 AX_LIB_BOOST()
-AX_LIB_SPARSEHASH()
 AX_LIB_TBB()
 AX_LIB_STLPORT()
 AX_PYTHON()
@@ -69,9 +67,9 @@ PKG_CHECK_MODULES(XML, libxml-2.0 >= 2.6)
 LIBS="$STLPORT_LIBS $XML_LIBS $MYSQL_LIBS $POSTGRESQL_LIBS $TBB_LIBS $BOOST_LIBS $LIBS"
 # gcc flags
 if test `uname` == SunOS; then
-   	SHAREDFLAGS="$TBB_CFLAGS $BOOST_CFLAGS $SPARSEHASH_CFLAGS $STLPORT_CFLAGS $MYSQL_CFLAGS $POSTGRESQL_CFLAGS $XML_CPPFLAGS $XML_CFLAGS $JAVA_CFLAGS $PYTHON_CFLAGS $RUBY_CFLAGS"
+   	SHAREDFLAGS="$TBB_CFLAGS $BOOST_CFLAGS $STLPORT_CFLAGS $MYSQL_CFLAGS $POSTGRESQL_CFLAGS $XML_CPPFLAGS $XML_CFLAGS $JAVA_CFLAGS $PYTHON_CFLAGS $RUBY_CFLAGS"
 else
-	SHAREDFLAGS="-Wall -ansi -Wpointer-arith -Wwrite-strings $TBB_CFLAGS $BOOST_CFLAGS $SPARSEHASH_CFLAGS $STLPORT_CFLAGS $MYSQL_CFLAGS $POSTGRESQL_CFLAGS $XML_CPPFLAGS $XML_CFLAGS $PYTHON_CFLAGS $RUBY_CFLAGS"
+	SHAREDFLAGS="-Wall -ansi -Wpointer-arith -Wwrite-strings $TBB_CFLAGS $BOOST_CFLAGS $STLPORT_CFLAGS $MYSQL_CFLAGS $POSTGRESQL_CFLAGS $XML_CPPFLAGS $XML_CFLAGS $PYTHON_CFLAGS $RUBY_CFLAGS"
 fi
 
 CFLAGS="$CFLAGS $SHAREDFLAGS"
@@ -220,9 +218,6 @@ AX_LIB_TBB_CHECK()
 # check for Boost
 AX_LIB_BOOST_CHECK()
 
-# check for Google Sparsehash
-AX_LIB_SPARSEHASH_CHECK()
-
 AX_ALLOCATOR()
 
 AC_DEFINE(_REENTRANT, 1, enable reentrant system calls)
@@ -233,6 +228,9 @@ AC_LANG_RESTORE
 AC_CHECK_LIB(iberty, cplus_demangle,    
   AC_DEFINE(HAVE_CPLUS_DEMANGLE,1,whether or not we have to demangle names)
   LIBS="$LIBS -liberty")
+
+AC_CHECK_LIB(rt, clock_gettime, RT_LIBS="-lrt")
+AC_SUBST(RT_LIBS)
 
 # Checks for runtime behavior
 AC_MSG_CHECKING(if select modifies timeval parameter)

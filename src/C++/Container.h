@@ -37,20 +37,6 @@
 #include <boost/container/flat_set.hpp>
 #endif
 
-#ifdef HAVE_SPARSEHASH
-#include <sparsehash/dense_hash_map>
-#include <sparsehash/dense_hash_set>
-#endif
-
-#ifdef HAVE_RDESTL
-#include <rdestl/hash_map.h>
-#include <rdestl/vector.h>
-#endif
-
-#ifdef HAVE_ULIB
-#include <ulib/hash_open.h>
-#endif
-
 namespace FIX 
 {
 namespace Container {
@@ -58,7 +44,7 @@ namespace Container {
 // Minimal dictionary without erase capability
 // based on open addressing hash table with power of 2 size,
 // triangular sequence quadratic probing and cached key hashes.
-// Optimized specializations for indexing by tag presume that keys are non-negative
+// Optimized specializations for tag indices assume key tags to be non-negative
 template <typename Dictionary, typename Traits> class DictionaryBase {
 public:
 
@@ -512,167 +498,883 @@ class DictionarySet
   stored_allocator_type m_alloc;
 };
 
-#ifdef HAVE_ULIB
-  struct ulib_hash_base {
-    template <typename T, typename Hash>
-    struct Key {
-      struct type {
-      T m_key;
-      type(const Key& other) : m_key(other.m_key) {}
-      type& operator=(const Key& other) { m_key = other.m_key; }
-      type(const T& k) : m_key(k) {}
-      bool operator==(const type& other) const { return m_key == other.m_key; }
-      bool operator<(const type& other) const { return m_key < other.m_key; }
-      operator unsigned long() const { return Hash()(m_key); }
-      type& operator=(const T& k) { m_key = k; return *this; }
-      };
+struct avlNode {
+
+    typedef avlNode node_type;
+
+    enum side { left = 0, right = 1, parent = 2 }; // exactly this way
+    node_type* m_link[3];
+    node_type* m_next;
+    enum balance
+    {
+      unbalanced_neg_t = -2, // exactly this way
+      neg_t,
+      zero_t,
+      pos_t,
+      unbalanced_pos_t
     };
+    union {
+      balance m_balance;
+      int     m_balance_value;
+    };
+
+    static inline node_type* uncast(const node_type* p)
+    { return const_cast<node_type*>(p); }
+
+    static inline node_type* get_parent(const node_type* n)
+    { return n->m_link[parent]; }
+
+    static inline void set_parent(node_type* n, node_type* p = NULL)
+    { n->m_link[parent] = p; }
+
+    static inline node_type* get_next(const node_type* n)
+    { return n->m_next; }
+
+    static inline void set_next(node_type* n, node_type* p = NULL)
+    { n->m_next = p; }
+
+    static inline node_type* get_side(const node_type* n, bool right_side)
+    { return n->m_link[right_side]; }
+
+    static inline node_type* get_link(const node_type* n, side dir) 
+    { return n->m_link[dir]; }
+
+    static inline node_type* get_left(const node_type* n)
+    { return n->m_link[left]; }
+
+    static inline node_type* get_right(const node_type* n)
+    { return n->m_link[right]; }
+
+    static inline void set_side(node_type* n, bool right_side, node_type* p = NULL)
+    { n->m_link[right_side] = p; }
+
+    static inline void set_link(node_type* n, side dir, node_type* p = NULL)
+    { n->m_link[dir] = p; }
+
+    static inline void set_left(node_type* n, node_type* l = NULL)
+    { n->m_link[left] = l; }
+
+    static inline void set_right(node_type* n, node_type* r = NULL)
+    { n->m_link[right] = r; }
+
+    static inline balance get_balance(const node_type* n)
+    { return n->m_balance; }
+
+    static inline balance add_balance(node_type* n, int v)
+    { return (balance)(n->m_balance_value += v); }
+
+    static inline void set_balance(node_type* n, balance b)
+    { n->m_balance = b; }
+
+    static inline balance invert_balance(balance b)
+    { return (balance)-b; }
+
+}
+#if defined(__GNUC__)
+  __attribute__((packed))
+#endif
+;
+
+template <typename Node,
+          typename Compare = std::less<Node>,
+          typename BaseHook = avlNode>
+class avlTree {
+
+  typedef avlTree				tree_type;
+  typedef BaseHook 				node;
+  typedef BaseHook*				node_ptr;
+  typedef const BaseHook*			const_node_ptr;
+
+  public:
+
+  typedef std::size_t				size_type;
+  typedef Node					value_type;
+  typedef Compare				value_compare;
+  typedef Compare				key_compare;
+
+  struct insert_commit_data
+  {
+    node_ptr prev, anchor;
+    typename node::side direction;
   };
 
-  template<typename Hash> struct ulib_hash_base::Key<int, Hash> {
-    typedef int type;
-  };
-  template <typename T, typename Hash>
-  class ulib_hash_set : public ulib_hash_base {
-    typedef typename Key<T, Hash>::type key_type;
-    typedef ulib::open_hash_map<key_type, bool> type;
+  private:
+
+  node m_header; // sides are left- and right-most nodes, parent is root
+  value_compare m_comp;
+
+  template <class KeyValueCompare>
+  struct KeyNodeCompare {
+    KeyValueCompare m_comp;
     public:
-    typedef typename type::iterator iterator;
-    typedef typename type::const_iterator const_iterator;
-    void insert( const T value) { m_data.insert(value, true); }
-    const_iterator find( const T& value ) const { return m_data.find( value ); }
-    const_iterator end() const { return m_data.end(); }
-    private:
-    type m_data;
+    KeyNodeCompare(KeyValueCompare comp) : m_comp(comp) {}
+
+    template <class T>
+    const value_type& extract_key(const T& node, node_ptr) const 
+    { return *static_cast<const value_type*>(node); }
+
+    template <class T>
+    const value_type& extract_key(const T& node, const_node_ptr) const 
+    { return *static_cast<const value_type*>(node); }
+
+    template <class T, class U>
+    const T& extract_key(const T& key, const U&) const
+    { return key; }
+
+    template <class KeyA, class KeyB>
+    bool operator()(const KeyA& a, const KeyB& b) const
+    { return this->m_comp(this->extract_key(a, a), this->extract_key(b, b)); }
   };
 
-  template <typename T, typename V, typename Hash,
-            typename Alloc = std::allocator< std::pair<T, V> > >
-  class ulib_hash_map : public ulib_hash_base {
-    typedef typename Key<T, Hash>::type key_type;
-    typedef std::pair<T, V> stored_type;
-    typedef stored_type* stored_type_ptr;
-    typedef ulib::open_hash_map<key_type, stored_type_ptr > type;
-    typedef typename type::iterator _iterator;
-    typedef typename type::const_iterator _const_iterator;
-    typedef typename Alloc::template rebind<stored_type>::other stored_data_allocator_type;
+  template <class Cloner>
+  struct CloneInserter {
+    tree_type& m_tree;
+    Cloner m_cloner;
     public:
-    typedef stored_type value_type;
-    typedef typename Alloc::template rebind<value_type>::other allocator_type;
-    typedef V& reference;
-    class iterator {
-      _iterator m_it;
-      public:
-      typedef value_type& reference;
-      typedef value_type* pointer;
-      iterator(const _iterator& it) : m_it(it) {}
-      reference operator*() { return **m_it; }
-      pointer operator->() { return *m_it; }
-      iterator& operator++() { ++m_it; return *this; }
-      bool operator==(const iterator& other) { return m_it == other.m_it; }
-      bool operator!=(const iterator& other) { return m_it != other.m_it; }
-    };
-    class const_iterator {
-      _const_iterator m_it;
-      public:
-      typedef const value_type& reference;
-      typedef const value_type* pointer;
-      const_iterator(const _const_iterator& it) : m_it(it) {}
-      reference operator*() const { return **m_it; }
-      pointer operator->() const { return  *m_it; }
-      const_iterator& operator++() { ++m_it; return *this; }
-      bool operator==(const const_iterator& other) { return m_it == other.m_it; }
-      bool operator!=(const const_iterator& other) { return m_it != other.m_it; }
-    };
+    typedef const value_type&				const_reference;
 
-    ulib_hash_map(allocator_type a) : m_allocator(a) {}
-    ~ulib_hash_map() {
-      for (_iterator i = m_data.begin(); i != m_data.end(); ++i) {
-        i.value()->~stored_type();
-        m_allocator.deallocate(i.value(), sizeof(stored_type));
+    CloneInserter(tree_type& t, Cloner c) : m_tree(t), m_cloner(c) {}
+
+    void push_back(const value_type& v)
+    { m_tree.push_back(*m_cloner(v)); }
+
+    std::back_insert_iterator<CloneInserter> inserter()
+    { return std::back_inserter<CloneInserter>(*this); }
+  };
+
+  static bool is_header(const const_node_ptr & n)
+  { return n->m_next == n; }
+
+  static void init_header(node_ptr n)
+  { 
+    node::set_parent(n);
+    node::set_left(n, n); node::set_right(n, n); 
+    node::set_next(n, n); // header->m_next always points to itself
+    node::set_balance(n, node::zero_t);
+  }
+
+  static void init_inserted(node_ptr n, node_ptr parent, node_ptr next)
+  {
+    node::set_left(n);
+    node::set_right(n);
+    node::set_parent(n, parent);
+    node::set_next(n, next);
+    node::set_balance(n, node::zero_t);
+  }
+
+  static node_ptr get_header(const const_node_ptr & n)
+  {
+    node_ptr p = node::get_parent(n);
+    if (p)
+    {
+      while(!is_header(p))
+        p = node::get_parent(p);
+      return p;
+    }
+    return node::uncast(n);
+  }
+
+  static node_ptr begin_node(const const_node_ptr & header)
+  { return node::get_left(header); }
+
+  static node_ptr end_node(const const_node_ptr & header)
+  { return node::uncast(header); }
+
+  static inline node_ptr maximum(node_ptr n)
+  {
+    node_ptr p;
+    do { n = node::get_right(p = n); } while (n);
+    return p;
+  }
+
+  static node_ptr next_node(const const_node_ptr & n)
+  { return node::get_next(n); }
+
+  // n must not be leftmost
+  static node_ptr prev_node(const const_node_ptr & n)
+  {
+    if (is_header(n))
+      return node::get_right(n);
+
+    node_ptr p, x = node::get_left(n);
+    if (x)
+      p = maximum(x);
+    else 
+    {
+      p = node::get_parent(n);
+      if (n == node::get_left(p))
+        do { p = node::get_parent(x = p); } while (x == node::get_left(p));
+    }
+    return p;
+  }
+
+  static node_ptr rotate_single(const node_ptr & r, typename node::side dir)
+  {
+    node_ptr n = node::get_side(r, !dir);
+    node_ptr nsa = node::get_side(n, dir);
+    node::set_side(r, !dir, nsa);
+    if (nsa) node::set_parent(nsa, r);
+    node::set_side(n, dir, r);
+    node::set_parent(n, node::get_parent(r));
+    node::set_parent(r, n);
+    return n;
+  }
+
+  static node_ptr rotate_double(const node_ptr & r, typename node::side dir)
+  {
+    node_ptr n = node::get_side(r, !dir);
+    node_ptr b = node::get_side(n, dir);
+    node_ptr bsa = node::get_side(b, !dir);
+    node::set_side(n, dir, bsa);
+    if (bsa) node::set_parent(bsa, n);
+    node_ptr bsb = node::get_side(b, dir);
+    node::set_side(r, !dir, bsb);
+    if (bsb) node::set_parent(bsb, r);
+    node::set_side(b, !dir, n);
+    node::set_side(b, dir, r);
+    node::set_parent(b, node::get_parent(r));
+    node::set_parent(r, b);
+    node::set_parent(n, b);
+    return b;
+  }
+
+  template <class KeyType, class KeyNodePtrCompare>
+  static node_ptr lower_bound( node_ptr x, node_ptr y, const KeyType& key, KeyNodePtrCompare comp)
+  {
+    while (x) {
+      bool l = comp(x, key);
+      y = l ? y : x;
+      x = node::get_side(x, l);
+    }
+    return y;
+  }
+
+  template <class KeyType, class KeyNodePtrCompare>
+  static node_ptr upper_bound( node_ptr x, node_ptr y, const KeyType& key, KeyNodePtrCompare comp)
+  {
+    while (x) {
+      bool leq = !comp(key, x);
+      y = leq ? y : x;
+      x = node::get_side(x, leq);
+    }
+    return y;
+  }
+
+  template <class KeyType, class KeyNodePtrCompare>
+  static node_ptr find( const const_node_ptr& header, const KeyType& key, KeyNodePtrCompare comp)
+  {
+    node_ptr end = node::uncast(header);
+    node_ptr y = lower_bound(node::get_parent(header), end, key, comp);
+    return (y == end || comp(key, y)) ? end : y;
+  }
+
+  node_ptr header_ptr()
+  { return &this->m_header; }
+
+  const_node_ptr header_ptr() const
+  { return &this->m_header; }
+
+  static inline node_ptr
+  relink_parent(const const_node_ptr& header, node_ptr n, typename node::side dir)
+  {
+    node_ptr u = node::get_parent(n);
+    node::set_link(u, u != header ? dir : node::parent, n);
+    return u;
+  }
+
+  static inline node_ptr
+  relink_parent(const const_node_ptr& header, node_ptr n, const const_node_ptr& prev)
+  {
+    node_ptr u = node::get_parent(n);
+    if (u != header)
+      node::set_side(u, prev != node::get_left(u), n);
+    else
+      node::set_parent(u, n);
+    return u;
+  }
+
+  template <typename node::side dir>
+  struct direction_traits
+  {
+    static const int balance_change = 
+     (dir == node::right) ? node::pos_t : node::neg_t;
+    static const typename node::side opposite_dir =
+     (dir == node::right) ? node::left : node::right;
+
+    static const typename node::balance off_by_one =
+     (dir == node::right) ? node::pos_t : node::neg_t;
+    static const typename node::balance unbalanced =
+     (dir == node::right) ? node::unbalanced_pos_t : node::unbalanced_neg_t;
+  };
+
+  template <typename node::side dir>
+  static void do_push(node_ptr header, node_ptr n)
+  {
+    node_ptr p = node::get_side(header, dir);
+    node::set_side(header, dir, n);
+    init_inserted(n, p, header);
+    node_ptr u = node::get_parent(p);
+    if (u)
+    {
+      node::set_next(p, n);
+      node::set_side(p, dir, n);
+
+      typename node::balance b = node::add_balance(p, direction_traits<dir>::balance_change);
+      if (b != node::zero_t)
+      {
+        for (; u != header; u = node::get_parent(u))
+        {
+          b = node::add_balance(u, direction_traits<dir>::balance_change);
+          if (b == direction_traits<dir>::off_by_one)
+            continue;
+          if (b == direction_traits<dir>::unbalanced)
+          {
+            p = rotate_single(u, direction_traits<dir>::opposite_dir);
+            node::set_balance(p, node::zero_t);
+            node::set_balance(u, node::zero_t);
+            relink_parent(header, p, dir);
+          }
+          break;
+        }
+      }
+    } 
+    else
+    {
+      // parent pointer not set, empty tree
+      node::set_parent(header, n);
+      node::set_side(header, direction_traits<dir>::opposite_dir, n);
+    }
+  }
+
+  template <class iterator_type>
+  static std::pair<iterator_type, bool> as_iterator_pair(std::pair<node_ptr, bool> p)
+  { return std::pair<iterator_type, bool>(iterator_type(p.first), p.second); }
+
+  static inline std::pair<node_ptr, bool> init_commit_data(node_ptr prev, const const_node_ptr& hint, insert_commit_data& data)
+  {
+    data.direction = (prev && node::get_left(hint)) ? node::right : node::left;
+    data.anchor = data.direction == node::right ? prev : node::uncast(hint);
+    data.prev = prev;
+    return std::pair<node_ptr, bool>((node_ptr)0, true);
+  }
+
+  template <class KeyType, class KeyNodePtrCompare>
+  static std::pair<node_ptr, bool> insert_unique_check(const const_node_ptr& header, const const_node_ptr& hint, 
+                                          const KeyType& key, KeyNodePtrCompare comp, insert_commit_data& data)
+  {
+    node_ptr anchor = node::uncast(header), prev = NULL;
+    // check if the insertion point comes immediatelly before the hint
+    if (hint && (hint == header || comp(key, hint))
+             && (hint == begin_node(header) || comp(prev = prev_node(hint), key)))
+      return init_commit_data(prev, hint, data);
+
+    typename node::side side = node::parent;
+    for (node_ptr x = node::get_parent(anchor); x; x = node::get_link(x, side))
+      side = comp(key, anchor = x) ? node::left : (prev = x, node::right);
+
+    bool not_found = !prev || comp(prev, key);
+    if (not_found)
+    {
+      data.direction = side;
+      data.anchor = anchor;
+      data.prev = prev;
+    }
+    return std::pair<node_ptr, bool>(prev, not_found);
+  }
+
+  template <typename NodePtrCompare>
+  static void insert_equal_check(const const_node_ptr& header, const const_node_ptr& hint,
+                                       node_ptr n, NodePtrCompare comp, insert_commit_data& data)
+  {
+    typename node::side side = node::parent;
+    node_ptr anchor = node::uncast(header), prev = NULL;
+    if (hint && (hint == header || !comp(hint, n)))
+    {
+      if (hint == begin_node(header) || !comp(n, (prev = prev_node(hint))))
+      {
+        init_commit_data(prev, hint, data);
+        return;
+      }
+      else
+        for (node_ptr x = node::get_parent(anchor); x; x = node::get_link(x, side))
+          side = comp(n, anchor = x) ? node::left : (prev = x, node::right);
+    }
+    else
+      for (node_ptr x = node::get_parent(anchor); x; x = node::get_link(x, side))
+        side = !comp(anchor = x, n) ? node::left : (prev = x, node::right);
+
+    data.direction = side;
+    data.anchor = anchor;
+    data.prev = prev;
+  }
+
+  static inline void insert_commit(node_ptr header, node_ptr n, node_ptr anchor, node_ptr prev, typename node::side side)
+  {
+    if (anchor != header)
+    {
+      if (prev)
+      {
+        init_inserted(n, anchor, node::get_next(prev));
+        node::set_next(prev, n);
+      }
+      else
+        init_inserted(n, anchor,  node::get_left(header));
+
+      node::set_side(anchor, side, n);
+      if (node::get_side(header, side) == anchor)
+        node::set_side(header, side, n);
+
+      typename node::balance b = node::add_balance(anchor, side == node::right ? node::pos_t : node::neg_t);
+      if (b != node::zero_t)
+      {
+        prev = anchor;
+        for (n = node::get_parent(prev); n != header; n = node::get_parent(prev = n))
+        {
+          typename node::balance disbalance = prev != node::get_left(n) ? node::pos_t : node::neg_t;
+          b = node::add_balance(n, disbalance);
+          if (b == disbalance)
+            continue;
+          if (b ==(disbalance + disbalance)) // unbalanced
+          {
+            side = disbalance == node::pos_t ? node::left : node::right;
+            if (node::get_balance(prev) == disbalance)
+            {
+              node::set_balance(n, node::zero_t);
+              node::set_balance(prev, node::zero_t);
+              prev = rotate_single(n, side);
+            }
+            else
+            {
+              typename node::balance negbalance = node::invert_balance(disbalance);
+              node_ptr pprev = node::get_side(prev, side);
+              b = node::get_balance(pprev);
+              node::set_balance(n, b == disbalance ? negbalance : node::zero_t);
+              node::set_balance(pprev, node::zero_t);
+              node::set_balance(prev, b == negbalance ? disbalance : node::zero_t);
+              prev = rotate_double(n, side);
+            }
+            relink_parent(header, prev, n);
+          }
+          break;
+        }
       }
     }
+    else
+    {
+      init_inserted(n, anchor, header);
+      node::set_parent(header, n);
+      node::set_right(header, n);
+      node::set_left(header, n);
+    }
+  }
 
-    std::pair<iterator, bool> insert( const value_type& v) {
-      _iterator it = m_data.insert(v.first, NULL);
-      if (!it.value()) {
-        it.value() = new (m_allocator.allocate(sizeof(stored_type))) stored_type(v.first, v.second);
-        return std::pair<iterator, bool>(iterator(it), true);
+  template <class NodePtrCompare>
+  static node_ptr insert_equal_upper_bound(const const_node_ptr& header, node_ptr n, NodePtrCompare comp)
+  {
+    typename node::side side = node::parent;
+    node_ptr anchor = node::uncast(header), prev = NULL;
+    for (node_ptr x = node::get_parent(anchor); x; x = node::get_link(x, side))
+      side = comp(n, anchor = x) ? node::left : (prev = x, node::right);
+    insert_commit(node::uncast(header), n, anchor, prev, side);
+    return n;
+  }
+
+  static node_ptr do_erase(const const_node_ptr& header, const const_node_ptr& n)
+  {
+    node_ptr x, y, parent = node::get_parent(n);
+    typename node::side dir, side = node::get_left(parent) == n ? node::left : node::right;
+    node_ptr l = node::get_left(n);
+    node_ptr r = node::get_right(n);
+
+    if (!l || !r)
+    {
+      x = l ? l : r;
+      if (parent != header)
+      {
+        if (node::get_side(header, side) == n)
+        {
+          y = node::get_next(n);
+          if (side == node::left) // n is leftmost
+            node::set_left(node::uncast(header), y);
+          else // n is rightmost
+          {
+            r = x ? maximum(x) : parent;
+            node::set_next(r, y);
+            node::set_right(node::uncast(header), r);
+          }
+        }
+        else
+          node::set_next(prev_node(n), node::get_next(n));
+
+        node::set_side(parent, side, x);
+        if (x) node::set_parent(x, parent);
+        dir = side;
       }
-      return std::pair<iterator, bool>(iterator(it), false);
+      else // empty or only x left
+      {
+        node::set_parent(parent, x);
+        if (x)
+        {
+          node::set_parent(x, parent);
+          node::set_next(x, parent);
+          node::set_side(parent, x == r ? node::left : node::right, x);
+        }
+        else
+        {
+          node::set_left(parent, parent);
+          node::set_right(parent, parent);
+        }
+        return node::uncast(n);
+      }
+    }
+    else // two sides
+    {
+      node_ptr n_parent = parent;
+      y = node::get_next(n); // y has an empty left side
+      x = node::get_right(y);
+
+      node::set_next(maximum(l), y);
+      node::set_parent(l, y);
+      node::set_left(y, l);
+      if (y != r)
+      {
+        dir = node::left;
+        node::set_right(y, r);
+        node::set_parent(r, y);
+        parent = node::get_parent(y);
+        if (x) node::set_parent(x, parent);
+        node::set_left(parent, x);
+      }
+      else
+      {
+        dir = node::right;
+        parent = y;
+      }
+
+      // link y in place of n
+      node::set_parent(y, n_parent);
+      node::set_link(n_parent, header != n_parent ? side : node::parent, y);
+      node::set_balance(y, node::get_balance(n));
     }
 
-    reference operator[](const T& key ) {
-      _iterator it = m_data.find_or_insert(key, NULL);
-      if (!it.value())
-        it.value() = new (m_allocator.allocate(sizeof(stored_type))) stored_type(key, V());
-      return it.value()->second;
+    // root == parent, dir = side which held erased node
+    typename node::balance disbalance, negbalance, b;
+    while(parent != header) 
+    {
+      disbalance = dir == node::right ? node::neg_t : node::pos_t;
+      b = node::add_balance(parent, disbalance);
+      if (b == disbalance)
+        break;
+      if (b ==(disbalance + disbalance))
+      {
+        y = node::get_side(parent, dir == node::left ? node::right : node::left);
+        disbalance = dir == node::left ? node::neg_t : node::pos_t;
+        if (node::get_balance(y) == -disbalance)
+        {
+          node::set_balance(parent, node::zero_t);
+          node::set_balance(y, node::zero_t);
+          x = rotate_single(parent, dir);
+        }
+        else if (node::get_balance(y) == disbalance)
+        {
+          negbalance = node::invert_balance(disbalance);
+          x = node::get_side(y, dir);
+          b = node::get_balance(x);
+          node::set_balance(parent, b == negbalance ? disbalance : node::zero_t);
+          node::set_balance(y, b == disbalance ? negbalance : node::zero_t);
+          node::set_balance(x, node::zero_t);
+          x = rotate_double(parent, dir);
+        }
+        else
+        {
+          node::set_balance(parent, node::invert_balance(disbalance));         
+          node::set_balance(y, disbalance);
+          x = rotate_single(parent, dir);
+          relink_parent(header, x, parent);
+          break;
+        }
+        parent = relink_parent(header, x, parent);
+      }
+      else
+        parent = node::get_parent(x = parent);
+      dir = node::get_left(parent) == x ? node::left : node::right;
     }
+    return node::uncast(n);
+  }
 
-    const_iterator find( const T& key ) const { return m_data.find( key ); }
-    const_iterator begin() const { return m_data.begin(); }
-    const_iterator end() const { return m_data.end(); }
-    iterator find( const T& key ) { return m_data.find( key ); }
-    iterator begin() { return m_data.begin(); }
-    iterator end() { return m_data.end(); }
-    private:
-    stored_data_allocator_type m_allocator;
-    type m_data;
-  };
-#endif // ULIB
+  public:
 
-#ifdef HAVE_RDESTL
-  template <typename A>
-  class rde_fwd_allocator
+  template <class T, class NodePtr>
+  class tree_iterator
   {
-    typedef typename A::template rebind<char>::other allocator;
-    allocator m_allocator;
+    NodePtr m_node;
+
     public:
-    explicit rde_fwd_allocator() {}
-    explicit rde_fwd_allocator(A a) : m_allocator(a) {}
-    ~rde_fwd_allocator() {}
+	typedef std::bidirectional_iterator_tag	iterator_category;
+	typedef std::ptrdiff_t			difference_type;
+	typedef T				value_type;
+	typedef T&				reference;
+	typedef T*				pointer;
 
-    void* allocate(unsigned int bytes, int flags = 0)
-    { return m_allocator.allocate(bytes); }
-    void deallocate(void* ptr, unsigned int bytes)
-    { m_allocator.deallocate((char*)ptr, bytes); }
+    tree_iterator()
+      : m_node(NULL) {}
+
+    explicit tree_iterator(const NodePtr& n)
+      : m_node(n) {}
+
+    tree_iterator(const tree_iterator<Node, node_ptr>& other)
+      : m_node(other.pointed_node()) {}
+
+    NodePtr pointed_node() const
+    { return m_node; }
+
+    tree_iterator& operator=(const node_ptr& node_ptr)
+    { m_node = node_ptr; return *this; }
+
+    tree_iterator& operator++()
+    { m_node = next_node(m_node); return *this; }
+
+    tree_iterator operator++(int)
+    { tree_iterator copy(*this); m_node = next_node(m_node); return copy; }
+
+    tree_iterator& operator--()
+    { m_node = prev_node(m_node); return *this; }
+
+    tree_iterator operator--(int)
+    { tree_iterator copy(*this); m_node = prev_node(m_node); return copy; }
+
+    friend bool operator==(const tree_iterator& l, const tree_iterator& r)
+    { return l.pointed_node() == r.pointed_node(); }
+
+    friend bool operator!=(const tree_iterator& l, const tree_iterator& r)
+    { return l.pointed_node() != r.pointed_node(); }
+
+    reference operator*() const
+    { return *operator->(); }
+
+    pointer operator->() const
+    { return static_cast<pointer>(m_node); }
+
   };
 
-  template <typename Key, typename Hash, typename Pred, typename Alloc = std::allocator<Key> >
-  struct rde_hash_set
+  typedef value_type&					reference;
+  typedef const value_type&				const_reference;
+  typedef tree_iterator<Node, node_ptr> 		iterator;
+  typedef tree_iterator<const Node, const_node_ptr>	const_iterator;
+
+  avlTree( const value_compare& comp = value_compare() )
+    : m_comp(comp)
+  { init_header(this->header_ptr()); }
+
+  key_compare key_comp() const
+  { return m_comp; }
+
+  value_compare value_comp() const
+  { return m_comp; }
+
+  bool empty() const
+  { return node::get_parent(this->header_ptr()); }
+
+  size_type size() const
   {
-    typedef rde::hash_map <Key, bool, Hash, 6, Pred, rde_fwd_allocator<Alloc> > map_type;
-    class type {
-      public:
-      typedef typename map_type::allocator_type allocator_type;
-      typedef typename map_type::value_type value_type;
-      typedef typename map_type::iterator iterator;
-      typedef typename map_type::const_iterator const_iterator;
-      type() {}
-      type(allocator_type a) : m_allocator(a), m_data(a) {}
-      type(const type& src) : m_allocator(src.m_allocator), m_data(src.m_data, src.m_allocator) {}
-      type(const type& src, typename type::allocator_type a) : m_allocator(a), m_data(src.m_data, a) {}
-      rde::pair<iterator, bool> insert( const Key& value ) { return m_data.insert( rde::make_pair(value, true) ); }
-      const_iterator find( const Key& value ) const { return m_data.find(value); }
-      const_iterator end() const { return m_data.end(); }
-      private:
-      allocator_type m_allocator;
-      map_type m_data;
-    };
-  };
+    size_type n = 0;
+    for (node_ptr p = begin_node(this->header_ptr());
+         p != end_node(this->header_ptr()); p = next_node(p)) n++;
+    return n;
+  }
 
-  template <typename Key, typename Mapped, typename Hash, typename Pred,
-    typename Alloc = std::allocator< std::pair< Key, Mapped > > >
-  struct rde_hash_map {
-    typedef rde::hash_map < Key, Mapped, Hash, 6, Pred, rde_fwd_allocator<Alloc> > type;
-  };
+  iterator begin()
+  { return iterator(begin_node(this->header_ptr())); }
 
-  template <typename T, typename Alloc = std::allocator< T > >
-  struct rde_vector {
-    typedef rde::vector < T, rde_fwd_allocator<Alloc> > type;
-  };
-#endif //RDESTL
+  const_iterator begin() const
+  { return const_iterator(begin_node(this->header_ptr())); }
 
+  const_iterator cbegin() const
+  { return const_iterator(begin_node(this->header_ptr())); }
+
+  iterator end()
+  { return iterator(end_node(this->header_ptr())); }
+
+  const_iterator end() const
+  { return const_iterator(end_node(this->header_ptr())); }
+
+  const_iterator cend() const
+  { return const_iterator(end_node(this->header_ptr())); }
+
+  iterator find(const_reference value)
+  { return this->find(value, this->m_comp); }
+
+  const_iterator find(const_reference value) const
+  { return this->find(value, this->m_comp); }
+
+  template <class KeyType, class KeyValueCompare>
+  iterator find(const KeyType& key, KeyValueCompare comp)
+  { return iterator(this->find(this->header_ptr(), key, KeyNodeCompare<KeyValueCompare>(comp))); }
+
+  template <class KeyType, class KeyValueCompare>
+  const_iterator find(const KeyType& key, KeyValueCompare comp) const
+  { return const_iterator(this->find(this->header_ptr(), key, KeyNodeCompare<KeyValueCompare>(comp))); }
+
+  iterator lower_bound(const_reference value)
+  { return this->lower_bound(value, this->m_comp); }
+
+  const_iterator lower_bound(const_reference value) const
+  { return this->lower_bound(value, this->m_comp); }
+
+  template <class KeyType, class KeyValueCompare>
+  iterator lower_bound(const KeyType& key, KeyValueCompare comp) 
+  {
+     return iterator(lower_bound(node::get_parent(this->header_ptr()),
+				 node::uncast(this->header_ptr()), key, KeyNodeCompare<KeyValueCompare>(comp)));
+  }
+
+  template <class KeyType, class KeyValueCompare>
+  const_iterator lower_bound(const KeyType& key, KeyValueCompare comp) const
+  {
+     return const_iterator(lower_bound(node::get_parent(this->header_ptr()),
+				 node::uncast(this->header_ptr()), key, KeyNodeCompare<KeyValueCompare>(comp)));
+  }
+
+  iterator upper_bound(const_reference value)
+  { return this->upper_bound(value, this->m_comp); }
+
+  const_iterator upper_bound(const_reference value) const
+  { return this->upper_bound(value, this->m_comp); }
+
+  template <class KeyType, class KeyValueCompare>
+  iterator upper_bound(const KeyType& key, KeyValueCompare comp) 
+  {
+     return iterator(upper_bound(node::get_parent(this->header_ptr()),
+				 node::uncast(this->header_ptr()), key, KeyNodeCompare<KeyValueCompare>(comp)));
+  }
+
+  template <class KeyType, class KeyValueCompare>
+  const_iterator upper_bound(const KeyType& key, KeyValueCompare comp) const
+  {
+     return const_iterator(upper_bound(node::get_parent(this->header_ptr()),
+				 node::uncast(this->header_ptr()), key, KeyNodeCompare<KeyValueCompare>(comp)));
+  }
+
+  void push_front(reference value)
+  { do_push<node::left>(this->header_ptr(), &value); }
+
+  void push_back(reference value)
+  { do_push<node::right>(this->header_ptr(), &value); }
+
+  template <class KeyType, class KeyValueCompare>
+  std::pair<iterator, bool>
+  insert_unique_check(const KeyType& key, KeyValueCompare comp, insert_commit_data& data)
+  {
+    return as_iterator_pair<iterator>(insert_unique_check(this->header_ptr(),
+                               NULL, key, KeyNodeCompare<KeyValueCompare>(comp), data));
+  }
+
+  template <class KeyType, class KeyValueCompare>
+  std::pair<iterator, bool>
+  insert_unique_check(const_iterator hint, const KeyType& key, KeyValueCompare comp, insert_commit_data& data)
+  {
+    return as_iterator_pair<iterator>(insert_unique_check(this->header_ptr(),
+                               hint.pointed_node(), key, KeyNodeCompare<KeyValueCompare>(comp), data));
+  }
+
+  iterator insert_unique_commit(reference value, const insert_commit_data& data)
+  { 
+    insert_commit(this->header_ptr(), &value, data.anchor, data.prev, data.direction);
+    return iterator(&value);
+  }
+
+  std::pair<iterator, bool> insert_unique(reference value)
+  {
+    insert_commit_data data;
+    std::pair<iterator, bool> ret = this->insert_unique_check(value, this->m_comp, data);
+    return ret.second ? std::pair<iterator, bool>(this->insert_unique_commit(value, data), true) : ret;
+  }
+
+  std::pair<iterator, bool> insert_unique(const_iterator hint, reference value)
+  {
+    insert_commit_data data;
+    std::pair<iterator, bool> ret = this->insert_unique_check(value, hint, this->m_comp, data);
+    return ret.second ? std::pair<iterator, bool>(this->insert_unique_commit(value, data), true) : ret;
+  }
+
+  iterator insert_equal(reference value)
+  { return iterator(this->insert_equal_upper_bound(this->header_ptr(), &value, KeyNodeCompare<Compare>(this->m_comp))); }
+
+  iterator insert_equal(const_iterator hint, reference value)
+  {
+    insert_commit_data data;
+    insert_equal_check(this->header_ptr(), hint.pointed_node(), &value, KeyNodeCompare<Compare>(this->m_comp), data);
+    insert_commit(this->header_ptr(), &value, data.anchor, data.prev, data.direction);
+    return iterator(&value);
+  }
+
+  iterator erase(const_iterator i)
+  {
+    iterator ret(node::get_next(i.pointed_node()));
+    do_erase(this->header_ptr(), i.pointed_node());
+    return ret;
+  }
+
+  template <class Disposer>
+  iterator erase_and_dispose(const_iterator i, Disposer disposer)
+  {
+    iterator ret(node::get_next(i.pointed_node()));
+    disposer(static_cast<value_type*>(do_erase(this->header_ptr(), i.pointed_node())));
+    return ret;
+  }
+
+  size_type erase(const_reference value)
+  { return this->erase(value, this->m_comp); }
+
+  template <class KeyType, class KeyValueCompare>
+  size_type erase(const KeyType& key, KeyValueCompare comp)
+  {
+    const_iterator i = this->find(key, comp);
+    if (i != this->end())
+    {
+      size_type erased = 0;
+      for (const_iterator e = this->upper_bound(key, comp); i != e; i = this->erase(i)) erased++;
+      return erased;
+    } 
+    return 0;
+  }
+
+  template <class KeyType, class KeyValueCompare, class Disposer>
+  size_type erase_and_dispose(const KeyType& key, KeyValueCompare comp, Disposer disposer)
+  {
+    const_iterator i = this->find(key, comp);
+    if (i != this->end())
+    {
+      size_type erased = 0;
+      for (const_iterator e = this->upper_bound(key, comp); i != e; i = this->erase_and_dispose(i, disposer)) erased++;
+      return erased;
+    } 
+    return 0;
+  }
+
+  void clear()
+  { init_header(this->header_ptr()); }
+
+  template <class Disposer>
+  void clear_and_dispose(Disposer disposer)
+  {
+    node_ptr n = node::get_left(this->header_ptr());
+    while (n != this->header_ptr())
+    {
+      node_ptr d = n;
+      n = node::get_next(d);
+      disposer(static_cast<value_type*>(d));
+    }
+    init_header(this->header_ptr());
+  }
+
+  template <class Cloner, class Disposer>
+  void clone_from(const tree_type& src, Cloner cloner, Disposer disposer)
+  {
+    this->clear_and_dispose(disposer);
+    std::copy(src.begin(), src.end(), CloneInserter<Cloner>(*this, cloner).inserter());
+  }
+};
 
 } // Container
 }

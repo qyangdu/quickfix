@@ -194,29 +194,4 @@ void FieldMap::addGroupPtr( int field, FieldMap * group, bool setCount )
       setField( IntField::Pack( field, vec.size() ) );
 }
 
-#if !defined(ENABLE_BOOST_MAP) && \
-    !defined(ENABLE_BOOST_RBTREE) && \
-    !defined(ENABLE_BOOST_SGTREE) && \
-    !defined(ENABLE_BOOST_AVLTREE)
-namespace detail {
-  struct FieldProxy {
-    typedef void result_type;
-    static inline int getField() { return 1; }
-    static inline char getTagLength()
-    { return FieldTag::Traits<1>::length; }
-    static inline short getTagChecksum()
-    { return FieldTag::Traits<1>::checksum; }
-    operator std::string() const { return std::string(); }
-  };
-}
-std::size_t FieldMap::init_allocation_unit()
-{
-  FieldMap::store_type f( message_order( message_order::normal ), ItemStore::buffer(1024) );
-  // Metrics of the inserted FieldBase object must be calculated at compile time
-  f.insert(std::make_pair(1, FIX::FieldBase(detail::FieldProxy())));
-  return f.get_allocator().item_size();
-}
-const std::size_t FieldMap::AllocationUnit = FieldMap::init_allocation_unit();
-#endif
-
 }

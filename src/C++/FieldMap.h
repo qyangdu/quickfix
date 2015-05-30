@@ -35,14 +35,14 @@
 #include <sstream>
 #include <algorithm>
 
-#if defined(ENABLE_BOOST_MAP)
-#include <boost/container/map.hpp>
-#elif defined(ENABLE_BOOST_RBTREE)
+#if defined(ENABLE_BOOST_RBTREE)
 #include <boost/intrusive/rbtree.hpp>
 #elif defined(ENABLE_BOOST_SGTREE)
 #include <boost/intrusive/sgtree.hpp>
 #elif defined(ENABLE_BOOST_AVLTREE)
 #include <boost/intrusive/avltree.hpp>
+#else
+#include "Container.h"
 #endif
 
 namespace FIX
@@ -55,27 +55,35 @@ namespace FIX
  */
 class FieldMap
 {
+
 #if defined(ENABLE_BOOST_RBTREE) || defined(ENABLE_BOOST_SGTREE) || defined(ENABLE_BOOST_AVLTREE)
 
-#if defined(ENABLE_BOOST_RBTREE)
+  #if defined(ENABLE_BOOST_RBTREE)
   typedef boost::intrusive::set_member_hook<
-#elif defined(ENABLE_BOOST_SGTREE)
+  #elif defined(ENABLE_BOOST_SGTREE)
   typedef boost::intrusive::bs_set_member_hook<
-#elif defined(ENABLE_BOOST_AVLTREE)
+  #elif defined(ENABLE_BOOST_AVLTREE)
   typedef boost::intrusive::avl_set_member_hook<
-#endif
+  #endif
     boost::intrusive::link_mode<boost::intrusive::normal_link>,
     boost::intrusive::void_pointer<void*>,
     boost::intrusive::optimize_size<false>
   > store_hook;
 
-  class stored_type {
-    public:
+  struct stored_type {
 
     store_hook m_link;
-#ifdef ENABLE_SLIST_TREE_TRAVERSAL
+
+  #ifdef ENABLE_SLIST_TREE_TRAVERSAL
     mutable const stored_type* m_next;
+  #endif
+
+#else // Container::avlTree
+
+  struct stored_type : public Container::avlNode {
+
 #endif
+
     int first;
     FieldBase second;
 
@@ -112,20 +120,29 @@ class FieldMap
     stored_type( int tag, const std::string& value ) : first(tag), second( tag, value ) {}
   };
 
+#if defined(ENABLE_BOOST_RBTREE) || defined(ENABLE_BOOST_SGTREE) || defined(ENABLE_BOOST_AVLTREE)
+
   typedef boost::intrusive::member_hook< stored_type, store_hook, &stored_type::m_link > hook_type;
   typedef boost::intrusive::compare<stored_type::compare_type> compare_type;
-#if defined(ENABLE_BOOST_RBTREE)
+
+  #if defined(ENABLE_BOOST_RBTREE)
   typedef boost::intrusive::rbtree<
-#elif defined(ENABLE_BOOST_SGTREE)
+  #elif defined(ENABLE_BOOST_SGTREE)
   typedef boost::intrusive::sgtree<
-#elif defined(ENABLE_BOOST_AVLTREE)
+  #elif defined(ENABLE_BOOST_AVLTREE)
   typedef boost::intrusive::avltree<
-#endif
+  #endif
     stored_type,
     compare_type,
     hook_type,
     boost::intrusive::constant_time_size<false>
   > store_type;
+
+#else // Container::avlTree
+
+  typedef Container::avlTree<stored_type, stored_type::compare_type> store_type;
+
+#endif
 
   static const std::size_t AllocationUnit = sizeof(stored_type);
   ItemAllocator< stored_type > m_allocator;
@@ -134,30 +151,6 @@ class FieldMap
 
   typedef ItemAllocator< stored_type > allocator_type;
   allocator_type get_allocator() { return m_allocator; }
-
-#else //!ENABLE_BOOST_xxTREE
-#ifdef ENABLE_BOOST_MAP
-  typedef boost::container::multimap < int, FieldBase, message_order::comparator,
-                          ItemAllocator < std::pair<const int, FieldBase> > > store_type;
-  typedef store_type::const_iterator field_iterator;
-
-  static const std::size_t AllocationUnit = sizeof(store_type::stored_allocator_type::value_type);
-#else
-  typedef std::multimap < int, FieldBase, message_order::comparator,
-                          ItemAllocator < std::pair<const int, FieldBase> > > store_type;
-  typedef store_type::const_iterator field_iterator;
-
-  static const std::size_t AllocationUnit;
-  static std::size_t init_allocation_unit();
-#endif
-
-  public:
-
-  typedef store_type::allocator_type allocator_type;
-  allocator_type get_allocator()
-  { return m_fields.get_allocator(); }
-
-#endif //!ENABLE_BOOST_xxTREE
 
   private:
 
@@ -198,9 +191,9 @@ class FieldMap
   void assign_value(FieldMap::store_type::iterator& it, const std::string& value)
   { it->second.setString( value ); }
 
-#if defined(ENABLE_BOOST_RBTREE) || defined(ENABLE_BOOST_SGTREE) || defined(ENABLE_BOOST_AVLTREE)
+#if defined(ENABLE_SLIST_TREE_TRAVERSAL) && \
+   (defined(ENABLE_BOOST_RBTREE) || defined(ENABLE_BOOST_SGTREE) || defined(ENABLE_BOOST_AVLTREE))
 
-#ifdef ENABLE_SLIST_TREE_TRAVERSAL
   class field_iterator {
 
     public:
@@ -335,6 +328,7 @@ class FieldMap
     m_fields.push_back(*p);
     return *p;
   }
+
 #else //!ENABLE_SLIST_TREE_TRAVERSAL
 
   typedef store_type::const_iterator field_iterator;
@@ -399,95 +393,6 @@ class FieldMap
     return r.first;
   }
 
-#else // !ENABLE_BOOST_xxTREE
-
-  inline void HEAVYUSE f_clear() {
-    m_fields.clear();
-  }
-
-  inline void f_copy(const FieldMap& from) {
-    const store_type& src = from.m_fields;
-    store_type::const_iterator e = src.end();
-    for (store_type::const_iterator it = src.begin();  it != e; ++it)
-      m_fields.insert(m_fields.end(), *it);
-  }
-
-  inline void f_clone(const FieldMap& from) {
-    m_fields = from.m_fields;
-    m_order = from.m_order;
-  }
-
-  inline field_iterator f_begin() const { return m_fields.begin(); }
-  inline field_iterator f_end() const { return m_fields.end(); }
-
-  inline void erase(int tag) {
-    store_type::iterator it = m_fields.find(tag);
-    if ( it != m_fields.end() ) m_fields.erase(it);
-  }
-  inline store_type::iterator erase(store_type::iterator& it) {
-    m_fields.erase(it++);
-    return it;
-  }
-
-  inline store_type::iterator HEAVYUSE lower_bound(int tag) {
-    return m_fields.lower_bound( tag );
-  }
-  inline store_type::const_iterator HEAVYUSE find(int tag) const {
-    return m_fields.find( tag );
-  }
-
-#ifdef ENABLE_BOOST_MAP
-  template <typename Arg> store_type::value_type& HEAVYUSE push_back(const Arg& arg) {
-    return *m_fields.emplace_hint( m_fields.end(), arg.getField(), arg );
-  }
-  template <typename Arg> store_type::const_iterator HEAVYUSE add(const Arg& arg) {
-    return m_fields.emplace( arg.getField(), arg );
-  }
-  template <typename Arg> store_type::const_iterator HEAVYUSE add(store_type::const_iterator hint, const Arg& arg) {
-    return m_fields.emplace_hint( hint, arg.getField(), arg );
-  }
-
-  template <typename Arg> store_type::iterator HEAVYUSE assign(int tag, const Arg& arg) {
-    store_type::iterator it = m_fields.lower_bound( tag );
-    if ( it == m_fields.end() || it->first != tag )
-      return m_fields.emplace_hint( it, tag, arg );
-    assign_value( it, arg );
-    return it;
-  }
-  store_type::iterator assign(int tag, const std::string& value) {
-    store_type::iterator it = m_fields.lower_bound( tag );
-    if ( it == m_fields.end() || it->first != tag )
-      it = m_fields.emplace_hint( it, tag, tag );
-    assign_value( it, value );
-    return it;
-  }
-#else // !ENABLE_BOOST_MAP
-  template <typename Arg> store_type::value_type& HEAVYUSE push_back(const Arg& arg) {
-    store_type::iterator it = m_fields.insert( m_fields.end(), store_type::value_type( arg.getField(), FieldBase( arg.getField() ) ) );
-    assign_value( it, arg );
-    return *it;
-  }
-  template <typename Arg> store_type::const_iterator HEAVYUSE add(const Arg& arg) {
-    store_type::iterator it = m_fields.insert( store_type::value_type( arg.getField(), FieldBase( arg.getField() ) ) );
-    assign_value( it, arg );
-    return it;
-  }
-  template <typename Arg> store_type::const_iterator HEAVYUSE add(store_type::const_iterator hint, const Arg& arg) {
-    store_type::iterator it = m_fields.insert( hint, store_type::value_type( arg.getField(), FieldBase( arg.getField() ) ) );
-    assign_value( it, arg );
-    return it;
-  }
-
-  template <typename Arg> store_type::iterator HEAVYUSE assign(int tag, const Arg& arg) {
-    store_type::iterator it = m_fields.lower_bound( tag );
-    if ( it == m_fields.end() || it->first != tag )
-      it = m_fields.insert( it, store_type::value_type( tag, FieldBase( tag ) ) );
-    assign_value( it, arg );
-    return it;
-  }
-#endif // !ENABLE_BOOST_MAP
-#endif // !ENABLE_BOOST_xxTREE
-
 protected:
 
   struct Sequence {
@@ -525,7 +430,6 @@ public:
   FieldMap( const int order[] )
   : m_order( order ), m_fields( m_order ) {}
 
-#if defined(ENABLE_BOOST_RBTREE) || defined(ENABLE_BOOST_SGTREE) || defined(ENABLE_BOOST_AVLTREE)
   FieldMap( const FieldMap& src )
   : m_order( src.m_order ), m_fields( src.m_fields.value_comp() )
   { f_copy(src); g_copy(src); }
@@ -537,20 +441,6 @@ public:
   FieldMap( const allocator_type& a, const FieldMap& src )
   : m_allocator( a ), m_order( src.m_order ), m_fields( src.m_fields.value_comp() )
   { f_copy(src); g_copy(src); }
-
-#else
-  FieldMap( const FieldMap& src )
-  : m_order( src.m_order ), m_fields( src.m_fields.key_comp() )
-  { f_copy(src); g_copy(src); }
-
-  FieldMap( const allocator_type& a, const message_order& order =
-            message_order( message_order::normal ) )
-  : m_order( order ), m_fields( order, a ) {}
-
-  FieldMap( const allocator_type& a, const FieldMap& src )
-  : m_order( src.m_order ), m_fields( src.m_fields.key_comp(), a )
-  { f_copy(src); g_copy(src); }
-#endif
 
   virtual ~FieldMap();
 

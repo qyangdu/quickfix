@@ -122,9 +122,7 @@ Config.h: Makefile $(top_builddir)/config.h
 	grep "_ALLOCATOR" $(top_builddir)/config.h >$@
 	grep "HAVE_BOOST" $(top_builddir)/config.h >>$@
 	grep "HAVE_TBB" $(top_builddir)/config.h >>$@
-	grep "HAVE_SPARSEHASH" $(top_builddir)/config.h >>$@
 	grep "ENABLE_SSO" $(top_builddir)/config.h >>$@
-	grep "ENABLE_BOOST_MAP" $(top_builddir)/config.h >>$@
 	grep "ENABLE_BOOST.*TREE" $(top_builddir)/config.h >>$@
 	grep "ENABLE_SLIST" $(top_builddir)/config.h >>$@
 
