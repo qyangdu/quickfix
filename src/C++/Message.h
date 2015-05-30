@@ -352,14 +352,15 @@ class Message : public FieldMap
 
 protected:
   /// Constructor for derived classes
-  Message( const BeginString& beginString, const MsgType& msgType )
+  template <typename Packed>
+  Message( const BeginString::Pack& beginString, const Packed& msgType )
   : FieldMap( FieldMap::create_allocator() ),
     m_header( get_allocator(), message_order( message_order::header ) ),
     m_trailer( get_allocator(), message_order( message_order::trailer ) ),
     m_status( 0 )
   {
-    m_header.setField( beginString );
-    m_header.setField( msgType );
+    Sequence::push_back_to(m_header, beginString );
+    Sequence::push_back_to(m_header, msgType );
   }
 
 public:
