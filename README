@@ -34,38 +34,36 @@ SYSTEM REQUIREMENTS
 OPTIONAL DEPENDENCIES FOR EXTRA PERFORMANCE
 
         Boost (www.boost.org)
-        Google Sparse Hash (code.google.com/p/sparsehash/)
         Intel Threading Building Blocks (www.threadingbuildingblocks.org)
 
     LINUX
 
-        ./configure --with-boost=<path> --with-sparsehash=<path> 
+        ./configure --with-boost=<path> 
            --with-tbb=<path> --with-tbb-arch=<library subdir>
 
         Example:
 
         Boost installed in /usr/local/boost
-        Sparsehash installed in /usr/local/include
         TBB installed in /opt/intel/tbb
 
         ./configure --with-boost=/usr/local/boost 
-               --with-sparsehash=/usr/local 
                --with-tbb=/opt/intel/tbb
                --with-tbb-arch=intel64/gcc4.4
 
-        There are several field map configuration options available with Boost.
-        Default configuration uses boost::intrusive::avltree with an embedded
-        linked list
+        There are several additional field map configuration options available
+        with Boost,
 
-        --with-fieldmap=boost::intrusive::avltree --with-slist-traversal
+        --with-fieldmap={ boost::intrusive::avltree,
+                          boost::intrusive::rbtree,
+                          boost::intrusive::sgtree }
+        --with-slist-traversal
 
-        Default configuration without Boost falls back to
-
-        --with-fieldmap=std::multimap
+        Default configuration without Boost falls back to the internal
+        implementation of intrusive AVL tree with embedded singly linked list.
 
     WINDOWS
 
-        Configure Boost, TBB and Sparsehash settings by changing User Macros
+        Configure Boost and TBB settings by changing User Macros
         defined in OptionalSettings_vs9.vsprops for Visual Studio 2008 or 
         OptionalSettings_vs11.props for Visual Studio 2012 via Property Manager
         or manually. 
@@ -74,13 +72,11 @@ OPTIONAL DEPENDENCIES FOR EXTRA PERFORMANCE
 
         BOOST_INCLUDE      C:\boost
         TBB_INCLUDE        C:\tbb42_20130725oss\include
-        SPARSEHASH_INCLUDE C:\google\src;C:\google\src\windows
         BOOST_LIB          C:\boost\lib32-msvc-11.0
         TBB_LIB            C:\tbb42_20130725oss\lib\ia32\vc11
         TBB_DEPS           tbb.lib;tbbmalloc.lib
         WITH_BOOST         HAVE_BOOST=1
         WITH_TBB           HAVE_TBB=1
-        WITH_SPARSEHASH    HAVE_SPARSEHASH=1
 
         Then continue with the build using DebugBoost or ReleaseBoost build targets.
 
@@ -112,8 +108,7 @@ Configuration:
 	fix8 1.3.2	--with-tbb --with-mpmc=tbb
 	Quickfix 1.13.3 --with-boost
 	Quickfix 1.14.3 --with-boost --with-tbb --with-allocator=tbb
-	quickerfix:	--with-boost --with-sparsehash --with-sso --with-tbb
-			--with-allocator=tbb
+	quickerfix:	--with-boost --with-sso --with-tbb --with-allocator=tbb
 
 	g++ options: -O3 -march=corei7-avx -mavx -falign-functions=16 -falign-jumps=16
 
@@ -129,10 +124,10 @@ CODEC:	Measures encoding and decoding performance for a NewOrderSingle message.
 	Results (usec per message, lower is better):
 
 		FIX8		Quickfix 	Quickfix 	quickerfix
-		1.3.2		1.13.3		1.14.3		20150218
+		1.3.2		1.13.3		1.14.3		20150530
 
-to string	2.25516		8.17674		4.38878		1.07382
-from string	7.6158		25.7686		9.422		3.04436
+to string	2.25516		8.17674		4.38878		0.943966
+from string	7.6158		25.7686		9.422		3.0016
 
 
 
@@ -145,84 +140,86 @@ PT:	Measures performance of various QuickFix subsystems
 	Results (operations per second, higher is better):
 
 					Quickfix 	Quickfix 	quickerfix 
-					1.13.3		1.14.3		20150218
+					1.13.3		1.14.3		20150530
 
-Converting integers to strings: 	2.17391e+07	2.5e+07		2.56478e+07
+Converting integers to strings: 	2.17391e+07	2.5e+07		2.44421e+07
 
-Converting strings to integers:		1.66667e+08	2.5e+08		3.07138e+08
+Converting strings to integers:		1.66667e+08	2.5e+08		3.10329e+08
 
-Converting doubles to strings:		1.10375e+06	1.04712e+06	8.96056e+06
+Converting doubles to strings:		1.10375e+06	1.04712e+06	9.07414e+06
 
-Converting strings to doubles:		4.6729e+06	5.26316e+07	9.94406e+07
+Converting strings to doubles:		4.6729e+06	5.26316e+07	8.9659e+07
 
-Creating Heartbeat messages:		1.00604e+06	1.54083e+06	3.08103e+06
+Creating Heartbeat messages:		1.00604e+06	1.54083e+06	4.39625e+06
 
-Identifying message types:		6.99301e+06	6.99301e+06	1.21046e+07
-
-Serializing Heartbeat messages
-to strings:				847458		1.20627e+06	2.98201e+06
+Identifying message types:		6.99301e+06	6.99301e+06	1.19528e+07
 
 Serializing Heartbeat messages
-from strings:				392003		625391		2.11219e+06
+to strings:				847458		1.20627e+06	3.18288e+06
 
 Serializing Heartbeat messages
-from strings and validation:		-		541419		2.04734e+06
+from strings:				392003		625391		2.26854e+06
 
-Creating NewOrderSingle messages:	331785		406669		989787
-		        (packed):	-		-		1.13347e+06
+Serializing Heartbeat messages
+from strings and validation:		-		541419		2.11829e+06
 
-Serializing NewOrderSingle messages
-to strings:				652316		925069		2.05594e+06
-
-Serializing NewOrderSingle messages
-from strings:				152346		290698		921800
+Creating NewOrderSingle messages:	331785		406669		1.23483e+06
+		        (packed):	-		-		1.47393e+06
 
 Serializing NewOrderSingle messages
-from strings and validation:		-		261438		819473
+to strings:				652316		925069		2.40181e+06
 
-Creating QuoteRequest messages:		13621.9		20406.5		50407.6
-		      (packed):		-		-		70108.5
-	    (packed, in place):		-		-		98637.8
+Serializing NewOrderSingle messages
+from strings:				152346		290698		975234
+
+Serializing NewOrderSingle messages
+from strings and validation:		-		261438		848133
+
+Creating QuoteRequest messages:		13621.9		20406.5		52587.2
+		      (packed):		-		-		78288.3
+	    (packed, in place):		-		-		124293
 
 Serializing QuoteRequest messages
-to strings:				174490		239292		442392
+to strings:				174490		239292		510976
 
 Serializing QuoteRequest messages
-from strings:				16942.8		32526.7		85586.6
+from strings:				16942.8		32526.7		91896.2
 
 Serializing QuoteRequest messages
-from strings and validation:		-		30869		68065.4
+from strings and validation:		-		30869		73258.6
 
 Reading fields from QuoteRequest
-message:				28681.2		72695.6		120260
+message:				28681.2		72695.6		123567
 
-Storing NewOrderSingle messages:	299670		281057		321475
-
-Validating NewOrderSingle messages
-with no data dictionary:		5.64972e+06	5.74713e+06	1.25883e+07
+Storing NewOrderSingle messages:	299670		281057		333269
 
 Validating NewOrderSingle messages
-with data dictionary:			345901		457247		1.01062e+06
+with no data dictionary:		5.64972e+06	5.74713e+06	1.2769e+07
+
+Validating NewOrderSingle messages
+with data dictionary:			345901		457247		1.03472e+06
 
 Validating QuoteRequest messages
-with no data dictionary:		9.80392e+06	9.34579e+06	1.95848e+07
+with no data dictionary:		9.80392e+06	9.34579e+06	1.9968e+07
 
 Validating QuoteRequest messages
-with data dictionary:			478240		548847		870519
+with data dictionary:			478240		548847		830909
 
 Sending/Receiving
 NewOrderSingle/ExecutionReports
-on Socket				59883.8		92489.8		229153
+on Socket				59883.8		92489.8		242988
 
 Sending/Receiving
 NewOrderSingle/ExecutionReport
-on ThreadedSocket			59862.3		92850.5		232064
+on ThreadedSocket			59862.3		92850.5		244599
 
 Sending/Receiving
 NewOrderSingle/ExecutionReports
-on Socket with data dictionary          -               70681.4         173287
+dictionary				-		70681.4		183523
 
 Sending/Receiving
 NewOrderSingle/ExecutionReports
-on ThreadedSocket with data dictionary  -               73367.6         180586
+on ThreadedSocket with data dictionary	-		73367.6		185659
+
+
 

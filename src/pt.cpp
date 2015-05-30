@@ -105,7 +105,7 @@ int main( int argc, char** argv )
   }
 
   s_dataDictionary.reset( new FIX::DataDictionary( "../spec/FIX42.xml" ) );
-
+ 
   std::cout << "Converting integers to strings: ";
   report( testIntegerToString( count ), count );
 
@@ -171,7 +171,6 @@ int main( int argc, char** argv )
 
   std::cout << "Storing NewOrderSingle messages: ";
   report( testFileStoreNewOrderSingle( count ), count );
-
   std::cout << "Validating NewOrderSingle messages with no data dictionary: ";
   report( testValidateNewOrderSingle( count ), count );
 
@@ -190,10 +189,10 @@ int main( int argc, char** argv )
   std::cout << "Sending/Receiving NewOrderSingle/ExecutionReports on ThreadedSocket";
   report( testSendOnThreadedSocket( count, port, false ), count );
 
-  std::cout << "Sending/Receiving NewOrderSingle/ExecutionReports on Socket with data dictionary";
+  std::cout << "Sending/Receiving NewOrderSingle/ExecutionReports on Socket with dictionary";
   report( testSendOnSocket( count, port, true ), count );
 
-  std::cout << "Sending/Receiving NewOrderSingle/ExecutionReports on ThreadedSocket with data dictionary";
+  std::cout << "Sending/Receiving NewOrderSingle/ExecutionReports on ThreadedSocket with dictionary";
   report( testSendOnThreadedSocket( count, port, true ), count );
 
   return 0;
@@ -349,13 +348,14 @@ double testCreateNewOrderSinglePacked( int count )
   FIX::Util::Sys::TickCount start = FIX::Util::Sys::TickCount::now();
   for ( int i = 0; i <= count; ++i )
   {
-    FIX42::NewOrderSingle o;
-    o.set( FIX::ClOrdID::Pack( "ORDERID" ) );
-    o.set( FIX::HandlInst::Pack( '1' ) );
-    o.set( FIX::Symbol::Pack( "LNUX" ) );
-    o.set( FIX::Side::Pack( FIX::Side_BUY ) );
-    o.set( FIX::TransactTime::Pack( FIX::UtcTimeStamp() ) );
-    o.set( FIX::OrdType::Pack( FIX::OrdType_MARKET ) );
+    FIX42::NewOrderSingle(
+      FIX::ClOrdID::Pack( "ORDERID" ),
+      FIX::HandlInst::Pack( '1' ),
+      FIX::Symbol::Pack( "LNUX" ),
+      FIX::Side::Pack( FIX::Side_BUY ),
+      FIX::TransactTime::Pack( FIX::UtcTimeStamp() ),
+      FIX::OrdType::Pack( FIX::OrdType_MARKET )
+    );
   }
 
   return (FIX::Util::Sys::TickCount::now() - start).seconds();
@@ -480,7 +480,7 @@ double testCreateQuoteRequestPacked( int count )
 
   for ( int i = 0; i <= count; ++i )
   {
-    FIX42::QuoteRequest massQuote( FIX::QuoteReqID("1") );
+    FIX42::QuoteRequest massQuote( FIX::QuoteReqID::Pack("1") );
     FIX42::QuoteRequest::NoRelatedSym noRelatedSym;
 
     for( int j = 1; j <= 10; ++j )
@@ -507,10 +507,11 @@ double testCreateQuoteRequestPackedInplace( int count )
 
   FIX::Util::Sys::TickCount start = FIX::Util::Sys::TickCount::now();
 
+  FIX42::QuoteRequest::NoRelatedSym noRelatedSym;
+
   for ( int i = 0; i <= count; ++i )
   {
-    FIX42::QuoteRequest massQuote;
-    FIX42::QuoteRequest::NoRelatedSym noRelatedSym;
+    FIX42::QuoteRequest massQuote( FIX::QuoteReqID::Pack("1") );
 
     for( int j = 1; j <= 10; ++j )
     {
@@ -524,8 +525,6 @@ double testCreateQuoteRequestPackedInplace( int count )
       g.addField( FIX::Currency::Pack( "USD" ) );
       g.addField( FIX::OrdType::Pack( FIX::OrdType_MARKET ) );
     }
-
-    massQuote.set( FIX::QuoteReqID::Pack("1") );
   }
 
   return (FIX::Util::Sys::TickCount::now() - start).seconds();
