@@ -181,7 +181,7 @@ public:
     if ( m_size ) {
       stored_type* p = dictionary()->stored();
       for (iterator it = first(p); it != end(); ++it) 
-        it->~value_type();
+        (*it).~value_type();
       dictionary()->release(p, m_max_index + 1);
     }
   }
@@ -196,7 +196,7 @@ public:
       if ( move ) {
         for ( iterator it = first(src); it != end(); ++it ) {
           insert(*it);
-          it->~value_type();
+          (*it).~value_type();
         }
       } else
         for ( iterator it = first(src); it != end(); ++it )
@@ -274,8 +274,8 @@ struct MapTraits : public TraitsBase<Key, Hash> {
   typedef std::pair<hash_type, value_type> stored_type;
   typedef Pred key_equal;
 
-  static inline bool empty(const stored_type* p) { return base_type::Empty & p->first; }
-  static inline bool last(const stored_type* p) { return base_type::Terminal & p->first; }
+  static inline hash_type empty(const stored_type* p) { return base_type::Empty & p->first; }
+  static inline hash_type last(const stored_type* p) { return base_type::Terminal & p->first; }
 
   static inline hash_type   value_attr(const stored_type* p) { return p->first & base_type::HashMask; }
   static inline value_type& value(stored_type* p) { return p->second; }
@@ -393,8 +393,8 @@ struct SetTraits : public TraitsBase<Key, Hash> {
   typedef std::pair<hash_type, value_type> stored_type;
   typedef Pred key_equal;
 
-  static inline bool empty(const stored_type* p) { return base_type::Empty & p->first; }
-  static inline bool last(const stored_type* p) { return base_type::Terminal & p->first; }
+  static inline hash_type empty(const stored_type* p) { return base_type::Empty & p->first; }
+  static inline hash_type last(const stored_type* p) { return base_type::Terminal & p->first; }
 
   static inline hash_type   value_attr(const stored_type* p) { return p->first & base_type::HashMask; }
   static inline value_type& value(stored_type* p) { return p->second; }
@@ -547,6 +547,9 @@ struct avlNode {
 
     static inline void set_side(node_type* n, bool right_side, node_type* p = NULL)
     { n->m_link[right_side] = p; }
+	
+    static inline void set_side(node_type* n, side dir, node_type* p = NULL)
+    { n->m_link[dir] = p; }
 
     static inline void set_link(node_type* n, side dir, node_type* p = NULL)
     { n->m_link[dir] = p; }
@@ -631,7 +634,9 @@ class avlTree {
     tree_type& m_tree;
     Cloner m_cloner;
     public:
-    typedef const value_type&				const_reference;
+    typedef typename tree_type::value_type&	        reference;
+    typedef const typename tree_type::value_type&	const_reference;
+	typedef typename tree_type::value_type			value_type;
 
     CloneInserter(tree_type& t, Cloner c) : m_tree(t), m_cloner(c) {}
 
@@ -711,7 +716,7 @@ class avlTree {
   static node_ptr rotate_single(const node_ptr & r, typename node::side dir)
   {
     node_ptr n = node::get_side(r, !dir);
-    node_ptr nsa = node::get_side(n, dir);
+    node_ptr nsa = node::get_link(n, dir);
     node::set_side(r, !dir, nsa);
     if (nsa) node::set_parent(nsa, r);
     node::set_side(n, dir, r);
@@ -723,11 +728,11 @@ class avlTree {
   static node_ptr rotate_double(const node_ptr & r, typename node::side dir)
   {
     node_ptr n = node::get_side(r, !dir);
-    node_ptr b = node::get_side(n, dir);
+    node_ptr b = node::get_link(n, dir);
     node_ptr bsa = node::get_side(b, !dir);
     node::set_side(n, dir, bsa);
     if (bsa) node::set_parent(bsa, n);
-    node_ptr bsb = node::get_side(b, dir);
+    node_ptr bsb = node::get_link(b, dir);
     node::set_side(r, !dir, bsb);
     if (bsb) node::set_parent(bsb, r);
     node::set_side(b, !dir, n);
@@ -920,9 +925,9 @@ class avlTree {
       else
         init_inserted(n, anchor,  node::get_left(header));
 
-      node::set_side(anchor, side, n);
-      if (node::get_side(header, side) == anchor)
-        node::set_side(header, side, n);
+      node::set_link(anchor, side, n);
+      if (node::get_link(header, side) == anchor)
+        node::set_link(header, side, n);
 
       typename node::balance b = node::add_balance(anchor, side == node::right ? node::pos_t : node::neg_t);
       if (b != node::zero_t)
@@ -946,7 +951,7 @@ class avlTree {
             else
             {
               typename node::balance negbalance = node::invert_balance(disbalance);
-              node_ptr pprev = node::get_side(prev, side);
+              node_ptr pprev = node::get_link(prev, side);
               b = node::get_balance(pprev);
               node::set_balance(n, b == disbalance ? negbalance : node::zero_t);
               node::set_balance(pprev, node::zero_t);
@@ -991,7 +996,7 @@ class avlTree {
       x = l ? l : r;
       if (parent != header)
       {
-        if (node::get_side(header, side) == n)
+        if (node::get_link(header, side) == n)
         {
           y = node::get_next(n);
           if (side == node::left) // n is leftmost
@@ -1006,7 +1011,7 @@ class avlTree {
         else
           node::set_next(prev_node(n), node::get_next(n));
 
-        node::set_side(parent, side, x);
+        node::set_link(parent, side, x);
         if (x) node::set_parent(x, parent);
         dir = side;
       }
@@ -1078,7 +1083,7 @@ class avlTree {
         else if (node::get_balance(y) == disbalance)
         {
           negbalance = node::invert_balance(disbalance);
-          x = node::get_side(y, dir);
+          x = node::get_link(y, dir);
           b = node::get_balance(x);
           node::set_balance(parent, b == negbalance ? disbalance : node::zero_t);
           node::set_balance(y, b == disbalance ? negbalance : node::zero_t);
@@ -1173,7 +1178,7 @@ class avlTree {
   { return m_comp; }
 
   bool empty() const
-  { return node::get_parent(this->header_ptr()); }
+  { return node::get_parent(this->header_ptr()) != 0; }
 
   size_type size() const
   {

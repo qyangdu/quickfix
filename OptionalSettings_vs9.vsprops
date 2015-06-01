@@ -9,10 +9,6 @@
 		Value="D:\Dev\boost_1_54_0"
 	/>
 	<UserMacro
-		Name="SPARSEHASH_INCLUDE"
-		Value="D:\Dev\sparsehash-2.0.2\src;D:\Dev\sparsehash-2.0.2\src\windows"
-	/>
-	<UserMacro
 		Name="TBB_INCLUDE"
 		Value="D:\Dev\tbb42_20130725oss\include"
 	/>
@@ -31,10 +27,6 @@
 	<UserMacro
 		Name="WITH_BOOST"
 		Value="HAVE_BOOST=1"
-	/>
-	<UserMacro
-		Name="WITH_SPARSEHASH"
-		Value="HAVE_SPARSEHASH=1"
 	/>
 	<UserMacro
 		Name="WITH_TBB"

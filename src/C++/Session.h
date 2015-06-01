@@ -458,7 +458,7 @@ private:
 				}
 				return *this;
 			}
-			SgBuffer& NOTHROW HEAVYUSE append(int field, int sz, const char* s, std::size_t l) {
+			SgBuffer& HEAVYUSE append(int field, int sz, const char* s, std::size_t l) {
 				Sg::sg_buf_ptr e = sg_ + n_;
 				char* p = (char*)IOV_BUF(*e);
 				p += IOV_LEN(*e);

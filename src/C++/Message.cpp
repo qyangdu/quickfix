@@ -123,7 +123,8 @@ namespace detail {
 
 		public:
 			ProxyBuffer(std::string& s) {
-				buf_ = IOV_BUF_INITIALIZER(const_cast<char*>( String::c_str(s) ), 0);
+				IOV_BUF(buf_) = const_cast<char*>( String::c_str(s) );
+				IOV_LEN(buf_) = 0;
 			}
 			ProxyBuffer& append(const char* src, std::size_t len) {
 				Sg::append(buf_, src, len);
