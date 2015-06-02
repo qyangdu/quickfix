@@ -225,8 +225,8 @@
 			<Tool
 				Name="VCCLCompilerTool"
 				Optimization="0"
-				AdditionalIncludeDirectories="$(SolutionDir)/src,$(SolutionDir)/src/c++;$(BOOST_INCLUDE);$(SPARSEHASH_INCLUDE);$(TBB_INCLUDE)"
-				PreprocessorDefinitions="WIN32,_DEBUG,_CONSOLE;$(WITH_BOOST);$(WITH_SPARSEHASH);$(WITH_TBB)"
+				AdditionalIncludeDirectories="$(SolutionDir)/src,$(SolutionDir)/src/c++;$(BOOST_INCLUDE);$(TBB_INCLUDE)"
+				PreprocessorDefinitions="WIN32,_DEBUG,_CONSOLE;$(WITH_BOOST);$(WITH_TBB)"
 				BasicRuntimeChecks="3"
 				RuntimeLibrary="3"
 				UsePrecompiledHeader="0"
@@ -316,8 +316,8 @@
 			<Tool
 				Name="VCCLCompilerTool"
 				InlineFunctionExpansion="1"
-				AdditionalIncludeDirectories="$(SolutionDir)/src,$(SolutionDir)/src/c++;$(BOOST_INCLUDE);$(SPARSEHASH_INCLUDE);$(TBB_INCLUDE)"
-				PreprocessorDefinitions="WIN32,NDEBUG,_CONSOLE;$(WITH_BOOST);$(WITH_SPARSEHASH);$(WITH_TBB)"
+				AdditionalIncludeDirectories="$(SolutionDir)/src,$(SolutionDir)/src/c++;$(BOOST_INCLUDE);$(TBB_INCLUDE)"
+				PreprocessorDefinitions="WIN32,NDEBUG,_CONSOLE;$(WITH_BOOST);$(WITH_TBB)"
 				StringPooling="true"
 				RuntimeLibrary="2"
 				EnableFunctionLevelLinking="true"

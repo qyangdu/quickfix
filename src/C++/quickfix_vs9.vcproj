@@ -206,8 +206,8 @@
 				Name="VCCLCompilerTool"
 				Optimization="0"
 				FavorSizeOrSpeed="0"
-				AdditionalIncludeDirectories="&quot;$(SolutionDir)\src&quot;;&quot;$(SolutionDir)\UnitTest++\src&quot;;$(BOOST_INCLUDE);$(SPARSEHASH_INCLUDE);$(TBB_INCLUDE)"
-				PreprocessorDefinitions="WIN32;_DEBUG;_LIB;$(WITH_BOOST);$(WITH_SPARSEHASH);$(WITH_TBB)"
+				AdditionalIncludeDirectories="&quot;$(SolutionDir)\src&quot;;&quot;$(SolutionDir)\UnitTest++\src&quot;;$(BOOST_INCLUDE);$(TBB_INCLUDE)"
+				PreprocessorDefinitions="WIN32;_DEBUG;_LIB;$(WITH_BOOST);$(WITH_TBB)"
 				BasicRuntimeChecks="3"
 				RuntimeLibrary="3"
 				RuntimeTypeInfo="true"
@@ -289,8 +289,8 @@
 				EnableIntrinsicFunctions="true"
 				FavorSizeOrSpeed="1"
 				OmitFramePointers="true"
-				AdditionalIncludeDirectories="$(SolutionDir)\src,$(SolutionDir)\UnitTest++\src;$(BOOST_INCLUDE);$(SPARSEHASH_INCLUDE);$(TBB_INCLUDE)"
-				PreprocessorDefinitions="WIN32,NDEBUG,_LIB;$(WITH_BOOST);$(WITH_SPARSEHASH);$(WITH_TBB)"
+				AdditionalIncludeDirectories="$(SolutionDir)\src,$(SolutionDir)\UnitTest++\src;$(BOOST_INCLUDE);$(TBB_INCLUDE)"
+				PreprocessorDefinitions="WIN32,NDEBUG,_LIB;$(WITH_BOOST);$(WITH_TBB)"
 				StringPooling="true"
 				RuntimeLibrary="2"
 				EnableFunctionLevelLinking="true"
@@ -524,6 +524,10 @@
 						Outputs=""
 					/>
 				</FileConfiguration>
+			</File>
+			<File
+				RelativePath=".\Container.h"
+				>
 			</File>
 			<File
 				RelativePath=".\Dictionary.h"
