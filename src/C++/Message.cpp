@@ -206,7 +206,10 @@ inline bool Message::extractFieldDataLength( Message::FieldReader& reader, const
   // length field is 1 less except for Signature
   int lenField = (field != FIELD::Signature) ? (field - 1) : FIELD::SignatureLength;
   const FieldBase* fieldPtr = (pGroup) ? pGroup->getFieldPtrIfSet( lenField ) : NULL;
-  if ( fieldPtr || NULL != (fieldPtr = getFieldPtrIfSet( lenField ) ) )
+  if ( fieldPtr ||
+       NULL != (fieldPtr = isHeaderField(field)? m_header.getFieldPtrIfSet( lenField )
+                                                : (!isTrailerField(field) ? getFieldPtrIfSet( lenField)
+                                                                          : m_trailer.getFieldPtrIfSet( lenField )) ) )
   {
     const FieldBase::string_type& fieldLength = fieldPtr->getRawString();
     if ( IntConvertor::parse( fieldLength, lenField ) )

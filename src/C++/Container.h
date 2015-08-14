@@ -1178,7 +1178,7 @@ class avlTree {
   { return m_comp; }
 
   bool empty() const
-  { return node::get_parent(this->header_ptr()) != 0; }
+  { return node::get_parent(this->header_ptr()) == 0; }
 
   size_type size() const
   {
@@ -1377,6 +1377,7 @@ class avlTree {
   void clone_from(const tree_type& src, Cloner cloner, Disposer disposer)
   {
     this->clear_and_dispose(disposer);
+    this->m_comp = src.value_comp();
     std::copy(src.begin(), src.end(), CloneInserter<Cloner>(*this, cloner).inserter());
   }
 };
