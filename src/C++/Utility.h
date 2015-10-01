@@ -415,7 +415,7 @@ namespace FIX
     template <typename W>
     static inline std::size_t PURE_DECL HEAVYUSE bit_scan(W w, std::size_t from = 0)
     {
-      return bitop<W>::bsf( w & (~(W)0 << from) );
+      return bitop<W>::bsf( w & ((from < (sizeof(W) << 3)) ? (~(W)0 << from): (W)0) );
     }
 
   } // namespace detail
@@ -1422,7 +1422,7 @@ namespace FIX
       int _Find_next( int b )
       {
         std::size_t i = b >> word_shift;
-        std::size_t v = detail::bit_scan(m_bits[i], b & (word_size - 1));
+        std::size_t v = detail::bit_scan(m_bits[i], ++b);
         return (word_size != v) ? ((i << word_shift) + v) : _Find_from(++i);
       }
 
@@ -1521,7 +1521,7 @@ namespace FIX
 
       int _Find_next( int b )
       {
-        return detail::bit_scan(m_bits, b);
+        return detail::bit_scan(m_bits, ++b);
       }
 
       inline BitSet NOTHROW_PRE & NOTHROW_POST operator <<=(int n) { m_bits <<= n; return *this; }

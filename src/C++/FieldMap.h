@@ -103,7 +103,7 @@ class FieldMap
       disposer_type(A& a) : m_allocator(a) {}
       void operator()(stored_type* p) {
         p->~stored_type();
-        m_allocator.deallocate(p, 1);
+        m_allocator.deallocate(p);
       }
     };
 
@@ -111,7 +111,7 @@ class FieldMap
       A& m_allocator;
       cloner_type(A& a) : m_allocator(a) {}
       stored_type* operator()(const stored_type& r) {
-        return new (m_allocator.allocate(1)) stored_type(r);
+        return new (m_allocator.allocate()) stored_type(r);
       }
     };
 
@@ -144,7 +144,6 @@ class FieldMap
 
 #endif
 
-  static const std::size_t AllocationUnit = sizeof(stored_type);
   ItemAllocator< stored_type > m_allocator;
 
   public:
@@ -250,7 +249,7 @@ class FieldMap
     const store_type& src = from.m_fields;
     store_type::const_iterator e = src.end();
     for ( store_type::const_iterator it = src.begin(); it != e; ++it ) {
-      n = new ( m_allocator.allocate(1) ) stored_type(*it);
+      n = new ( m_allocator.allocate() ) stored_type(*it);
       m_fields.push_back( *n );
       c.next( n );
     }
@@ -323,7 +322,7 @@ class FieldMap
   }
 
   template <typename Arg> stored_type& HEAVYUSE push_back(const Arg& arg) {
-    stored_type* p = new (m_allocator.allocate(1)) stored_type( arg );
+    stored_type* p = new (m_allocator.allocate()) stored_type( arg );
     m_list.push_back(p);
     m_fields.push_back(*p);
     return *p;
@@ -341,7 +340,7 @@ class FieldMap
     const store_type& src = from.m_fields;
     store_type::const_iterator e = src.end();
     for (store_type::const_iterator it = src.begin(); it != e; ++it)
-      m_fields.push_back( *new (m_allocator.allocate(1)) stored_type(*it) );
+      m_fields.push_back( *new (m_allocator.allocate()) stored_type(*it) );
   }
 
   inline void f_clone(const FieldMap& from) {
@@ -365,7 +364,7 @@ class FieldMap
   }
 
   template <typename Arg> stored_type& HEAVYUSE push_back(const Arg& arg) {
-    stored_type* p = new (m_allocator.allocate(1)) stored_type( arg );
+    stored_type* p = new (m_allocator.allocate()) stored_type( arg );
     m_fields.push_back(*p);
     return *p;
   }
@@ -379,16 +378,16 @@ class FieldMap
   }
 
   template <typename Arg> field_iterator HEAVYUSE add(const Arg& arg) {
-    return link_next(m_fields.insert_equal(*new (m_allocator.allocate(1)) stored_type( arg )));
+    return link_next(m_fields.insert_equal(*new (m_allocator.allocate()) stored_type( arg )));
   }
   template <typename Arg> field_iterator HEAVYUSE add(field_iterator hint, const Arg& arg) {
-    return link_next(m_fields.insert_equal(to_store_iterator(hint), *new (m_allocator.allocate(1)) stored_type( arg )));
+    return link_next(m_fields.insert_equal(to_store_iterator(hint), *new (m_allocator.allocate()) stored_type( arg )));
   }
 
   template <typename Arg> store_type::iterator HEAVYUSE assign(int tag, const Arg& arg) {
     store_type::insert_commit_data data;
     std::pair<store_type::iterator, bool> r = m_fields.insert_unique_check( tag, m_fields.value_comp(), data);
-    if (r.second) link_next(r.first = m_fields.insert_unique_commit( *new (m_allocator.allocate(1)) stored_type( tag, arg ), data ));
+    if (r.second) link_next(r.first = m_fields.insert_unique_commit( *new (m_allocator.allocate()) stored_type( tag, arg ), data ));
     else assign_value(r.first, arg );
     return r.first;
   }
@@ -650,9 +649,9 @@ public:
   }
 
   static inline
-  allocator_type create_allocator(std::size_t n = ItemStore::MaxCapacity)
+  allocator_type create_allocator(std::size_t n = allocator_type::DefaultCapacity)
   {
-    return allocator_type( ItemStore::buffer(n * AllocationUnit) );
+    return allocator_type( allocator_type::buffer_type::create(n) );
   } 
 
 protected:

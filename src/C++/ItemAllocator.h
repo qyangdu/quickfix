@@ -26,57 +26,137 @@
 
 namespace FIX
 {
+
   // Caching allocator for node-based containers
+  template <typename T, std::size_t Alignment = 8>
   class ItemStore
   {
+    template<typename U, std::size_t A2>
+    struct Options
+    {
+      static const std::size_t Padding = A2 - sizeof(U) % A2;
+      union Entry {
+        char m_v[sizeof(U) + Padding % A2];
+        U*   m_p;
+      };
+      static const std::size_t Allow = sizeof(Entry) == sizeof(typename Options<T, Alignment>::Entry);
+      int type_compatibility_for_item_store : Allow;
+    };
     public:
-      static const int MaxCapacity = 64;
+      class Buffer
+      {
+          class Segment {
+              typedef typename Options<T, Alignment>::Entry Entry;
+              unsigned m_count, m_num;
+              Segment* m_next;
+            public:
+              Segment(unsigned num, Segment* next) : m_count(0), m_num(num), m_next(next) {}
 
-      static const int SharedCapacity = MaxCapacity;
-      static const int DefaultCapacity = MaxCapacity / 2;
+              void reset(Segment* next = NULL) { m_count = 0; m_next = next; }
+  
+              T* PURE_DECL start() const { return (T*)(this + 1); }
+              T* PURE_DECL end() const { return (T*)((Entry*)(this + 1) + m_num); }
 
-      struct Buffer {
-		typedef Util::BitSet<MaxCapacity> Bitmap;
+              Segment* PURE_DECL next() const { return m_next; }
+              Segment* next(Segment* p) { return m_next = p; }
 
-		unsigned        m_shared;
-		unsigned 	m_item_size;
-		std::size_t     m_size;
-		Bitmap          m_bitmap;
+              bool PURE_DECL space() const { return m_count < m_num; }
+              T* reserve() { return start() + m_count++; }
+              Segment* extend()
+              {
+                unsigned num = m_num << 1; // double the size for the next segment
+                Segment* h = (Segment*)(ALLOCATOR<unsigned char>().allocate(num * sizeof(Entry) + sizeof(Segment)));
+                return new (h) Segment(num, this);
+              }
+          };
+
+	  T*       m_pfree;
+          unsigned m_shared;
+	  Segment  m_seg; // must be the last member!
+
+          Segment* PURE_DECL top() const { return m_seg.next(); }
+          Segment* top(Segment* p) { return m_seg.next(p); } 
+
+          void free_segments()
+          {
+            for (Buffer::Segment* n,* s = top(); s != &m_seg; s = n)
+            {
+              n = s->next();
+              ALLOCATOR<unsigned char>().deallocate((unsigned char*)s, 0);
+            }
+          }
+
+        public:
+
+          Buffer(unsigned num, unsigned referenced)
+          : m_pfree(NULL), m_shared(referenced + 1), m_seg(num, &m_seg) {}
+  
+          unsigned addRef() { return ++m_shared; }
+          unsigned decRef() { return --m_shared; }
+  
+          static inline Buffer* create(unsigned num, unsigned referenced = 0)
+          {
+            Buffer* h = (Buffer*) (ALLOCATOR<unsigned char>().allocate(num * sizeof(T) + sizeof(Buffer)));
+            return new (h) Buffer(num, referenced);
+          }
+
+          bool verify(T* p)
+          {
+            Buffer::Segment* s = top();
+            do { if (p >= s->start() && p < s->end()) return true; s = s->next(); } while (s != top());
+            return false;
+          }
+  
+          T* acquire()
+          {
+            if ( LIKELY(!m_pfree) )
+              return ( LIKELY(top()->space()) ? top() : top(top()->extend()) )->reserve();
+            T* p = m_pfree;
+            m_pfree = *(T**)p;
+            return p;
+          }
+  
+          void release(T* p)
+          {
+             *(T**)p = m_pfree;
+             m_pfree = p;
+          }
+
+          void clear()
+          {
+            free_segments();
+            m_seg.reset(&m_seg);
+            m_pfree = NULL;
+          }
+  
+          static void destroy(Buffer* p)
+          {
+            p->free_segments();
+            ALLOCATOR<unsigned char>().deallocate((unsigned char*)p, 0);
+          }
       };
 
-      ItemStore(Buffer* b = NULL) : m_buffer(b) {}
-      ItemStore(ItemStore const& a)
-        : m_buffer( a.m_buffer )
-      {
-        if ( m_buffer ) m_buffer->m_shared++;
-      }
-      void clear()
-      {
-        if ( m_buffer )
-          m_buffer->m_item_size = 0;
-      }
+      inline ItemStore(Buffer* b = NULL) : m_buffer( b ) {}
+      inline ItemStore(ItemStore const& s) : m_buffer( s.m_buffer )
+      { if ( m_buffer ) m_buffer->addRef(); }
 
-      std::size_t item_size() const
-      {
-        return (m_buffer) ? m_buffer->m_item_size : 0;
-      }
+      template <typename U, std::size_t A>
+      inline ItemStore(ItemStore<U, A> const& s, int = sizeof(Options<U, A>))
+      : m_buffer( (Buffer*)s.m_buffer )
+      { if ( m_buffer ) m_buffer->addRef(); }
 
-      static Buffer* buffer(std::size_t size, unsigned short referenced = 0)
-      {
-        Buffer* h = (Buffer*)
-        (ALLOCATOR<unsigned char>().allocate(size + sizeof(Buffer)));
-        h->m_shared = referenced + 1;
-        h->m_item_size = 0;
-        h->m_size = size;
-        return h;
-      }
+      template <typename U, std::size_t A>
+      bool operator==(ItemStore<U, A> const& s) const
+      { return (void*)m_buffer == (void*)s.m_buffer; }
 
-   protected:
-     Buffer* m_buffer;
+      template <typename U, std::size_t A> friend class ItemStore;
+
+    protected:
+      Buffer* m_buffer;
   };
 
   template<typename T>
-  class ItemAllocator : public ItemStore
+  class ItemAllocator : public ItemStore<T>
   {
     public : 
 
@@ -89,6 +169,11 @@ namespace FIX
       typedef std::size_t size_type;
       typedef std::ptrdiff_t difference_type;
 
+      typedef ItemStore<T> item_store;
+      typedef typename item_store::Buffer buffer_type;
+
+      static const unsigned DefaultCapacity = 32;
+
     public : 
       //    convert an allocator<T> to allocator<U>
       template<typename U>
@@ -98,89 +183,50 @@ namespace FIX
   
     public : 
       inline ItemAllocator() {}
-      inline ItemAllocator(Buffer* b) : ItemStore(b) {}
+      inline ItemAllocator(buffer_type* b) : item_store(b) {}
 
       inline explicit ItemAllocator(ItemAllocator const& a)
-       : ItemStore(a) {}
+       : item_store(a) {}
 
       template<typename U>
       inline ItemAllocator(ItemAllocator<U> const& u)
-       : ItemStore(u) {}
+       : item_store(u) {}
 
       inline ~ItemAllocator() // clean up here, not a virtual dtor
       {
-        if ( m_buffer && --m_buffer->m_shared == 0 )
-          ALLOCATOR<unsigned char>().deallocate((unsigned char*)m_buffer, 0);
+        buffer_type* buf = this->m_buffer;
+        if ( buf && buf->decRef() == 0 ) buffer_type::destroy(buf);
       }
+
+      template<typename U>
+      inline bool operator==(ItemAllocator<U> const& u) const
+      { return this->m_buffer ? static_cast<const ItemStore<T>&>(*this) ==
+                                static_cast<const ItemStore<U>&>(u) : false; }
+      void clear()
+      { if ( this->m_buffer ) this->m_buffer->clear(); }
   
       //    address
       inline pointer address(reference r) { return &r; }
       inline const_pointer address(const_reference r) { return &r; }
   
       //    memory allocation
-      inline pointer HEAVYUSE allocate(size_type cnt, 
-                     typename std::allocator<void>::const_pointer = 0)
+      inline pointer HEAVYUSE allocate() // shortcut for one element
       { 
-        if ( LIKELY(cnt == 1) )
-        {
-restart:
-          if ( LIKELY(NULL != m_buffer) )
-          {
-            unsigned char (*arena)[sizeof(value_type)] =
-                          (unsigned char(*)[sizeof(value_type)])(m_buffer + 1);
-            if ( LIKELY(0 != m_buffer->m_item_size) )
-            {
-mapped:
-              if ( LIKELY(m_buffer->m_item_size == sizeof(value_type)) )
-              {
-                Buffer::Bitmap& bitmap = m_buffer->m_bitmap;
-                unsigned char slot = bitmap._Find_first();
-                if ( LIKELY(slot != bitmap.size()) )
-                {
-                  bitmap.reset(slot);
-                  return (value_type*)(arena[slot]);
-                }
-              }
-            }
-            else
-            {
-              unsigned elements = m_buffer->m_size / sizeof(value_type);
-              if ( elements )
-              {
-                Buffer::Bitmap& bitmap = m_buffer->m_bitmap;
-                elements = (std::min)(elements, (unsigned)bitmap.size());
-                bitmap.set();
-                bitmap >>= (bitmap.size() - elements);
-                m_buffer->m_item_size = sizeof(value_type);
-                goto mapped;
-              }
-              else
-              {
-                m_buffer->m_bitmap.reset();
-              }
-            }
-          }
-          else
-          {
-            m_buffer = buffer(MaxCapacity * sizeof(value_type));
-            goto restart;
-          }
-        }
-        return m_allocator.allocate(cnt); 
+        buffer_type* buf = this->m_buffer;
+        if ( LIKELY(NULL != buf) ) return buf->acquire();
+        this->m_buffer = buffer_type::create(DefaultCapacity);
+        return this->m_buffer->acquire();
       }
 
+      inline pointer HEAVYUSE allocate(size_type cnt,
+                     typename std::allocator<void>::const_pointer = 0)
+      { return ( LIKELY(cnt == 1) ) ? allocate() : m_allocator.allocate(cnt); }
+
+      inline void deallocate(pointer p) // shortcut for one element
+      { this->m_buffer->release(p); }
+
       inline void deallocate(pointer p, size_type t)
-      { 
-        if (m_buffer && (unsigned char*)p > ((unsigned char*)m_buffer) &&
-                        (unsigned char*)p < ((unsigned char*)m_buffer +
-                                        sizeof(Buffer) + m_buffer->m_size))
-        {
-          unsigned char slot = p - (value_type*)(m_buffer + 1);
-          m_buffer->m_bitmap.set(slot);
-          return;
-        }
-        m_allocator.deallocate(p, t); 
-      }
+      { (this->m_buffer && this->m_buffer->verify(p)) ? this->m_buffer->release(p) : m_allocator.deallocate(p, t); }
   
       //    size
       inline size_type max_size() const

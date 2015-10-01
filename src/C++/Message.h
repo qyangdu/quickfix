@@ -374,7 +374,7 @@ public:
   Message();
 
   /// Construct a message with hints
-  Message( SerializationHint, int hintFieldCount = ItemStore::DefaultCapacity );
+  Message( SerializationHint, int hintFieldCount = allocator_type::DefaultCapacity );
 
   /// Construct a message from a string
   Message( const std::string& string, bool validate = true )

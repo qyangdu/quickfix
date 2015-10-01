@@ -68,7 +68,7 @@ Session::Session( Application& application,
   m_messageStoreFactory( messageStoreFactory ),
   m_pLogFactory( pLogFactory ),
   m_pResponder( 0 ),
-  m_rcvAllocator( Message::create_allocator(ItemStore::MaxCapacity) )
+  m_rcvAllocator( Message::create_allocator( FieldMap::allocator_type::DefaultCapacity << 3 ) )
 {
   m_state.heartBtInt( heartBtInt );
   m_state.initiate( heartBtInt != 0 );
