@@ -45,8 +45,8 @@ namespace FIX
     public:
       class Buffer
       {
+          typedef typename Options<T, Alignment>::Entry Entry;
           class Segment {
-              typedef typename Options<T, Alignment>::Entry Entry;
               unsigned m_count, m_num;
               Segment* m_next;
             public:
@@ -70,9 +70,9 @@ namespace FIX
               }
           };
 
-	  T*       m_pfree;
+          T*       m_pfree;
           unsigned m_shared;
-	  Segment  m_seg; // must be the last member!
+          Segment  m_seg; // must be the last member!
 
           Segment* PURE_DECL top() const { return m_seg.next(); }
           Segment* top(Segment* p) { return m_seg.next(p); } 
@@ -96,7 +96,7 @@ namespace FIX
   
           static inline Buffer* create(unsigned num, unsigned referenced = 0)
           {
-            Buffer* h = (Buffer*) (ALLOCATOR<unsigned char>().allocate(num * sizeof(T) + sizeof(Buffer)));
+            Buffer* h = (Buffer*) (ALLOCATOR<unsigned char>().allocate(num * sizeof(Entry) + sizeof(Buffer)));
             return new (h) Buffer(num, referenced);
           }
 
