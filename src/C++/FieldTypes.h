@@ -77,6 +77,9 @@ struct DateTime
   /// Default constructor - initializes to zero
   DateTime () : m_date (0), m_time (0) {}
 
+  DateTime( const DateTime& src )
+  : m_value(src.m_value) {}
+
   /// Construct from a Julian day number and time in millis
   DateTime (int date, int time) : m_date (date), m_time (time) {}
 
@@ -405,6 +408,12 @@ public:
   /// Defaults to the current date and time
   UtcTimeStamp()
   : DateTime( DateTime::nowUtc() ) {}
+
+  UtcTimeStamp( const UtcTimeStamp& src )
+  : DateTime( src ) {}
+
+  UtcTimeStamp( const DateTime& src )
+  : DateTime( src ) {}
 
   /// Defaults to the current date
   UtcTimeStamp( int hour, int minute, int second, int millisecond = 0 )

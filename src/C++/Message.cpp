@@ -50,22 +50,22 @@ int Message::FieldCounter::countGroups(FieldMap::g_const_iterator git,
 }
 
 Message::Message()
-: FieldMap( FieldMap::create_allocator() ),
-  m_header( get_allocator(), message_order( message_order::header ) ),
-  m_trailer( get_allocator(), message_order( message_order::trailer ) ),
+: FieldMap( FieldMap::create_allocator(), message_order( message_order::normal ), Options( bodyFieldCountEstimate(), false ) ),
+  m_header( get_allocator(), message_order( message_order::header ), Options( HeaderFieldCountEstimate ) ),
+  m_trailer( get_allocator(), message_order( message_order::trailer ), Options( TrailerFieldCountEstimate ) ),
   m_status( 0 ) {}
 
-Message::Message( SerializationHint hint, int fieldCountEstimate )
-: FieldMap( FieldMap::create_allocator( fieldCountEstimate ) ),
-  m_header( get_allocator(), message_order( message_order::header ) ),
-  m_trailer( get_allocator(), message_order( message_order::trailer ) ),
+Message::Message( SerializationHint hint, int fieldCount )
+: FieldMap( FieldMap::create_allocator( fieldCount ), message_order( message_order::normal ), Options( bodyFieldCountEstimate( fieldCount ), false) ),
+  m_header( get_allocator(), message_order( message_order::header ), Options( HeaderFieldCountEstimate ) ),
+  m_trailer( get_allocator(), message_order( message_order::trailer ), Options( TrailerFieldCountEstimate ) ),
   m_status( createStatus(serialized_once, hint == SerializedOnce) ) {}
 
 Message::Message( const std::string& string, bool validate )
 throw( InvalidMessage )
-: FieldMap( FieldMap::create_allocator() ),
-  m_header( get_allocator(), message_order( message_order::header ) ),
-  m_trailer( get_allocator(), message_order( message_order::trailer ) ),
+: FieldMap( FieldMap::create_allocator(), message_order( message_order::normal ), Options( bodyFieldCountEstimate(), false ) ),
+  m_header( get_allocator(), message_order( message_order::header ), Options( HeaderFieldCountEstimate ) ),
+  m_trailer( get_allocator(), message_order( message_order::trailer ), Options( TrailerFieldCountEstimate ) ),
   m_status( 0 )
 {
   setString( string, validate );
@@ -75,9 +75,9 @@ Message::Message( const std::string& string,
                   const DataDictionary& dataDictionary,
                   bool validate )
 throw( InvalidMessage )
-: FieldMap( FieldMap::create_allocator() ),
-  m_header( get_allocator(), message_order( message_order::header ) ),
-  m_trailer( get_allocator(), message_order( message_order::trailer ) ),
+: FieldMap( FieldMap::create_allocator(), message_order( message_order::normal ), Options( bodyFieldCountEstimate(), false) ),
+  m_header( get_allocator(), message_order( message_order::header ), Options( HeaderFieldCountEstimate ) ),
+  m_trailer( get_allocator(), message_order( message_order::trailer ), Options( TrailerFieldCountEstimate ) ),
   m_status( 0 )
 {
   setString( string, validate, &dataDictionary, &dataDictionary );
@@ -88,9 +88,9 @@ HEAVYUSE Message::Message( const std::string& string,
                   const DataDictionary& applicationDataDictionary,
                   bool validate )
 throw( InvalidMessage )
-: FieldMap( FieldMap::create_allocator() ),
-  m_header( get_allocator(), message_order( message_order::header ) ),
-  m_trailer( get_allocator(), message_order( message_order::trailer ) ),
+: FieldMap( FieldMap::create_allocator(), message_order( message_order::normal ), Options( bodyFieldCountEstimate(), false ) ),
+  m_header( get_allocator(), message_order( message_order::header ), Options( HeaderFieldCountEstimate ) ),
+  m_trailer( get_allocator(), message_order( message_order::trailer ), Options( TrailerFieldCountEstimate ) ),
   m_status( 0 )
 {
   if( isAdminMsg( string ) )
@@ -104,9 +104,9 @@ HEAVYUSE Message::Message( const std::string& string,
                   const FIX::DataDictionary& applicationDataDictionary,
                   FieldMap::allocator_type& allocator, bool validate )
   throw( InvalidMessage )
-: FieldMap( allocator ),
-  m_header( allocator, message_order( message_order::header ) ),
-  m_trailer( allocator, message_order( message_order::trailer ) ),
+: FieldMap( allocator, message_order( message_order::normal ), Options( bodyFieldCountEstimate(), false) ),
+  m_header( allocator, message_order( message_order::header ), Options( HeaderFieldCountEstimate ) ),
+  m_trailer( allocator, message_order( message_order::trailer ), Options( TrailerFieldCountEstimate ) ),
   m_status( 0 )
 {
   if( isAdminMsg( string ) )
@@ -160,7 +160,7 @@ Message::toString( const FieldCounter& c, std::string& str ) const
   const int csumTagLength = Util::PositiveInt::numDigits(checkSumField) + 1;
 
   int l = c.getBodyLength();
-  l += m_header.setField(IntField::Pack(bodyLengthField, l)).getLength()
+  l += Sequence::set_in_ordered(m_header, IntField::Pack(bodyLengthField, l))->second.getLength()
        + csumTagLength + csumPayloadLength + c.getBeginStringLength();
 
   str.clear();
@@ -176,7 +176,7 @@ Message::toString( const FieldCounter& c, std::string& str ) const
   //       as the string is constructed locally
   if( getStatusBit( serialized_once ) && checkSumField == FIELD::CheckSum )
   {
-    FieldBase& f = m_trailer.setField(CheckSumField::Pack(checkSumField, 0));
+    FieldBase& f = Sequence::set_in_ordered(m_trailer, CheckSumField::Pack(checkSumField, 0))->second;
 
     m_trailer.serializeTo( 
       FieldMap::serializeTo(
@@ -192,7 +192,7 @@ Message::toString( const FieldCounter& c, std::string& str ) const
   }
   else
   {
-    m_trailer.setField(CheckSumField::Pack(checkSumField,
+    Sequence::set_in_ordered(m_trailer, CheckSumField::Pack(checkSumField,
                                            checkSum(checkSumField)));
     m_trailer.serializeTo( 
       FieldMap::serializeTo(
@@ -206,10 +206,7 @@ inline bool Message::extractFieldDataLength( Message::FieldReader& reader, const
   // length field is 1 less except for Signature
   int lenField = (field != FIELD::Signature) ? (field - 1) : FIELD::SignatureLength;
   const FieldBase* fieldPtr = (pGroup) ? pGroup->getFieldPtrIfSet( lenField ) : NULL;
-  if ( fieldPtr ||
-       NULL != (fieldPtr = isHeaderField(field)? m_header.getFieldPtrIfSet( lenField )
-                                                : (!isTrailerField(field) ? getFieldPtrIfSet( lenField)
-                                                                          : m_trailer.getFieldPtrIfSet( lenField )) ) )
+  if ( fieldPtr || NULL != (fieldPtr = (!isHeaderField(field)? this : &m_header)->getFieldPtrIfSet( lenField )) )
   {
     const FieldBase::string_type& fieldLength = fieldPtr->getRawString();
     if ( IntConvertor::parse( fieldLength, lenField ) )

@@ -96,11 +96,7 @@ class Message : public FieldMap
     }
   };
 
-  static 
-#ifndef SWIG 
-  ALIGN_DECL_DEFAULT
-#endif
-  HeaderFieldSet headerFieldSet;
+  static ALIGN_DECL_DEFAULT HeaderFieldSet headerFieldSet;
 
   class FieldReader : public Sequence {
 
@@ -172,7 +168,7 @@ class Message : public FieldMap
     /// Store ordered header fields 
     const FieldBase* flushSpecHeaderField(FieldMap& map)
     {
-      const FieldBase& r = Sequence::push_back_to( map, *this )->second;
+      const FieldBase& r = Sequence::push_back_to_ordered( map, *this )->second;
       step();
       return &r;
     }
@@ -180,8 +176,8 @@ class Message : public FieldMap
     const FieldBase* flushHeaderField(FieldMap& map)
     {
       const FieldBase& r = ( LIKELY(Sequence::header_compare(map, m_hdr, m_field)) )
-                            ? m_hdr = m_field, Sequence::push_back_to( map, *this )->second
-                            : Sequence::insert_into( map, *this )->second;
+                            ? m_hdr = m_field, Sequence::push_back_to_ordered( map, *this )->second
+                            : Sequence::insert_into_ordered( map, *this )->second;
       step();
       return &r;
     }
@@ -190,11 +186,11 @@ class Message : public FieldMap
     {
       if ( LIKELY(m_body < m_field) )
       {
-        Sequence::push_back_to( map, *this )->second;
+        Sequence::push_back_to( map, *this );
         m_body = m_field;
       }
       else
-        Sequence::insert_into( map, *this )->second;
+        Sequence::insert_into( map, *this );
       step();
     }
 
@@ -202,11 +198,11 @@ class Message : public FieldMap
     {
       if ( LIKELY(Sequence::trailer_compare(map, m_trl, m_field)) )
       {
-        Sequence::push_back_to( map, *this )->second;
+        Sequence::push_back_to_ordered( map, *this );
         m_trl = m_field;
       }
       else
-        Sequence::insert_into( map, *this )->second;
+        Sequence::insert_into_ordered( map, *this );
       step();
     }
 
@@ -214,11 +210,11 @@ class Message : public FieldMap
     {
       if ( LIKELY(Sequence::group_compare(map, m_grp, m_field) || m_grp == 0) )
       {
-        Sequence::push_back_to( map, *this )->second;
+        Sequence::push_back_to( map, *this );
         m_grp = m_field;
       }
       else
-        Sequence::insert_into( map, *this )->second;
+        Sequence::insert_into( map, *this );
       step();
       return m_grp;
     }
@@ -305,6 +301,14 @@ class Message : public FieldMap
                   const FIX::DataDictionary* pApplicationDataDictionary )
   throw( InvalidMessage );
 
+  static const std::size_t HeaderFieldCountEstimate = 8;
+  static const std::size_t TrailerFieldCountEstimate= 4;
+  static inline std::size_t bodyFieldCountEstimate(std::size_t available = ItemAllocatorTraits::DefaultCapacity)
+  { 
+    return (available > (HeaderFieldCountEstimate + TrailerFieldCountEstimate))
+           ? (available - HeaderFieldCountEstimate - TrailerFieldCountEstimate) : HeaderFieldCountEstimate;
+  }
+
   Message( const char* p, std::size_t n,
            const DataDictionary& dataDictionary,
            FieldMap::allocator_type& a,
@@ -341,12 +345,12 @@ class Message : public FieldMap
   {
     FieldCounter c( *this );
     int bodyLength = c.getBodyLength() + c.getBeginStringLength() + 
-	  m_header.setField(BodyLength::Pack(c.getBodyLength())).getLength();
+	  Sequence::set_in_ordered(m_header, BodyLength::Pack(c.getBodyLength()))->second.getLength();
     return m_trailer.serializeTo(
              FieldMap::serializeTo(
                m_header.serializeTo(
                  s.buffer(bodyLength +
-                   m_trailer.setField(CheckSum::Pack(checkSum())).getLength()
+                   Sequence::set_in_ordered(m_trailer, CheckSum::Pack(checkSum()))->second.getLength()
                  ) ) ) );
   }
 
@@ -359,8 +363,8 @@ protected:
     m_trailer( get_allocator(), message_order( message_order::trailer ) ),
     m_status( 0 )
   {
-    Sequence::push_back_to(m_header, beginString );
-    Sequence::push_back_to(m_header, msgType );
+    Sequence::push_back_to_ordered(m_header, beginString );
+    Sequence::push_back_to_ordered(m_header, msgType );
   }
 
 public:
@@ -374,7 +378,7 @@ public:
   Message();
 
   /// Construct a message with hints
-  Message( SerializationHint, int hintFieldCount = allocator_type::DefaultCapacity );
+  Message( SerializationHint, int hintFieldCount = ItemAllocatorTraits::DefaultCapacity );
 
   /// Construct a message from a string
   Message( const std::string& string, bool validate = true )
@@ -891,9 +895,9 @@ throw( FieldNotFound )
 
 inline void Message::setSessionID( const SessionID& sessionID )
 {
-  getHeader().setField( sessionID.getBeginString() );
-  getHeader().setField( sessionID.getSenderCompID() );
-  getHeader().setField( sessionID.getTargetCompID() );
+  Sequence::set_in_ordered( getHeader(), sessionID.getBeginString() );
+  Sequence::set_in_ordered( getHeader(), sessionID.getSenderCompID() );
+  Sequence::set_in_ordered( getHeader(), sessionID.getTargetCompID() );
 }
 
 /// Parse the type of a message from a string.

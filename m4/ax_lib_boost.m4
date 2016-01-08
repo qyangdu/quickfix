@@ -14,20 +14,6 @@ AC_ARG_WITH(boost,
 BOOST_PREFIX=$with_boost
 AC_SUBST(BOOST_PREFIX)
 
-has_fieldmap=
-AC_ARG_WITH(fieldmap,
-    [  --with-fieldmap=<type>  select non-default field map implementation -
-                          "boost::intrusive::sgtree", "boost::intrusive::rbtree",
-                          or "boost::intrusive::avltree"], 
-    [has_fieldmap=$withval],
-    has_fieldmap="default"
-)
-has_slist=false
-AC_ARG_WITH(slist-traversal,
-    [  --with-slist-traversal  maintain a single linked list for faster tree traversal],
-    [has_slist=$withval; test "$withval" = no || has_slist=true],
-    has_slist=false
-)
 if test $has_boost = true
 then
     BOOST_LIBS="-L${BOOST_PREFIX}/lib -lboost_system -lboost_thread"
@@ -47,37 +33,4 @@ then
                 AC_MSG_RESULT(yes),
                 AC_MSG_ERROR(no))
 fi
-AC_MSG_CHECKING(for FieldMap container type)
-case $has_fieldmap in
-     boost::intrusive::sgtree)
-       AC_DEFINE(ENABLE_BOOST_SGTREE, 1, Define for boost::intrusive::sgtree)
-       if test $has_slist = true
-       then
-         AC_DEFINE(ENABLE_SLIST_TREE_TRAVERSAL, 1, Define for tree with list)
-         AC_MSG_RESULT(boost::intrusive::sgtree with list)
-       else
-         AC_MSG_RESULT(boost::intrusive::sgtree)
-       fi;;
-     boost::intrusive::rbtree)
-       AC_DEFINE(ENABLE_BOOST_RBTREE, 1, Define for boost::intrusive::rbtree)
-       if test $has_slist = true
-       then
-         AC_DEFINE(ENABLE_SLIST_TREE_TRAVERSAL, 1, Define for tree with list)
-         AC_MSG_RESULT(boost::intrusive::rbtree with list)
-       else
-         AC_MSG_RESULT(boost::intrusive::rbtree)
-       fi;;
-     boost::intrusive::avltree)
-       AC_DEFINE(ENABLE_BOOST_AVLTREE, 1, Define for boost::intrusive::avltree)
-       if test $has_slist = true
-       then
-         AC_DEFINE(ENABLE_SLIST_TREE_TRAVERSAL, 1, Define for tree with list)
-         AC_MSG_RESULT(boost::intrusive::avltree with list)
-       else
-         AC_MSG_RESULT(boost::intrusive::avltree)
-       fi;;
-     *)
-       AC_MSG_RESULT(defaulting to the Container::avlTree)
-       ;;
-esac
 ])

@@ -906,7 +906,7 @@ struct UtcTimeStampConvertor : public UtcConvertorBase
                                bool calculateDays = false )
   throw( FieldConvertError )
   {
-    UtcTimeStamp utc;
+    UtcTimeStamp utc( DateTime(0, 0) );
     if (parse(value, utc))
       return utc;
     throw FieldConvertError();

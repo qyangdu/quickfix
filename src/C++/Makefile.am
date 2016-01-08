@@ -123,8 +123,8 @@ Config.h: Makefile $(top_builddir)/config.h
 	grep "HAVE_BOOST" $(top_builddir)/config.h >>$@
 	grep "HAVE_TBB" $(top_builddir)/config.h >>$@
 	grep "ENABLE_SSO" $(top_builddir)/config.h >>$@
-	grep "ENABLE_BOOST.*TREE" $(top_builddir)/config.h >>$@
-	grep "ENABLE_SLIST" $(top_builddir)/config.h >>$@
+	grep "ENABLE_FLAT_FIELDMAP" $(top_builddir)/config.h >>$@
+	grep "ENABLE_RELAXED_ORDERING" $(top_builddir)/config.h >>$@
 
 all-local:
 	rm -rf $(top_builddir)/lib/libquickfix.a

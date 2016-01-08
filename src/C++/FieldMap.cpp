@@ -144,8 +144,8 @@ int FieldMap::calculateLength( int beginStringField,
                                int checkSumField ) const
 {
   int result = 0;
-  Fields::const_iterator i, fe = m_fields.end();
-  for ( i = m_fields.begin(); i != fe; ++i )
+  Fields::const_iterator i, fe = f_end();
+  for ( i = f_begin(); i != fe; ++i )
   {
     int tag = i->first;
     if ( tag != beginStringField
@@ -167,8 +167,8 @@ int FieldMap::calculateLength( int beginStringField,
 int HEAVYUSE FieldMap::calculateTotal( int checkSumField ) const
 {
   int result = 0;
-  Fields::const_iterator i, fe = m_fields.end();
-  for ( i = m_fields.begin(); i != fe; ++i )
+  Fields::const_iterator i, fe = f_end();
+  for ( i = f_begin(); i != fe; ++i )
   {
     if ( i->first != checkSumField )
       result += i->second.getTotal();

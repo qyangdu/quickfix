@@ -260,14 +260,14 @@ private:
   void insertSendingTime( Header& header,
                           const UtcTimeStamp& now = UtcTimeStamp () )
   {
-    header.setField( SendingTime::Pack(now,
+    FieldMap::Sequence::set_in_ordered(header, SendingTime::Pack(now,
                      m_millisecondsAllowed && m_millisecondsInTimeStamp) );
   }
 
   void insertOrigSendingTime( Header& header,
                               const UtcTimeStamp& when = UtcTimeStamp () )
   {
-    header.setField( OrigSendingTime::Pack(when,
+    FieldMap::Sequence::set_in_ordered(header, OrigSendingTime::Pack(when,
                      m_millisecondsAllowed && m_millisecondsInTimeStamp) );
   }
 

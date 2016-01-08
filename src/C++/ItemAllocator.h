@@ -26,26 +26,38 @@
 
 namespace FIX
 {
+  struct ItemAllocatorTraits
+  {
+    static const unsigned DefaultCapacity = 32;
+  };
 
-  // Caching allocator for node-based containers
-  template <typename T, std::size_t Alignment = 8>
+  // Cache-friendly allocator for node-based containers with optional aligned header area
+  template <typename T, typename Header = void, std::size_t HeaderAlignment = 16, std::size_t ItemAlignment = 8>
   class ItemStore
   {
-    template<typename U, std::size_t A2>
+    template <typename O> struct SizeOf { // 0 for void
+      static char f(void*);
+      template <typename U> static char (&f(U*))[sizeof(U&) + 1];
+      static const std::size_t value = sizeof(f((O*)0)) - 1;
+    };
+    static const std::size_t HeaderBytes = SizeOf<Header>::value;
+    template<typename U, std::size_t HB, std::size_t HA, std::size_t IA>
     struct Options
     {
-      static const std::size_t Padding = A2 - sizeof(U) % A2;
       union Entry {
-        char m_v[sizeof(U) + Padding % A2];
+        char m_v[sizeof(U) + (IA - sizeof(U) % IA) % IA];
         U*   m_p;
       };
-      static const std::size_t Allow = sizeof(Entry) == sizeof(typename Options<T, Alignment>::Entry);
-      int type_compatibility_for_item_store : Allow;
+      static const std::size_t AllowType = (HA != 0) && !(HA & (HA - 1)) && (IA != 0) && !(IA & (IA - 1));
+      int improper_alignment : AllowType; // power-of-two alignment only
+      static const std::size_t AllowCopy = HeaderBytes == HB && HeaderAlignment == HA &&
+                                       sizeof(Entry) == sizeof(typename Options<T, HeaderBytes, HeaderAlignment, ItemAlignment>::Entry);
+      int type_compatibility_for_item_store : AllowCopy;
     };
     public:
       class Buffer
       {
-          typedef typename Options<T, Alignment>::Entry Entry;
+          typedef typename Options<T, HeaderBytes, HeaderAlignment, ItemAlignment>::Entry Entry;
           class Segment {
               unsigned m_count, m_num;
               Segment* m_next;
@@ -71,7 +83,7 @@ namespace FIX
           };
 
           T*       m_pfree;
-          unsigned m_shared;
+          unsigned m_shared, m_pad;
           Segment  m_seg; // must be the last member!
 
           Segment* PURE_DECL top() const { return m_seg.next(); }
@@ -86,18 +98,26 @@ namespace FIX
             }
           }
 
+          Buffer(unsigned num, unsigned referenced, unsigned pad)
+          : m_pfree(NULL), m_shared(referenced + 1), m_pad(pad), m_seg(num, &m_seg) {}
+	  ~Buffer() {}
+
+          template <typename B> struct Eval {
+            static const std::size_t Bytes = HeaderBytes + sizeof(B) +
+                                               ((HeaderBytes > 0 && HeaderAlignment < ItemAlignment) ? (ItemAlignment - HeaderAlignment) : 0);
+            static const std::size_t Padding = Bytes + (ItemAlignment - Bytes % ItemAlignment) % ItemAlignment +
+                                               ((HeaderBytes > 0 && HeaderAlignment >= ItemAlignment) ? HeaderAlignment : 0);
+          };
         public:
 
-          Buffer(unsigned num, unsigned referenced)
-          : m_pfree(NULL), m_shared(referenced + 1), m_seg(num, &m_seg) {}
-  
           unsigned addRef() { return ++m_shared; }
           unsigned decRef() { return --m_shared; }
   
           static inline Buffer* create(unsigned num, unsigned referenced = 0)
           {
-            Buffer* h = (Buffer*) (ALLOCATOR<unsigned char>().allocate(num * sizeof(Entry) + sizeof(Buffer)));
-            return new (h) Buffer(num, referenced);
+            unsigned char* p = ALLOCATOR<unsigned char>().allocate(Eval<Buffer>::Padding + num * sizeof(Entry));
+            Buffer* h = (Buffer*) ((((uintptr_t)p + Eval<Buffer>::Padding) & ~(uintptr_t)(ItemAlignment - 1)) - sizeof(Buffer));
+            return new (h) Buffer(num, referenced, (uintptr_t)h - (uintptr_t)p);
           }
 
           bool verify(T* p)
@@ -106,7 +126,7 @@ namespace FIX
             do { if (p >= s->start() && p < s->end()) return true; s = s->next(); } while (s != top());
             return false;
           }
-  
+
           T* acquire()
           {
             if ( LIKELY(!m_pfree) )
@@ -128,11 +148,16 @@ namespace FIX
             m_seg.reset(&m_seg);
             m_pfree = NULL;
           }
+
+          Header* header() // returns header space address
+          { return HeaderBytes > 0 ? (Header*)(((uintptr_t)this - HeaderBytes) & ~(uintptr_t)(HeaderAlignment - 1)) : (Header*)NULL; }
+
+          static std::size_t header_size() { return HeaderBytes; }
   
           static void destroy(Buffer* p)
           {
             p->free_segments();
-            ALLOCATOR<unsigned char>().deallocate((unsigned char*)p, 0);
+            ALLOCATOR<unsigned char>().deallocate((unsigned char*)p - p->m_pad, 0);
           }
       };
 
@@ -140,23 +165,23 @@ namespace FIX
       inline ItemStore(ItemStore const& s) : m_buffer( s.m_buffer )
       { if ( m_buffer ) m_buffer->addRef(); }
 
-      template <typename U, std::size_t A>
-      inline ItemStore(ItemStore<U, A> const& s, int = sizeof(Options<U, A>))
+      template <typename U, typename H, std::size_t HA, std::size_t IA>
+      inline ItemStore(ItemStore<U, H, HA, IA> const& s, int = sizeof(Options<U, SizeOf<H>::value, HA, IA>))
       : m_buffer( (Buffer*)s.m_buffer )
       { if ( m_buffer ) m_buffer->addRef(); }
 
-      template <typename U, std::size_t A>
-      bool operator==(ItemStore<U, A> const& s) const
+      template <typename U,  typename H, std::size_t HA, std::size_t IA>
+      bool operator==(ItemStore<U, H, HA, IA> const& s) const
       { return (void*)m_buffer == (void*)s.m_buffer; }
 
-      template <typename U, std::size_t A> friend class ItemStore;
+      template <typename U, typename H, std::size_t HA, std::size_t IA> friend class ItemStore;
 
     protected:
       Buffer* m_buffer;
   };
 
-  template<typename T>
-  class ItemAllocator : public ItemStore<T>
+  template<typename T, typename Header = void, std::size_t HeaderAlignment = 16>
+  class ItemAllocator : public ItemStore<T, Header, HeaderAlignment>
   {
     public : 
 
@@ -169,10 +194,8 @@ namespace FIX
       typedef std::size_t size_type;
       typedef std::ptrdiff_t difference_type;
 
-      typedef ItemStore<T> item_store;
+      typedef ItemStore<T, Header, HeaderAlignment> item_store;
       typedef typename item_store::Buffer buffer_type;
-
-      static const unsigned DefaultCapacity = 32;
 
     public : 
       //    convert an allocator<T> to allocator<U>
@@ -188,8 +211,8 @@ namespace FIX
       inline explicit ItemAllocator(ItemAllocator const& a)
        : item_store(a) {}
 
-      template<typename U>
-      inline ItemAllocator(ItemAllocator<U> const& u)
+      template<typename U, typename  H, std::size_t A>
+      inline ItemAllocator(ItemAllocator<U, H, A> const& u)
        : item_store(u) {}
 
       inline ~ItemAllocator() // clean up here, not a virtual dtor
@@ -198,13 +221,13 @@ namespace FIX
         if ( buf && buf->decRef() == 0 ) buffer_type::destroy(buf);
       }
 
-      template<typename U>
-      inline bool operator==(ItemAllocator<U> const& u) const
-      { return this->m_buffer ? static_cast<const ItemStore<T>&>(*this) ==
-                                static_cast<const ItemStore<U>&>(u) : false; }
+      template<typename U, typename H, std::size_t A>
+      inline bool operator==(ItemAllocator<U, H, A> const& u) const
+      { return this->m_buffer ? static_cast<const item_store&>(*this) ==
+                                static_cast<const typename ItemAllocator<U, H, A>::item_store&>(u) : false; }
       void clear()
       { if ( this->m_buffer ) this->m_buffer->clear(); }
-  
+
       //    address
       inline pointer address(reference r) { return &r; }
       inline const_pointer address(const_reference r) { return &r; }
@@ -214,7 +237,7 @@ namespace FIX
       { 
         buffer_type* buf = this->m_buffer;
         if ( LIKELY(NULL != buf) ) return buf->acquire();
-        this->m_buffer = buffer_type::create(DefaultCapacity);
+        this->m_buffer = buffer_type::create(ItemAllocatorTraits::DefaultCapacity);
         return this->m_buffer->acquire();
       }
 
@@ -242,6 +265,9 @@ namespace FIX
       { return true; }
       inline bool operator!=(ItemAllocator const& a)
       { return !operator==(a); }
+
+      Header* header()
+      { return this->m_buffer ? this->m_buffer->header() : (Header*)NULL; }
 
     private:
       typedef ALLOCATOR<value_type> Allocator;

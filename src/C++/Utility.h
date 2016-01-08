@@ -108,6 +108,12 @@ typedef int socklen_t;
 #include <errno.h>
 #include <time.h>
 #include <stdlib.h>
+#if defined(__GNUC__) && defined(__x86_64__)
+#include <xmmintrin.h>
+#ifdef __AVX__
+#include <immintrin.h>
+#endif
+#endif
 #if defined(__MACH__)
 #include <mach/mach_time.h>
 #endif
@@ -157,6 +163,7 @@ typedef int socklen_t;
 #define LIKELY(x) (x)
 #define MAY_ALIAS
 #define PURE_DECL
+#define FORCE_INLINE
 #elif defined(__GNUC__)
 #define ALIGN_DECL(x) __attribute__ ((aligned(x)))
 #define NOTHROW __attribute__ ((nothrow))
@@ -167,6 +174,11 @@ typedef int socklen_t;
 #define LIKELY(x) __builtin_expect((x),1)
 #define MAY_ALIAS __attribute__ ((may_alias))
 #define PURE_DECL __attribute__ ((pure))
+#if defined(__INTEL_COMPILER)
+#define FORCE_INLINE __forceinline
+#else
+#define FORCE_INLINE
+#endif
 #else
 #define ALIGN_DECL(x)
 #define NOTHROW
@@ -177,6 +189,7 @@ typedef int socklen_t;
 #define LIKELY(x) (x)
 #define MAY_ALIAS
 #define PURE_DECL
+#define FORCE_INLINE
 #endif
 
 #define ALIGN_DECL_DEFAULT ALIGN_DECL(16)
@@ -798,6 +811,20 @@ namespace FIX
       }
     };
 
+    struct Memory
+    {
+      template <typename T> static inline void shift_up_from(T* src, std::size_t count)
+      {
+        if (LIKELY(count < 8) ) while (count) { std::size_t c = count--; src[c] = src[count]; }
+        else ::memmove(src + 1, src, count * sizeof(T));
+      }
+      template <typename T> static inline void shift_down_to(T* src, std::size_t count)
+      {
+        if (LIKELY(count < 8) ) while (count--) { T* dst = src++; *dst = *src; }
+        else ::memmove(src, src + 1, count * sizeof(T));
+      }
+    };
+
     struct Char
     {
       static inline bool isspace( char x ) { return x == ' '; }
@@ -829,15 +856,15 @@ namespace FIX
 #if defined(__GNUC__)
 	return (const char*)::memmem(buf, bsz, str, ssz);
 #else
-        if( bsz >= ssz )
+        if (bsz >= ssz)
         {
           const char* end = buf + bsz - ssz + 1;
 		  char c = str[0];
-          while( LIKELY(NULL != (buf = (const char*)::memchr (buf, c, end - buf))) )
+          while (LIKELY(NULL != (buf = (const char*)::memchr (buf, c, end - buf))))
           {
-            if( 0 == ::memcmp (buf, str, ssz) ) 
+            if (0 == ::memcmp (buf, str, ssz)) 
               return buf; 
-            if( ++buf >= end )
+            if (++buf >= end)
               break;
           }
         }
@@ -1530,6 +1557,251 @@ namespace FIX
 
       std::size_t size() const { return sizeof(word_type) << 3; }
     };
+
+    template <typename Key, typename T, std::size_t N> class PtrCache {
+      BitSet<N> m_mask;
+      Key m_key[N];
+      T* m_p[N];
+
+    public:
+
+      static const std::size_t Alignment = 1;
+
+      PtrCache() : m_mask(true) {}
+
+      static inline std::size_t capacity()
+      { return N; }
+
+      void clear()
+      { m_mask.set(); }
+  
+      T* lookup(const Key& key)
+      {
+        for(std::size_t i = 0; i < N; i++)
+          if (key == m_key[i] && !m_mask[i])
+            return m_p[i];
+        return NULL;
+      }
+      std::size_t insert(const Key& key, T* p)
+      {
+        std::size_t i = m_mask._Find_first();
+        if (i != N)
+        {
+          m_key[i] = key;
+          m_p[i] = p;
+          m_mask.reset(i);
+        }
+        return i;
+      }
+      T* erase(const Key& key)
+      {
+        for (std::size_t i = 0; i < N; i++)
+        {
+          if (key == m_key[i] && !m_mask[i]) 
+          {
+            m_mask.set(i);
+            return m_p[i];
+          }
+        }
+        return false;
+      }
+
+      T* evict(std::size_t pos)
+      { return (pos < N) ? m_mask.set(pos), m_p[pos] : NULL; }
+    };
+
+#if defined(__GNUC__) && defined(__x86_64__)
+
+    namespace detail
+    {
+      template <std::size_t Size> struct int32_key_holder
+      {
+        union
+        {
+          __m128 m_simd[Size >> 2];
+          struct
+          {
+            int32_t m_key[Size + 1];
+            uint32_t m_mask;
+          };
+        } __attribute__((packed));
+        int32_key_holder() : m_mask(((uint32_t)1 << Size) - 1) {}
+
+        template <typename F> F* lookup_pos(uint32_t mask, F* m_p[Size + 1])
+        {
+          F* p = NULL;
+          __asm__ __volatile__ (
+          " bsf %1, %1;               \n\t"
+          " cmovnz (%2,%q1,8), %0;    \n\t"
+          : "+a"(p), "+r" (mask)
+          : "r" (m_p)
+          : "cc"
+          );
+          return p;
+        }
+        template <typename F> std::size_t insert_key(int32_t key, F* p, F* m_p[Size + 1]) {
+          uint32_t i = Size;
+          __asm__ __volatile__ (
+          " bsf %1, %%edx;            \n\t"
+          " cmovnz %%edx, %0;         \n\t"
+          " btr %0, %1;               \n\t"
+          : "+r"(i), "+m"(m_mask)
+          : 
+          : "edx", "cc"
+          );
+          m_key[i] = key;
+          m_p[i] = p;
+          return i;
+        }
+        template <typename F> F* erase_pos(uint32_t mask, F* m_p[Size + 1]) {
+	  int32_t tmp;
+          F* p = NULL;
+          __asm__ __volatile__ (
+          " bsf %0, %0;               \n\t"
+          " cmovnz (%4,%q0,8), %3;    \n\t"
+          " setnz %b1;                \n\t"
+          " movzbl %b1, %1;           \n\t"
+          " shl %b0, %1;              \n\t"
+          " or %1, %2;                \n\t"
+          : "+c"(mask), "=r" (tmp), "+m"(m_mask), "+r" (p)
+          : "r" (m_p)
+          : "cc"
+          );
+          return p;
+        }
+        template <typename F> F* evict_pos(std::size_t pos, F* m_p[Size + 1]) {
+          std::size_t tmp = Size;
+          F* p = NULL;
+          __asm__ __volatile__ (
+          " bts %2, %0                \n\t"
+          " cmovc %4, %2              \n\t"
+          " cmp %2, %4                \n\t"
+          " cmovg (%3,%2,8), %1       \n\t"
+          : "+m"(m_mask), "+r"(p)
+          : "r"(pos), "r"(m_p), "r"(tmp)
+          : "cc"
+          );
+          return p;
+        }
+      };
+
+      template <std::size_t Size> struct int32_keys;
+
+      template <> struct int32_keys<8> : public int32_key_holder<8>
+      {
+        inline uint32_t keymask(int32_t key)
+        {
+          uint32_t mask;
+          __asm__ __volatile__ (
+#ifdef __AVX__
+          " vmovd   %1, %%xmm2;       \n\t"
+          " vshufps $0, %%xmm2, %%xmm2, %%xmm2 \n\t"
+          " vpcmpeqd %2, %%xmm2, %%xmm1; \n\t"
+          " mov %4, %0;               \n\t"
+          " vpcmpeqd %3, %%xmm2, %%xmm2; \n\t"
+          " not %0;                   \n\t"
+          " and $255, %0;             \n\t"
+          " vpackssdw %%xmm2, %%xmm1, %%xmm1;  \n\t"
+          " vpacksswb %%xmm1, %%xmm1, %%xmm1;  \n\t"
+          " vpmovmskb %%xmm1, %1;     \n\t"
+#else
+          " movdqa %2, %%xmm1;        \n\t"
+          " movd   %1, %%xmm2;        \n\t"
+          " shufps $0, %%xmm2, %%xmm2 \n\t"
+          " pcmpeqd %%xmm2, %%xmm1;   \n\t"
+          " pcmpeqd %3, %%xmm2;       \n\t"
+          " mov %4, %0;               \n\t"
+          " not %0;                   \n\t"
+          " and $255, %0;             \n\t"
+          " packssdw %%xmm2, %%xmm1;  \n\t"
+          " packsswb %%xmm1, %%xmm1;  \n\t"
+          " pmovmskb %%xmm1, %1;      \n\t"
+#endif
+          " and %1, %0;               \n\t"
+          : "=r" (mask), "+r" (key)
+          : "m" (m_simd[0]), "m" (m_simd[1]), "m" (m_mask)
+          : "xmm1", "xmm2", "cc"
+          );
+          return mask;
+        }
+      };
+
+      template <> struct int32_keys<16> : public int32_key_holder<16>
+      {
+        inline uint32_t keymask(int32_t key)
+        {
+          uint32_t mask;
+          __asm__ __volatile__ (
+#ifdef __AVX__
+          " vmovd   %1, %%xmm4;       \n\t"
+          " vshufps $0, %%xmm4, %%xmm4, %%xmm4 \n\t"
+          " vpcmpeqd %2, %%xmm4, %%xmm1; \n\t"
+          " vpcmpeqd %3, %%xmm4, %%xmm2; \n\t"
+          " vpcmpeqd %4, %%xmm4, %%xmm3; \n\t"
+          " mov %6, %0;               \n\t"
+          " vpackssdw %%xmm2, %%xmm1, %%xmm1;  \n\t"
+          " vpcmpeqd %5, %%xmm4, %%xmm4; \n\t"
+          " not %0;                   \n\t"
+          " vpackssdw %%xmm4, %%xmm3, %%xmm3;  \n\t"
+          " vpacksswb %%xmm3, %%xmm1, %%xmm1;  \n\t"
+          " vpmovmskb %%xmm1, %1;     \n\t"
+#else
+          " movdqa %2, %%xmm1;        \n\t"
+          " movdqa %3, %%xmm2;        \n\t"
+          " movd   %1, %%xmm4;        \n\t"
+          " shufps $0, %%xmm4, %%xmm4 \n\t"
+          " pcmpeqd %%xmm4, %%xmm1;   \n\t"
+          " movdqa %%xmm4, %%xmm3;    \n\t"
+          " pcmpeqd %%xmm4, %%xmm2;   \n\t"
+          " pcmpeqd %4, %%xmm3;       \n\t"
+          " mov %6, %0;               \n\t"
+          " packssdw %%xmm2, %%xmm1;  \n\t"
+          " pcmpeqd %5, %%xmm4;       \n\t"
+          " not %0;                   \n\t"
+          " packssdw %%xmm4, %%xmm3;  \n\t"
+          " packsswb %%xmm3, %%xmm1;  \n\t"
+          " pmovmskb %%xmm1, %1;      \n\t"
+#endif
+          " and %1, %0;               \n\t"
+          : "=r" (mask), "+r" (key)
+          : "m" (m_simd[0]), "m" (m_simd[1]), "m" (m_simd[2]), "m" (m_simd[3]), "m" (m_mask)
+          : "xmm1", "xmm2", "xmm3", "xmm4", "cc"
+          );
+          return mask;
+        }
+      };
+
+      template <typename F, std::size_t N> class IntPtrCache : private int32_keys<N>
+      {
+        typedef int32_keys<N> Base;
+        F* m_p[N + 1];
+  
+        public:
+
+	static inline std::size_t capacity()
+        { return N; }
+
+	void clear()
+        { this->m_mask = ((uint32_t)1 << N) - 1; }
+  
+        F* lookup(int32_t key)
+        { return this->lookup_pos(Base::keymask(key), m_p); }
+
+        std::size_t insert(int32_t key, F* p)
+        { return this->insert_key(key, p, m_p); }
+
+        F* erase(int32_t key) 
+        { return this->erase_pos(Base::keymask(key), m_p); }
+
+        F* evict(std::size_t pos)
+        { return this->evict_pos((uint32_t)pos, m_p); }
+      };
+    }
+
+    template <typename F> class PtrCache<int32_t, F, 16> : public detail::IntPtrCache<F, 16> {};
+    template <typename F> class PtrCache<int32_t, F, 8> : public detail::IntPtrCache<F, 8> {};
+
+#endif
 
   } // namespace FIX::Util
 

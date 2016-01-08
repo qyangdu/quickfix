@@ -68,7 +68,7 @@ Session::Session( Application& application,
   m_messageStoreFactory( messageStoreFactory ),
   m_pLogFactory( pLogFactory ),
   m_pResponder( 0 ),
-  m_rcvAllocator( Message::create_allocator( FieldMap::allocator_type::DefaultCapacity << 3 ) )
+  m_rcvAllocator( Message::create_allocator( ItemAllocatorTraits::DefaultCapacity << 3 ) )
 {
   m_state.heartBtInt( heartBtInt );
   m_state.initiate( heartBtInt != 0 );
@@ -95,10 +95,10 @@ Session::~Session()
 void Session::fill( Header& header, UtcTimeStamp now )
 {
   m_state.lastSentTime( now );
-  header.setField( m_sessionID.getBeginString() );
-  header.setField( m_sessionID.getSenderCompID() );
-  header.setField( m_sessionID.getTargetCompID() );
-  header.setField( MsgSeqNum::Pack( getExpectedSenderNum() ) );
+  FieldMap::Sequence::set_in_ordered(header, m_sessionID.getBeginString() );
+  FieldMap::Sequence::set_in_ordered(header, m_sessionID.getSenderCompID() );
+  FieldMap::Sequence::set_in_ordered(header, m_sessionID.getTargetCompID() );
+  FieldMap::Sequence::set_in_ordered(header, MsgSeqNum::Pack( getExpectedSenderNum() ) );
   insertSendingTime( header, now );
 }
 
@@ -109,12 +109,10 @@ Message::admin_trait Session::fill( Header& header, int num, UtcTimeStamp now )
 
   m_state.lastSentTime( now );
   if( it->first == FIX::FIELD::BeginString )
-  {
     (FieldBase&)it->second = m_sessionID.getBeginString();
-    ++it;
-  }
   else
-    header.addField( it, m_sessionID.getBeginString() );
+    it = FieldMap::Sequence::push_front_to_ordered( header, m_sessionID.getBeginString() );
+  ++it;
 
   if ( it->first == FIX::FIELD::BodyLength )
     ++it;
@@ -125,9 +123,9 @@ Message::admin_trait Session::fill( Header& header, int num, UtcTimeStamp now )
     if( msgType && p[1] == '\0' )
       trait = Message::getAdminTrait( msgType );
   }
-  header.setField( m_sessionID.getSenderCompID() );
-  header.setField( m_sessionID.getTargetCompID() );
-  header.setField( MsgSeqNum::Pack( num ? num : getExpectedSenderNum() ) );
+  FieldMap::Sequence::set_in_ordered(header, m_sessionID.getSenderCompID() );
+  FieldMap::Sequence::set_in_ordered(header, m_sessionID.getTargetCompID() );
+  FieldMap::Sequence::set_in_ordered(header, MsgSeqNum::Pack( num ? num : getExpectedSenderNum() ) );
   insertSendingTime( header, now );
 
   return trait;
@@ -1237,7 +1235,7 @@ void HEAVYUSE Session::next( Sg::sg_buf_t buf, const UtcTimeStamp& timeStamp, bo
       m_dataDictionaryProvider.getSessionDataDictionary(m_sessionID.getBeginString());
 
     m_state.onIncoming( &buf, 1 );
-    m_rcvAllocator.clear();
+    Message::reset_allocator( m_rcvAllocator );
 
     if( LIKELY(!m_sessionID.isFIXT()) )
     {
@@ -1440,7 +1438,7 @@ void HEAVYUSE Session::next( const Message& message, const DataDictionary& sessi
     nextQueued( timeStamp );
 
   if( isLoggedOn() )
-    next();
+    next( timeStamp );
 }
 
 bool Session::sendToTarget( Message& message, const std::string& qualifier )
@@ -1471,8 +1469,8 @@ bool Session::sendToTarget
   const std::string& qualifier )
 throw( SessionNotFound )
 {
-  message.getHeader().setField( senderCompID );
-  message.getHeader().setField( targetCompID );
+  FieldMap::Sequence::set_in_ordered( message.getHeader(), senderCompID );
+  FieldMap::Sequence::set_in_ordered( message.getHeader(), targetCompID );
   return sendToTarget( message, qualifier );
 }
 
