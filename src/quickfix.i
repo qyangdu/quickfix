@@ -15,8 +15,8 @@
 %array_class(int, IntArray);
 
 %ignore _REENTRANT;
-%ignore ALIGN_DECL_DEFAULT;
 %ignore FIX::SynchronizedApplication::m_mutex;
+%ignore FIX::FieldMap::FieldMap( const allocator_type&, const message_order&, const Options& );
 %rename(SocketInitiatorBase) FIX::SocketInitiator;
 %rename(SocketAcceptorBase) FIX::SocketAcceptor;
 
