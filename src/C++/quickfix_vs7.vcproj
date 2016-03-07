@@ -152,10 +152,7 @@ del /F EXCLUDE
 				RelativePath=".\Initiator.cpp">
 			</File>
 			<File
-				RelativePath="LIBXML_DOMDocument.cpp">
-			</File>
-			<File
-				RelativePath="MSXML_DOMDocument.cpp">
+				RelativePath=".\PUGIXML_DOMDocument.cpp">
 			</File>
 			<File
 				RelativePath=".\Parser.cpp">
@@ -322,10 +319,7 @@ del /F EXCLUDE
 				</FileConfiguration>
 			</File>
 			<File
-				RelativePath="LIBXML_DOMDocument.h">
-			</File>
-			<File
-				RelativePath="MSXML_DOMDocument.h">
+				RelativePath="PUGIXML_DOMDocument.h">
 				<FileConfiguration
 					Name="Debug|Win32">
 					<Tool

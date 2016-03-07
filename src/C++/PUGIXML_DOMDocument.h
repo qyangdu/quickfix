@@ -1,7 +1,7 @@
 /* -*- C++ -*- */
 
 /****************************************************************************
-** Copyright (c) quickfixengine.org  All rights reserved.
+** Copyright (c) 2001-2014
 **
 ** This file is part of the QuickFIX FIX Engine
 **
@@ -19,42 +19,36 @@
 **
 ****************************************************************************/
 
-#if (HAVE_LIBXML > 0 || _MSC_VER == 0)
-#ifndef FIX_LIBXMLDOMDOCUMENT_H
-#define FIX_LIBXMLDOMDOCUMENT_H
-
-#ifdef _MSC_VER
-#pragma comment( lib, "libxml2" )
-#endif
+#ifndef FIX_PUGIXMLDOMDOCUMENT_H
+#define FIX_PUGIXMLDOMDOCUMENT_H
 
 #include "DOMDocument.h"
 #include "Exceptions.h"
-#include <libxml/xmlmemory.h>
-#include <libxml/parser.h>
+#include "pugixml.hpp"
 
 namespace FIX
 {
-  /// XML attribute as represented by libxml.
-  class LIBXML_DOMAttributes : public DOMAttributes
+  /// XML attribute as represented by pugixml.
+  class PUGIXML_DOMAttributes : public DOMAttributes
   {
   public:
-    LIBXML_DOMAttributes( xmlNodePtr pNode )
+    PUGIXML_DOMAttributes( pugi::xml_node pNode )
     : m_pNode(pNode) {}
 
     bool get( const std::string&, std::string& );
     DOMAttributes::map toMap();
 
   private:
-    xmlNodePtr m_pNode;
+    pugi::xml_node m_pNode;
   };
 
-  /// XML node as represented by libxml.
-  class LIBXML_DOMNode : public DOMNode
+  /// XML node as represented by pugixml.
+  class PUGIXML_DOMNode : public DOMNode
   {
   public:
-    LIBXML_DOMNode( xmlNodePtr pNode )
+    PUGIXML_DOMNode( pugi::xml_node pNode )
     : m_pNode(pNode) {}
-    ~LIBXML_DOMNode() {}
+    ~PUGIXML_DOMNode() {}
 
     DOMNodePtr getFirstChildNode();
     DOMNodePtr getNextSiblingNode();
@@ -63,15 +57,15 @@ namespace FIX
     std::string getText();
 
   private:
-    xmlNodePtr m_pNode;
+    pugi::xml_node m_pNode;
   };
 
-  /// XML document as represented by libxml.
-  class LIBXML_DOMDocument : public DOMDocument
+  /// XML document as represented by pugixml.
+  class PUGIXML_DOMDocument : public DOMDocument
   {
   public:
-    LIBXML_DOMDocument() throw( ConfigError );
-    ~LIBXML_DOMDocument();
+    PUGIXML_DOMDocument() throw( ConfigError );
+    ~PUGIXML_DOMDocument();
 
     bool load( std::istream& );
     bool load( const std::string& );
@@ -80,9 +74,8 @@ namespace FIX
     DOMNodePtr getNode( const std::string& );
 
   private:
-    xmlDocPtr m_pDoc;
+    pugi::xml_document m_pDoc;
   };
 }
 
-#endif
 #endif

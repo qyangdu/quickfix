@@ -58,13 +58,6 @@ then
 fi
 ########################################
 
-########################################
-# LIBXML
-########################################
-#AM_PATH_XML2('2.0.0', , AC_MSG_ERROR(libxml2 must be installed.))
-PKG_CHECK_MODULES(XML, libxml-2.0 >= 2.6)
-########################################
-
 # libs
 LIBS="$STLPORT_LIBS $XML_LIBS $MYSQL_LIBS $POSTGRESQL_LIBS $TBB_LIBS $BOOST_LIBS $LIBS"
 # gcc flags

@@ -707,7 +707,7 @@ class avlTree
   typedef BaseHook*				node_ptr;
   typedef const BaseHook*			const_node_ptr;
 
-  template <typename Tree> friend class TreeTraits::Base;
+  friend class TreeTraits::template Base<avlTree>;
   public:
   typedef typename TreeTraits::template Algorithms<NodeTraits> algorithms;
   typedef typename TreeTraits::template Base<avlTree> base_type;
