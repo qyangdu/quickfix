@@ -20,7 +20,9 @@
 #ifdef _MSC_VER
 #include "stdafx.h"
 #else
+#ifndef __MACH__
 #define _XOPEN_SOURCE 500
+#endif
 #define _LARGEFILE64_SOURCE
 #include "config.h"
 #endif

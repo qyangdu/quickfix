@@ -115,7 +115,11 @@ typedef int socklen_t;
 #endif
 #endif
 #if defined(__MACH__)
+#include <sys/types.h>
+#include <sys/uio.h>
+#include <string.h>
 #include <mach/mach_time.h>
+#include <dispatch/dispatch.h>
 #endif
 /////////////////////////////////////////////
 #endif
@@ -272,7 +276,11 @@ namespace FIX
 #define FILE_POSITION_CUR (SEEK_CUR)
 #define FILE_POSITION_END (SEEK_END)
   typedef off_t   FILE_OFFSET_TYPE;
-#define FILE_OFFSET_TYPE_MOD		"L"
+#ifdef __MACH__
+#define FILE_OFFSET_TYPE_MOD            "ll"
+#else
+#define FILE_OFFSET_TYPE_MOD           "L"
+#endif
 #define FILE_OFFSET_TYPE_SET(offt, value) ((offt) = (value))
 #define FILE_OFFSET_TYPE_VALUE(offt) ((long long)offt)
 #define FILE_OFFSET_TYPE_ADDR(offt) ((long long*)&(offt))
@@ -545,17 +553,17 @@ namespace FIX
         {
           return (double)m_data.tv_sec + (double)m_data.tv_nsec / 1.0E-9;
         }
-      };
+      }; // TickCount
 #endif
 
-#if defined(_MSC_VER)
       class Semaphore
       {
-        HANDLE m_sem;
         Semaphore( const Semaphore & );
         Semaphore & operator = ( const Semaphore & );
+#if defined(_MSC_VER)
+        HANDLE m_sem;
       public:
-        Semaphore(int count = 0) 
+        Semaphore(int count = 0)
         {
           m_sem = ::CreateSemaphore(NULL, (std::numeric_limits<int>::max)(), count, NULL);
         }
@@ -575,15 +583,35 @@ namespace FIX
         {
           return ::ReleaseSemaphore(m_sem, 1, NULL) != 0;
         }
-      };
-#else
-      class Semaphore
-      {
-        sem_t m_sem;
-        Semaphore( const Semaphore & );
-        Semaphore & operator = ( const Semaphore & );
+
+#elif defined(__MACH__)
+        dispatch_semaphore_t m_sem;
       public:
-        Semaphore( int count = 0 ) 
+        Semaphore( int count = 0 )
+        {
+          m_sem = ::dispatch_semaphore_create( count );
+        }
+        ~Semaphore()
+        {
+          ::dispatch_release( m_sem );
+        }
+        bool wait()
+        {
+          return 0 == ::dispatch_semaphore_wait( m_sem, DISPATCH_TIME_FOREVER );
+        }
+        bool try_wait()
+        {
+          return 0 == ::dispatch_semaphore_wait( m_sem, DISPATCH_TIME_NOW );
+        }
+        bool post()
+        {
+          ::dispatch_semaphore_signal( m_sem );
+          return true;
+        }
+#else
+        sem_t m_sem;
+      public:
+        Semaphore( int count = 0 )
         {
           ::sem_init( &m_sem, 0, count );
         }
@@ -603,8 +631,8 @@ namespace FIX
         {
           return 0 == ::sem_post( &m_sem );
         }
-      };
 #endif
+      }; // Semaphore
 
 #if defined(_MSC_VER)
       static inline void SchedYield() { ::SwitchToThread(); }

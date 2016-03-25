@@ -245,7 +245,10 @@ ALIGN_DECL_DEFAULT static const DataDictionary::FieldPresenceMap::key_type group
 ALIGN_DECL_DEFAULT static const DataDictionary::FieldPresenceMap::key_type group_key_trailer_ =
        DataDictionary::FieldPresenceMap::key_type("_trailer_");
 
-inline void HEAVYUSE
+#ifndef __MACH__
+inline
+#endif
+void HEAVYUSE
 Message::setString( const char* data, std::size_t length,
                     bool doValidation,
                     const DataDictionary* pSessionDataDictionary,
