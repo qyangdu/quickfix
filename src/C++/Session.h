@@ -260,14 +260,14 @@ private:
   void insertSendingTime( Header& header,
                           const UtcTimeStamp& now = UtcTimeStamp () )
   {
-    FieldMap::Sequence::set_in_ordered(header, SendingTime::Pack(now,
+    Message::Sequence::set_in_ordered(header, SendingTime::Pack(now,
                      m_millisecondsAllowed && m_millisecondsInTimeStamp) );
   }
 
   void insertOrigSendingTime( Header& header,
                               const UtcTimeStamp& when = UtcTimeStamp () )
   {
-    FieldMap::Sequence::set_in_ordered(header, OrigSendingTime::Pack(when,
+    Message::Sequence::set_in_ordered(header, OrigSendingTime::Pack(when,
                      m_millisecondsAllowed && m_millisecondsInTimeStamp) );
   }
 
@@ -438,16 +438,19 @@ private:
 
 			SgBuffer& append(const char* s, std::size_t l) {
 				Sg::sg_buf_ptr e = sg_ + n_;
-				if (l < 32 || n_ >= (UIO_SIZE - 1)) {
-					char* p = (char*)IOV_BUF(*e);
-					p += IOV_LEN(*e);
+				if (l <= 32 || n_ >= (UIO_SIZE - 1)) {
+					uint64_t* dst = (uint64_t*)((char*)IOV_BUF(*e) + IOV_LEN(*e));
 					IOV_LEN(*e) += l;
-					std::size_t len = (l >> 3) + ((l & 7) != 0);
-					uint64_t* dst = (uint64_t*)p;
+					l = (l + 7) >> 3;
 					const uint64_t* src = (const uint64_t*)s;
-					while (len-- > 0)  {
-						*dst++ = *src++;
-					}
+					*dst++ = *src++;
+					if (LIKELY(--l)) {
+					  *dst++ = *src++;
+					  if (LIKELY(!--l)) return *this;
+					  *dst++ = *src++;
+					  if (LIKELY(!--l)) return *this;
+					  *dst++ = *src++;
+                                        }  
 				} else {
 					char* p = (char*)IOV_BUF(*e);
 					IOV_BUF(sg_[++n_]) = (Sg::sg_ptr_t)s;
@@ -462,7 +465,7 @@ private:
 				Sg::sg_buf_ptr e = sg_ + n_;
 				char* p = (char*)IOV_BUF(*e);
 				p += IOV_LEN(*e);
-				Util::Tag::generate(p, field, sz);
+				Util::Tag::write(p, field, sz);
 				p[sz] = '=';
 				IOV_LEN(*e) += sz + 1;
 				append(s, l);

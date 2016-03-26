@@ -141,32 +141,40 @@ namespace FIX
 
        private:
 
-         typedef uint64_t buffer_type[2];
+	 static const std::size_t MaxQWord = ENABLE_SSO;
+
+         typedef uint64_t qword_storage_type[MaxQWord + 1];
+         typedef uint32_t dword_storage_type[2 * (MaxQWord + 1)];
+         typedef uint16_t  word_storage_type[4 * (MaxQWord + 1)];
          typedef std::string string_type;
 
-         static const std::size_t MaxLocalCapacity = sizeof(buffer_type) - 1;
+         static const std::size_t MaxLocalCapacity = sizeof(qword_storage_type) - 1;
          static const unsigned char HaveString = 255;
+
+         template <typename T> struct TypeHolder { typedef T type; };
 
          union Data
          {
-           buffer_type m_v;
+           qword_storage_type m_q;
+           dword_storage_type m_d;
+            word_storage_type m_w;
            struct
            {
              char m_data[MaxLocalCapacity]; // including '\0'!
              unsigned char m_length;
            };
 
+           template <typename T> T* storage_type();
+
            Data()
-           { m_length = 0; m_v[0] = 0; }
+           { m_length = 0; m_q[0] = 0; }
 
            Data(std::size_t n, char c)
            {
              if( LIKELY(n < MaxLocalCapacity) )
              {
-               if ( n == 1 )
-                 m_data[0] = c;
-               else
-                 ::memset(m_data, c, n);
+               uint64_t v = 0x0101010101010101ULL * (unsigned char)c;
+               for(std::size_t i = 0; i <= MaxQWord; i++) m_q[i] = v;
                m_data[n] = '\0';
                m_length = n;
              }
@@ -191,8 +199,8 @@ namespace FIX
            template <class InputIterator>
            Data( InputIterator first, InputIterator last )
            {
-             typename InputIterator::difference_type sz = last - first;
-             if ( LIKELY((std::size_t)sz < MaxLocalCapacity) )
+             std::size_t sz = last - first;
+             if ( LIKELY(sz < MaxLocalCapacity) )
              {
                std::copy(first, last, m_data);
                m_data[sz] = '\0';
@@ -233,6 +241,12 @@ namespace FIX
              }
            }
 
+           template <typename T, typename F> Data(TypeHolder<T>, F f)
+           {
+               std::size_t l = f(storage_type<T>());
+               m_length = l;
+           }
+
            ~Data() { destroy(); }
 
            inline bool PURE_DECL HEAVYUSE isLocal() const
@@ -242,7 +256,27 @@ namespace FIX
            {
              destroy();
              m_length = 0;
-             m_v[0] = 0;
+           }
+
+           inline void resize(std::size_t sz)
+           {
+             if ( LIKELY(sz < MaxLocalCapacity) )
+             {
+               if ( isLocal() )
+               {
+fin:
+                 m_data[sz] = '\0';
+                 m_length = sz;
+                 return;
+               }
+               string_type& s = asString();
+               std::size_t l = String::size(s);
+               ::memcpy(m_data, String::c_str(s), l > MaxLocalCapacity ? MaxLocalCapacity : l);
+               s.~string_type();
+               goto fin;
+             }
+             Data u = *this;
+             ( HaveString == m_length ? asString() : toString(u.m_data, u.m_length) ).resize(sz);
            }
 
            inline bool empty() const
@@ -254,34 +288,77 @@ namespace FIX
              set(p, sz);
            }
 
+           template <typename T, typename F> std::size_t HEAVYUSE short_assign(F f)
+           {
+             if ( isLocal() )
+             {
+fin:
+               std::size_t l = f(storage_type<T>());
+               m_length = l;
+               return l;
+             }
+             asString().~string_type();
+             goto fin;
+           }
+
+           template <std::size_t N> void HEAVYUSE assign( const Util::CharBuffer::Fixed<N>& buf, std::size_t l )
+           {
+             if ( isLocal() )
+             {
+fin:
+               *storage_type<typename Util::CharBuffer::Fixed<N>::value_type>() = buf.value;
+               m_length = l;
+               return;
+             }
+             asString().~string_type();
+             goto fin;
+           }
+
+           template <class InputIterator>
+           void HEAVYUSE assign( InputIterator first, InputIterator last )
+           {
+             if ( isLocal() )
+             {
+               new (this) Data(first, last);
+               return;
+             }
+             if ( (std::size_t)(last - first) < MaxLocalCapacity )
+             {
+               asString().~string_type();
+               new (this) Data(first, last);
+             }
+             else
+               asString().assign(first, last);
+           }
+
            inline void HEAVYUSE push_back( char c )
            {
-             if( LIKELY(m_length < (MaxLocalCapacity - 1)) )
+             if( LIKELY(m_length < MaxLocalCapacity - 1) )
              {
                m_data[m_length++] = c;
                m_data[m_length] = '\0';
+               return;
              }
-             else
-             {
-               Data u = *this;
-               toString(u.m_data, u.m_length).push_back(c);
-             }
+             Data u = *this;
+             ( HaveString == m_length ? asString() : toString(u.m_data, u.m_length) ).push_back(c);
            }
 
            inline void HEAVYUSE append( const char* p, std::size_t sz )
            {
              if( LIKELY(m_length + sz < MaxLocalCapacity) )
              {
-               ::memcpy(m_data + m_length, p, sz);
-               m_length += (unsigned char)sz;
+               Sg::sg_buf_t d = IOV_BUF_INITIALIZER(m_data, m_length);
+               Sg::append(d, p, sz);
+               m_length = (unsigned char)IOV_LEN(d);
                m_data[m_length] = '\0';
+               return;
              }
-             else if ( 0 == m_length )
+             if ( 0 == m_length )
                toString(p, sz);
              else
              {
                Data u = *this;
-               toString(u.m_data, u.m_length).append(p, sz);
+               ( HaveString == m_length ? asString() : toString(u.m_data, u.m_length) ).append(p, sz);
              }
            }
 
@@ -294,13 +371,14 @@ namespace FIX
                std::copy(first, last, m_data + m_length);
                m_length += (unsigned char)sz;
                m_data[m_length] = '\0';
+               return;
              }
-             else if ( 0 == m_length )
+             if ( 0 == m_length )
                toString(first, last);
              else
              {
                Data u = *this;
-               toString(u.m_data, u.m_length).append(first, last);
+               ( HaveString == m_length ? asString() : toString(u.m_data, u.m_length) ).append(first, last);
              }
            }
 
@@ -323,8 +401,8 @@ namespace FIX
 
            inline void swap( Data& d )
            {
-             std::swap(m_v[0], d.m_v[0]);
-             std::swap(m_v[1], d.m_v[1]);
+             for(std::size_t i = 0; i <= MaxQWord; i++)
+               std::swap(m_q[i], d.m_q[i]);
            }
 
            inline std::size_t HEAVYUSE size() const
@@ -387,13 +465,8 @@ namespace FIX
            {
              if( LIKELY(sz < MaxLocalCapacity) )
              {
-#if defined(__GNUC__) && (defined(__x86_64__) || defined(__i386__))
-               m_v[0] = *reinterpret_cast<const uint64_t*>(p);
-               m_v[1] = (sz > sizeof(uint64_t)) ?
-                 *reinterpret_cast<const uint64_t*>(p + sizeof(uint64_t)) : 0;
-#else
-               ::memcpy(m_data, p, sz);
-#endif
+               Sg::sg_buf_t d = IOV_BUF_INITIALIZER(m_data, 0);
+               Sg::append(d, p, sz);
                m_data[sz] = '\0';
                m_length = (unsigned char)sz;
              }
@@ -404,8 +477,8 @@ namespace FIX
            void HEAVYUSE set(const Data& d)
            {
              if (d.isLocal()) {
-               m_v[0] = d.m_v[0];
-               m_v[1] = d.m_v[1];
+               for(std::size_t i = 0; i <= MaxQWord; i++)
+                 m_q[i] = d.m_q[i];
              } else {
                m_length = HaveString;
                new (reinterpret_cast<string_type*>(m_data))
@@ -478,6 +551,11 @@ namespace FIX
            s_.clear();
          }
 
+         inline void resize(std::size_t sz)
+         {
+           s_.resize(sz);
+         }
+
          inline bool empty() const
          {
            return s_.empty();
@@ -486,6 +564,13 @@ namespace FIX
          inline short_string_type& assign(const char* p, std::size_t sz)
          {
            s_.assign(p, sz);
+           return *this;
+         }
+
+         template <class InputIterator>
+         short_string_type& assign(InputIterator first, InputIterator last)
+         {
+           s_.assign(first, last);
            return *this;
          }
 
@@ -590,6 +675,31 @@ namespace FIX
        private:
 
          mutable Data s_;
+
+         // F writes a null terminated string that fits into the local storage and returns written size without the last '\0'
+         template <typename T, typename F> explicit short_string_type(TypeHolder<T>, F f)
+         : s_( TypeHolder<T>(), f )
+         {}
+
+         template <typename T, typename F> std::size_t HEAVYUSE short_assign(F f)
+         {
+           return s_.short_assign<T>(f);
+         }
+
+         // buffer must be null terminated at buf[l]
+         template <std::size_t N> void HEAVYUSE assign( const Util::CharBuffer::Fixed<N>& buf, std::size_t l )
+         {
+           s_.assign(buf, l);
+         }
+
+         friend class IntConvertor;
+         friend class PositiveIntConvertor;
+         friend class CheckSumConvertor;
+         friend class CharConvertor;
+         friend class BoolConvertor;
+         friend class UtcTimeStampConvertor;
+         friend class UtcTimeOnlyConvertor;
+         friend class UtcDateConvertor;
      };
 
      typedef short_string_type value_type;
@@ -755,6 +865,11 @@ namespace FIX
   }; // class ItemHash
 
 #ifdef ENABLE_SSO // provide SSO string overloads for common operations
+
+  template<> inline uint64_t* String::short_string_type::Data::storage_type<uint64_t>() { return m_q; }
+  template<> inline uint32_t* String::short_string_type::Data::storage_type<uint32_t>() { return m_d; }
+  template<> inline uint16_t* String::short_string_type::Data::storage_type<uint16_t>() { return m_w; }
+  template<> inline char*     String::short_string_type::Data::storage_type<char>() { return m_data; }
 
   static inline std::ostream& operator << ( std::ostream& out, const String::value_type& bs )
   {

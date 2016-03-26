@@ -73,8 +73,7 @@ class FileLog : public Log
   void store( std::ofstream& s, Sg::sg_buf_ptr b, int n )
   {
     std::filebuf* p = s.rdbuf();
-    m_timeStamp.clear();
-    UtcTimeStampConvertor::generate(m_timeStamp, UtcTimeStamp(), m_millisecondsInTimeStamp);
+    UtcTimeStampConvertor::set(m_timeStamp, UtcTimeStamp(), m_millisecondsInTimeStamp);
     p->sputn(m_timeStamp.c_str(), m_timeStamp.size());
     p->sputn(" : ", 3);
     for (int i = 0; i < n; i++) p->sputn((char*)IOV_BUF(b[i]), IOV_LEN(b[i]));

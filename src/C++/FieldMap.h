@@ -115,7 +115,7 @@ class FieldMap
   static inline store_type::const_iterator to_store_iterator(const field_iterator it) { return it; }
   static inline field_iterator link_next(const store_type::const_iterator it) { return it; }
 
-#elif not defined(ENABLE_RELAXED_ORDERING)
+#elif !defined(ENABLE_RELAXED_ORDERING)
 
   typedef ItemAllocator< stored_type > field_allocator_type;
   typedef Container::avlTree
@@ -386,7 +386,7 @@ class FieldMap
   inline void HEAVYUSE f_clear()
   {
     m_fields.clear_and_dispose(stored_type::disposer_type<allocator_type>(m_allocator));
-#if not defined(ENABLE_FLAT_FIELDMAP) && defined(ENABLE_RELAXED_ORDERING)
+#if !defined(ENABLE_FLAT_FIELDMAP) && defined(ENABLE_RELAXED_ORDERING)
     NodeList* p = m_fields.list();
     if (p)
     {
@@ -401,7 +401,7 @@ class FieldMap
     const store_type& src = from.m_fields;
     for (store_type::const_iterator it = src.begin(), e = src.end(); it != e; ++it)
       m_fields.push_back( *new (m_allocator.allocate()) stored_type(*it) );
-#if not defined(ENABLE_FLAT_FIELDMAP) && defined(ENABLE_RELAXED_ORDERING)
+#if !defined(ENABLE_FLAT_FIELDMAP) && defined(ENABLE_RELAXED_ORDERING)
     NodeList* p = m_fields.list(), *po = from.m_fields.list();
     if (p)
     {
@@ -420,7 +420,7 @@ class FieldMap
     m_fields.clone_from( from.m_fields, stored_type::cloner_type<allocator_type>(m_allocator),
                                         stored_type::disposer_type<allocator_type>(m_allocator));
     m_order = from.m_order;
-#if not defined(ENABLE_FLAT_FIELDMAP) && defined(ENABLE_RELAXED_ORDERING)
+#if !defined(ENABLE_FLAT_FIELDMAP) && defined(ENABLE_RELAXED_ORDERING)
     NodeList* p = m_fields.list(), *po = from.m_fields.list();
     if (p)
     {
@@ -439,7 +439,7 @@ class FieldMap
   }
 
   inline void erase(int tag) {
-#if not defined(ENABLE_FLAT_FIELDMAP) && defined(ENABLE_RELAXED_ORDERING)
+#if !defined(ENABLE_FLAT_FIELDMAP) && defined(ENABLE_RELAXED_ORDERING)
     stored_type* f;
     NodeList* p = m_fields.list();
     if (p && (f = static_cast<stored_type*>(p->erase(tag))))
@@ -452,7 +452,7 @@ class FieldMap
     if ( it != m_fields.end() ) m_fields.erase_and_dispose(it, stored_type::disposer_type<allocator_type>(m_allocator));
   }
   inline store_type::iterator erase(store_type::iterator& it) {
-#if not defined(ENABLE_FLAT_FIELDMAP) && defined(ENABLE_RELAXED_ORDERING)
+#if !defined(ENABLE_FLAT_FIELDMAP) && defined(ENABLE_RELAXED_ORDERING)
     stored_type* f,* n;
     NodeList* p = m_fields.list();
     if (p && store_type::algorithms::is_enlisted((f = &*it)) && (f = static_cast<stored_type*>(p->erase(f))))
@@ -477,19 +477,19 @@ class FieldMap
   }
   template <typename Arg> stored_type& HEAVYUSE push_back(const Arg& arg) {
     stored_type* f = new (m_allocator.allocate()) stored_type( arg );
-#if not defined(ENABLE_FLAT_FIELDMAP) && defined(ENABLE_RELAXED_ORDERING)
+#if !defined(ENABLE_FLAT_FIELDMAP) && defined(ENABLE_RELAXED_ORDERING)
     NodeList* p = m_fields.list();
     if (p && p->push_back(f)) return *f;
 #endif
     m_fields.push_back(*f);
-#if not defined(ENABLE_FLAT_FIELDMAP) && defined(ENABLE_RELAXED_ORDERING)
+#if !defined(ENABLE_FLAT_FIELDMAP) && defined(ENABLE_RELAXED_ORDERING)
     if (p && f == &*m_fields.begin()) p->extend(f);
 #endif
     return *f;
   }
 
   inline field_iterator HEAVYUSE find(int tag) const {
-#if not defined(ENABLE_FLAT_FIELDMAP) && defined(ENABLE_RELAXED_ORDERING)
+#if !defined(ENABLE_FLAT_FIELDMAP) && defined(ENABLE_RELAXED_ORDERING)
     store_type::tree_traits::node_type* f;
     NodeList* p = m_fields.list();
     if (p && (f = p->find(tag))) return field_iterator(f);
@@ -502,7 +502,7 @@ class FieldMap
   }
   template <typename Arg> field_iterator HEAVYUSE add(const Arg& arg) {
     stored_type* f = new (m_allocator.allocate()) stored_type( arg );
-#if not defined(ENABLE_FLAT_FIELDMAP) && defined(ENABLE_RELAXED_ORDERING)
+#if !defined(ENABLE_FLAT_FIELDMAP) && defined(ENABLE_RELAXED_ORDERING)
     NodeList* p = m_fields.list();
     if (p && p->push_back(f)) return field_iterator(f);
 #endif
@@ -510,7 +510,7 @@ class FieldMap
   }
   template <typename Arg> field_iterator HEAVYUSE add(field_iterator hint, const Arg& arg) {
     stored_type* f = new (m_allocator.allocate()) stored_type( arg );
-#if not defined(ENABLE_FLAT_FIELDMAP) && defined(ENABLE_RELAXED_ORDERING)
+#if !defined(ENABLE_FLAT_FIELDMAP) && defined(ENABLE_RELAXED_ORDERING)
     NodeList* p = m_fields.list();
     if (p && p->push_back(f)) return field_iterator(f);
 #endif
@@ -526,7 +526,7 @@ class FieldMap
   }
   template <typename Arg> store_type::iterator HEAVYUSE assign(int tag, const Arg& arg) {
     store_type::insert_commit_data data;
-#if not defined(ENABLE_FLAT_FIELDMAP) && defined(ENABLE_RELAXED_ORDERING)
+#if !defined(ENABLE_FLAT_FIELDMAP) && defined(ENABLE_RELAXED_ORDERING)
     store_type::tree_traits::node_type* f;
     NodeList* p = m_fields.list();
     if (p && (f = p->find(tag)))
@@ -540,7 +540,7 @@ class FieldMap
     if (r.second)
     {
       stored_type* f = new (m_allocator.allocate()) stored_type( tag, arg );
-#if not defined(ENABLE_FLAT_FIELDMAP) && defined(ENABLE_RELAXED_ORDERING)
+#if !defined(ENABLE_FLAT_FIELDMAP) && defined(ENABLE_RELAXED_ORDERING)
       if (p && p->push_back(f)) return store_type::iterator(f);
 #endif
       link_next(r.first = m_fields.insert_unique_commit( *f, data ));
@@ -615,7 +615,7 @@ public:
   FieldMap( const FieldMap& src )
   : m_order( src.m_order ), m_fields( src.m_fields.value_comp() )
   {
-#if not defined(ENABLE_FLAT_FIELDMAP) && defined(ENABLE_RELAXED_ORDERING)
+#if !defined(ENABLE_FLAT_FIELDMAP) && defined(ENABLE_RELAXED_ORDERING)
     if (src.m_fields.list()) m_fields.attach(m_allocator.header());
 #endif
     f_copy(src); g_copy(src);
@@ -628,7 +628,7 @@ public:
   FieldMap( const allocator_type& a, const FieldMap& src )
   : m_allocator( a ), m_order( src.m_order ), m_fields( src.m_fields.value_comp() )
   {
-#if not defined(ENABLE_FLAT_FIELDMAP) && defined(ENABLE_RELAXED_ORDERING)
+#if !defined(ENABLE_FLAT_FIELDMAP) && defined(ENABLE_RELAXED_ORDERING)
     if (src.m_fields.list()) m_fields.attach(m_allocator.header());
 #endif
     f_copy(src); g_copy(src);
@@ -757,7 +757,7 @@ public:
     if( tb < te )
     {
       int tag, last = *(tb + ((te - tb) - 1));
-#if not defined(ENABLE_FLAT_FIELDMAP) && defined(ENABLE_RELAXED_ORDERING)
+#if !defined(ENABLE_FLAT_FIELDMAP) && defined(ENABLE_RELAXED_ORDERING)
       NodeList* p = m_fields.list();
       if (p)
       {
@@ -832,7 +832,7 @@ public:
   /// Check if map contains any fields
   bool isEmpty()
   { 
-#if not defined(ENABLE_FLAT_FIELDMAP) && defined(ENABLE_RELAXED_ORDERING)
+#if !defined(ENABLE_FLAT_FIELDMAP) && defined(ENABLE_RELAXED_ORDERING)
     NodeList* p = m_fields.list();
     return (!p || p->empty()) && m_fields.empty();
 #else

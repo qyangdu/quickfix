@@ -132,7 +132,7 @@ namespace detail {
 			}
 			ProxyBuffer& append(int field, int sz, const char* src, std::size_t len) {
                                 char* dst = (char*)IOV_BUF(buf_) + IOV_LEN(buf_);
-                                Util::Tag::generate(dst, field, sz);
+                                Util::Tag::write(dst, field, sz);
                                 dst[sz++] = '=';
                                 IOV_LEN(buf_) += sz;
                                 Sg::append(buf_, src, len);
@@ -157,10 +157,10 @@ Message::toString( const FieldCounter& c, std::string& str ) const
   const int checkSumField = c.getCheckSumTag();
   const int bodyLengthField = c.getBodyLengthTag();
   const int csumPayloadLength = CheckSumConvertor::MaxValueSize + 1;
-  const int csumTagLength = Util::PositiveInt::numDigits(checkSumField) + 1;
+  const unsigned csumTagLength = Util::UInt::numDigits(checkSumField) + 1;
 
   int l = c.getBodyLength();
-  l += Sequence::set_in_ordered(m_header, IntField::Pack(bodyLengthField, l))->second.getLength()
+  l += Sequence::set_in_ordered(m_header, PositiveIntField::Pack(bodyLengthField, l))->second.getLength()
        + csumTagLength + csumPayloadLength + c.getBeginStringLength();
 
   str.clear();
@@ -187,7 +187,7 @@ Message::toString( const FieldCounter& c, std::string& str ) const
     p = (char*)sbuf.data();
     int32_t csum = Util::CharBuffer::checkSum( p, l - csumTagLength ) & 255;
     p += l;
-    CheckSumConvertor::generate(p, (unsigned char) csum );
+    CheckSumConvertor::write(p, (unsigned char) csum );
     f.setPacked( StringField::Pack( checkSumField, p, 3 ) );
   }
   else
@@ -245,7 +245,7 @@ ALIGN_DECL_DEFAULT static const DataDictionary::FieldPresenceMap::key_type group
 ALIGN_DECL_DEFAULT static const DataDictionary::FieldPresenceMap::key_type group_key_trailer_ =
        DataDictionary::FieldPresenceMap::key_type("_trailer_");
 
-#ifndef __MACH__
+#ifndef __clang__
 inline
 #endif
 void HEAVYUSE

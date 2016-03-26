@@ -26,7 +26,6 @@
 #endif
 
 #include <iostream>
-#include <boost/thread/condition_variable.hpp>
 
 #include "Application.h"
 #include "quickfix/Mutex.h"
@@ -99,12 +98,12 @@ FIX::Side     last_Side(FIX::Side_BUY);
 std::auto_ptr<FIX::Message> last_order;
 
 std::queue<timeval> q_out;
-boost::mutex	    q_lock;
-boost::condition_variable q_cond;
+FIX::Mutex	    q_lock;
+FIX::CondVar	    q_cond;
 
 long q_on_send() {
   gettimeofday(&last_out, NULL);
-  boost::unique_lock<boost::mutex> l(q_lock);
+  FIX::Locker l(q_lock);
   q_out.push(last_out);
   return ++rq_sent;
 }
@@ -113,7 +112,7 @@ void q_on_receive( const FIX::Message& message )
 {
   ::gettimeofday(&last_in, NULL);
 
-  boost::unique_lock<boost::mutex> l(q_lock);
+  FIX::Locker l(q_lock);
   if (!q_out.empty())
   {
     timeval first_out = q_out.front();
@@ -146,7 +145,7 @@ void q_on_receive( const FIX::Message& message )
 
 void show_buckets(unsigned long* buckets, std::size_t step, std::size_t sz)
 {
-  for (int i = 0; i <= sz; i++)
+  for (std::size_t i = 0; i <= sz; i++)
   {
     std::cout << "  [" << i * step << " - ";
     if (i < sz)
@@ -159,7 +158,7 @@ void show_buckets(unsigned long* buckets, std::size_t step, std::size_t sz)
 
 void wait_receive(long rq)
 {
-   boost::unique_lock<boost::mutex> l(q_lock);
+   FIX::Locker l(q_lock);
    while (rq > rp_matched)
 	q_cond.wait(l);
 }

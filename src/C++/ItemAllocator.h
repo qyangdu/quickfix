@@ -27,19 +27,16 @@
 namespace FIX
 {
   struct ItemAllocatorTraits
-  {
-    static const unsigned DefaultCapacity = 32;
-  };
+  { static const unsigned DefaultCapacity = 32; };
+
+  struct ItemStoreBase
+  { template <typename O> struct SizeOf { static const std::size_t value = sizeof(O); }; };
+  template <> struct ItemStoreBase::SizeOf<void> { static const std::size_t value = 0; };
 
   // Cache-friendly allocator for node-based containers with optional aligned header area
   template <typename T, typename Header = void, std::size_t HeaderAlignment = 16, std::size_t ItemAlignment = 8>
-  class ItemStore
+  class ItemStore : public ItemStoreBase
   {
-    template <typename O> struct SizeOf { // 0 for void
-      static char f(void*);
-      template <typename U> static char (&f(U*))[sizeof(U&) + 1];
-      static const std::size_t value = sizeof(f((O*)0)) - 1;
-    };
     static const std::size_t HeaderBytes = SizeOf<Header>::value;
     template<typename U, std::size_t HB, std::size_t HA, std::size_t IA>
     struct Options

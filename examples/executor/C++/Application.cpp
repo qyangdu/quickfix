@@ -147,13 +147,6 @@ void Application::onMessage( const FIX41::NewOrderSingle& message,
   catch ( FIX::SessionNotFound& ) {}
 }
 
-static double get_timestamp() {
-  struct timespec ts;
-  ::clock_gettime( CLOCK_REALTIME, &ts );
-  double v = (ts.tv_sec * 1000000 + ts.tv_nsec / 1000) % 1000000000;
-  return v;
-}
-
 void Application::onMessage( const FIX42::NewOrderSingle& message,
                              const FIX::SessionID& sessionID )
 {
@@ -196,7 +189,7 @@ void Application::onMessage( const FIX42::NewOrderSingle& message,
   if( message.isSet(account) )
     executionReport.setField( message.get(account) );
 
-  executionReport.addField( FIX::DoubleField::Pack( 76767, get_timestamp() ) );
+  executionReport.addField( FIX::DoubleField::Pack( 76767, (FIX::Util::Sys::TickCount::now() - FIX::Util::Sys::TickCount()).seconds() ) );
   try
   {
     FIX::Session::sendToTarget( executionReport, sessionID );

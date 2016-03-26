@@ -661,6 +661,8 @@
     <ClInclude Include="PostgreSQLConnection.h" />
     <ClInclude Include="PostgreSQLLog.h" />
     <ClInclude Include="PostgreSQLStore.h" />
+    <ClInclude Include="pugiconfig.hpp" />
+    <ClInclude Include="pugixml.hpp" />
     <ClInclude Include="PUGIXML_DOMDocument.h" />
     <ClInclude Include="Queue.h" />
     <ClInclude Include="Responder.h" />
@@ -712,6 +714,7 @@
     <ClCompile Include="Parser.cpp" />
     <ClCompile Include="PostgreSQLLog.cpp" />
     <ClCompile Include="PostgreSQLStore.cpp" />
+    <ClCompile Include="pugixml.cpp" />
     <ClCompile Include="PUGIXML_DOMDocument.cpp" />
     <ClCompile Include="Session.cpp" />
     <ClCompile Include="SessionFactory.cpp" />

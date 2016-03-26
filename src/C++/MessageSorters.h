@@ -269,7 +269,7 @@ public:
       return *this;
     }
 
-    inline bool PURE_DECL NOTHROW operator() ( const int x, const int y ) const
+    inline bool PURE_DECL NOTHROW HEAVYUSE operator() ( const int x, const int y ) const
     {
       if ( LIKELY(m_mode == normal) ) return x < y;
 

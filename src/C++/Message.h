@@ -345,7 +345,7 @@ class Message : public FieldMap
   {
     FieldCounter c( *this );
     int bodyLength = c.getBodyLength() + c.getBeginStringLength() + 
-	  Sequence::set_in_ordered(m_header, BodyLength::Pack(c.getBodyLength()))->second.getLength();
+	  Sequence::set_in_ordered(m_header, PositiveIntField::Pack(FIELD::BodyLength, c.getBodyLength()))->second.getLength();
     return m_trailer.serializeTo(
              FieldMap::serializeTo(
                m_header.serializeTo(

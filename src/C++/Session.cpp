@@ -95,10 +95,10 @@ Session::~Session()
 void Session::fill( Header& header, UtcTimeStamp now )
 {
   m_state.lastSentTime( now );
-  FieldMap::Sequence::set_in_ordered(header, m_sessionID.getBeginString() );
-  FieldMap::Sequence::set_in_ordered(header, m_sessionID.getSenderCompID() );
-  FieldMap::Sequence::set_in_ordered(header, m_sessionID.getTargetCompID() );
-  FieldMap::Sequence::set_in_ordered(header, MsgSeqNum::Pack( getExpectedSenderNum() ) );
+  Message::Sequence::set_in_ordered(header, m_sessionID.getBeginString() );
+  Message::Sequence::set_in_ordered(header, m_sessionID.getSenderCompID() );
+  Message::Sequence::set_in_ordered(header, m_sessionID.getTargetCompID() );
+  Message::Sequence::set_in_ordered(header, MsgSeqNum::Pack( getExpectedSenderNum() ) );
   insertSendingTime( header, now );
 }
 
@@ -111,7 +111,7 @@ Message::admin_trait Session::fill( Header& header, int num, UtcTimeStamp now )
   if( it->first == FIX::FIELD::BeginString )
     (FieldBase&)it->second = m_sessionID.getBeginString();
   else
-    it = FieldMap::Sequence::push_front_to_ordered( header, m_sessionID.getBeginString() );
+    it = Message::Sequence::push_front_to_ordered( header, m_sessionID.getBeginString() );
   ++it;
 
   if ( it->first == FIX::FIELD::BodyLength )
@@ -123,9 +123,9 @@ Message::admin_trait Session::fill( Header& header, int num, UtcTimeStamp now )
     if( msgType && p[1] == '\0' )
       trait = Message::getAdminTrait( msgType );
   }
-  FieldMap::Sequence::set_in_ordered(header, m_sessionID.getSenderCompID() );
-  FieldMap::Sequence::set_in_ordered(header, m_sessionID.getTargetCompID() );
-  FieldMap::Sequence::set_in_ordered(header, MsgSeqNum::Pack( num ? num : getExpectedSenderNum() ) );
+  Message::Sequence::set_in_ordered(header, m_sessionID.getSenderCompID() );
+  Message::Sequence::set_in_ordered(header, m_sessionID.getTargetCompID() );
+  Message::Sequence::set_in_ordered(header, MsgSeqNum::Pack( num ? num : getExpectedSenderNum() ) );
   insertSendingTime( header, now );
 
   return trait;
@@ -1469,8 +1469,8 @@ bool Session::sendToTarget
   const std::string& qualifier )
 throw( SessionNotFound )
 {
-  FieldMap::Sequence::set_in_ordered( message.getHeader(), senderCompID );
-  FieldMap::Sequence::set_in_ordered( message.getHeader(), targetCompID );
+  Message::Sequence::set_in_ordered( message.getHeader(), senderCompID );
+  Message::Sequence::set_in_ordered( message.getHeader(), targetCompID );
   return sendToTarget( message, qualifier );
 }
 
