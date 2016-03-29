@@ -465,28 +465,43 @@ class FieldMap
     return m_fields.erase_and_dispose( it, stored_type::disposer_type<allocator_type>(m_allocator));
   }
 
-  template <typename Arg> stored_type& HEAVYUSE push_front_ordered(const Arg& arg) {
+#if defined(ENABLE_FLAT_FIELDMAP)
+  template <typename Arg> store_type::iterator HEAVYUSE push_front_ordered(const Arg& arg) {
+    m_fields.push_front(*new (m_allocator.allocate()) stored_type( arg ));
+    return m_fields.begin();
+  }
+  template <typename Arg> store_type::iterator HEAVYUSE push_back_ordered(const Arg& arg) {
+    m_fields.push_back(*new (m_allocator.allocate()) stored_type( arg ));
+    return --m_fields.end();
+  }
+  template <typename Arg> store_type::iterator HEAVYUSE push_back(const Arg& arg) {
+    m_fields.push_back(*new (m_allocator.allocate()) stored_type( arg ));
+    return --m_fields.end();
+  }
+#else
+  template <typename Arg> stored_type* HEAVYUSE push_front_ordered(const Arg& arg) {
     stored_type* f = new (m_allocator.allocate()) stored_type( arg );
     m_fields.push_front(*f);
-    return *f;
+    return f;
   }
-  template <typename Arg> stored_type& HEAVYUSE push_back_ordered(const Arg& arg) {
+  template <typename Arg> stored_type* HEAVYUSE push_back_ordered(const Arg& arg) {
     stored_type* f = new (m_allocator.allocate()) stored_type( arg );
     m_fields.push_back(*f);
-    return *f;
+    return f;
   }
-  template <typename Arg> stored_type& HEAVYUSE push_back(const Arg& arg) {
+  template <typename Arg> stored_type* HEAVYUSE push_back(const Arg& arg) {
     stored_type* f = new (m_allocator.allocate()) stored_type( arg );
-#if !defined(ENABLE_FLAT_FIELDMAP) && defined(ENABLE_RELAXED_ORDERING)
+  #if defined(ENABLE_RELAXED_ORDERING)
     NodeList* p = m_fields.list();
     if (p && p->push_back(f)) return *f;
-#endif
+  #endif
     m_fields.push_back(*f);
-#if !defined(ENABLE_FLAT_FIELDMAP) && defined(ENABLE_RELAXED_ORDERING)
+  #if defined(ENABLE_RELAXED_ORDERING)
     if (p && f == &*m_fields.begin()) p->extend(f);
-#endif
-    return *f;
+  #endif
+    return f;
   }
+#endif
 
   inline field_iterator HEAVYUSE find(int tag) const {
 #if !defined(ENABLE_FLAT_FIELDMAP) && defined(ENABLE_RELAXED_ORDERING)
@@ -560,13 +575,13 @@ protected:
   struct Sequence {
     template <typename Packed>
     static inline field_iterator push_front_to_ordered( FieldMap& map, const Packed& packed ) // in sequence, ordered container
-    { return field_iterator(&map.push_front_ordered( packed )); }
+    { return field_iterator(map.push_front_ordered( packed )); }
     template <typename Packed>
     static inline field_iterator push_back_to_ordered( FieldMap& map, const Packed& packed ) // in sequence, ordered container
-    { return field_iterator(&map.push_back_ordered( packed )); }
+    { return field_iterator(map.push_back_ordered( packed )); }
     template <typename Packed>
     static inline field_iterator push_back_to( FieldMap& map, const Packed& packed ) // in sequence
-    { return field_iterator(&map.push_back( packed )); }
+    { return field_iterator(map.push_back( packed )); }
 
     template <typename Packed>
     static inline const store_type::value_type* insert_into_ordered( FieldMap& map, const Packed& packed ) // out of sequence, ordered container

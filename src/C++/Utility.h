@@ -1142,10 +1142,10 @@ namespace FIX
           { return m_p == it.m_p; }
           bool operator!=( reverse_iterator it) const
           { return m_p != it.m_p; }
-		  bool operator <( reverse_iterator it) const
-		  { return m_p > it.m_p; }
-		  bool operator >( reverse_iterator it) const
-		  { return m_p < it.m_p; }
+          bool operator <( reverse_iterator it) const
+          { return m_p > it.m_p; }
+          bool operator >( reverse_iterator it) const
+          { return m_p < it.m_p; }
           difference_type operator-( reverse_iterator it) const
           { return it.m_p - m_p; }
       };

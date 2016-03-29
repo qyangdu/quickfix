@@ -361,6 +361,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\pugixml.cpp"
+				>
+			</File>
+			<File
 				RelativePath=".\PUGIXML_DOMDocument.cpp"
 				>
 			</File>
@@ -527,6 +531,86 @@
 			</File>
 			<File
 				RelativePath=".\Dictionary.h"
+				>
+				<FileConfiguration
+					Name="Debug|Win32"
+					>
+					<Tool
+						Name="VCCustomBuildTool"
+						CommandLine=""
+						Outputs=""
+					/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="Release|Win32"
+					>
+					<Tool
+						Name="VCCustomBuildTool"
+						CommandLine=""
+						Outputs=""
+					/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="DebugBoost|Win32"
+					>
+					<Tool
+						Name="VCCustomBuildTool"
+						CommandLine=""
+						Outputs=""
+					/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="ReleaseBoost|Win32"
+					>
+					<Tool
+						Name="VCCustomBuildTool"
+						CommandLine=""
+						Outputs=""
+					/>
+				</FileConfiguration>
+			</File>
+			<File
+				RelativePath="pugiconfig.hpp"
+				>
+				<FileConfiguration
+					Name="Debug|Win32"
+					>
+					<Tool
+						Name="VCCustomBuildTool"
+						CommandLine=""
+						Outputs=""
+					/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="Release|Win32"
+					>
+					<Tool
+						Name="VCCustomBuildTool"
+						CommandLine=""
+						Outputs=""
+					/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="DebugBoost|Win32"
+					>
+					<Tool
+						Name="VCCustomBuildTool"
+						CommandLine=""
+						Outputs=""
+					/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="ReleaseBoost|Win32"
+					>
+					<Tool
+						Name="VCCustomBuildTool"
+						CommandLine=""
+						Outputs=""
+					/>
+				</FileConfiguration>
+			</File>
+			<File
+				RelativePath="pugixml.hpp"
 				>
 				<FileConfiguration
 					Name="Debug|Win32"
