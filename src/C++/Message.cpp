@@ -1,5 +1,5 @@
 /****************************************************************************
-** Copyright (c) quickfixengine.org  All rights reserved.
+** Copyright (c) 2001-2014
 **
 ** This file is part of the QuickFIX FIX Engine
 **
@@ -528,7 +528,7 @@ void Message::reverseRoute( const Header& header )
 
   if( header.getFieldIfSet( beginString ) )
   {
-    if( beginString.hasValue() )
+    if( beginString.getValue().size() )
       m_header.setField( beginString );
 
     OnBehalfOfLocationID onBehalfOfLocationID;

@@ -1,5 +1,5 @@
 /****************************************************************************
-** Copyright (c) quickfixengine.org  All rights reserved.
+** Copyright (c) 2001-2014
 **
 ** This file is part of the QuickFIX FIX Engine
 **
@@ -41,7 +41,7 @@ throw( MessageParseError )
     throw MessageParseError();
   if( pos == std::string::npos ) 
     return false;
-  str = m_buffer.substr( 0, pos + 4 );
+  str.assign( m_buffer, 0, pos + 4 );
   m_buffer.erase( 0, pos + 4 );
 
   return true;

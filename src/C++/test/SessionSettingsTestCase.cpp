@@ -1,5 +1,5 @@
 /****************************************************************************
-** Copyright (c) quickfixengine.org  All rights reserved.
+** Copyright (c) 2001-2014
 **
 ** This file is part of the QuickFIX FIX Engine
 **
@@ -70,10 +70,10 @@ TEST(readFromIstream)
     "TargetCompID=TW\n"
     "SessionQualifier=QUAL2\n"
     "Value=6\n"
-	"[SESSION]\n"
-	"BeginString=FIXT.1.1\n"
-	"SenderCompID=NYSE\n"
-	"TargetCompID=TW\n";
+    "[SESSION]\n"
+    "BeginString=FIXT.1.1\n"
+    "SenderCompID=NYSE\n"
+    "TargetCompID=TW\n";
 
   std::istringstream input( configuration );
 

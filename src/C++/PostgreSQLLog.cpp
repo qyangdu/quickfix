@@ -1,5 +1,5 @@
 /****************************************************************************
-** Copyright (c) quickfixengine.org  All rights reserved.
+** Copyright (c) 2001-2014
 **
 ** This file is part of the QuickFIX FIX Engine
 **
@@ -118,7 +118,7 @@ Log* PostgreSQLLogFactory::create( const SessionID& s )
 
   Dictionary settings;
   if( m_settings.has(s) ) 
-	  settings = m_settings.get( s );
+    settings = m_settings.get( s );
 
   init( settings, database, user, password, host, port );
   DatabaseConnectionID id( database, user, password, host, port );
@@ -202,7 +202,7 @@ void PostgreSQLLog::clear()
   }
   else
   {
-	whereClause << "BeginString = NULL AND SenderCompID = NULL && TargetCompID = NULL";
+    whereClause << "BeginString = NULL AND SenderCompID = NULL && TargetCompID = NULL";
   }
 
   std::stringstream incomingQuery;
@@ -258,7 +258,7 @@ void PostgreSQLLog::insert( const std::string& table, const std::string value )
       queryString << "'" << m_pSessionID->getSessionQualifier() << "',";
   }
   else
-  {	
+  {
     queryString << "NULL, NULL, NULL, NULL, ";
   }
 

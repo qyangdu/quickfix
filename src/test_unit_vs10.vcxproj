@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|Win32">
@@ -11,7 +11,7 @@
     </ProjectConfiguration>
   </ItemGroup>
   <PropertyGroup Label="Globals">
-    <ProjectName>test_unit_vs10</ProjectName>
+    <ProjectName>test_unit</ProjectName>
     <ProjectGuid>{CD58A1FF-0F7A-4490-B9B4-944326C48A5A}</ProjectGuid>
     <RootNamespace>ut_vc10</RootNamespace>
   </PropertyGroup>

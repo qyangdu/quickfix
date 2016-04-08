@@ -1,7 +1,7 @@
 /* -*- C++ -*- */
 
 /****************************************************************************
-** Copyright (c) quickfixengine.org  All rights reserved.
+** Copyright (c) 2001-2014
 **
 ** This file is part of the QuickFIX FIX Engine
 **
@@ -28,6 +28,7 @@
 
 #include "DataDictionary.h"
 #include "Exceptions.h"
+#include "Utility.h"
 
 namespace FIX
 {
@@ -50,14 +51,19 @@ public:
   const DataDictionary& getApplicationDataDictionary(const ApplVerID& applVerID)
   throw( DataDictionaryNotFound );
 
-  void addTransportDataDictionary(const BeginString& beginString, const DataDictionary*);
-  void addApplicationDataDictionary(const ApplVerID applVerID, const DataDictionary*);
+  void addTransportDataDictionary(const BeginString& beginString, ptr::shared_ptr<DataDictionary>);
+  void addApplicationDataDictionary(const ApplVerID& applVerID, ptr::shared_ptr<DataDictionary>);
+
+  void addTransportDataDictionary(const BeginString& beginString, const std::string& path)
+  { addTransportDataDictionary(beginString, ptr::shared_ptr<DataDictionary>( new DataDictionary(path) )); }
+  void addApplicationDataDictionary(const ApplVerID& applVerID, const std::string& path)
+  { addApplicationDataDictionary(applVerID, ptr::shared_ptr<DataDictionary>( new DataDictionary(path) )); }
 
 private:
 #ifdef HAVE_BOOST
-  typedef boost::unordered_map<String::value_type, const DataDictionary*, ItemHash, String::equal_to> dictionary_map_t;
+  typedef boost::unordered_map<String::value_type, ptr::shared_ptr<DataDictionary>, ItemHash, String::equal_to> dictionary_map_t;
 #else
-  typedef std::map<String::value_type, const DataDictionary*> dictionary_map_t;
+  typedef std::map<String::value_type, ptr::shared_ptr<DataDictionary>> dictionary_map_t;
 #endif
 
   dictionary_map_t m_transportDictionaries;

@@ -5,8 +5,9 @@ mkdir config
 touch README NEWS AUTHORS INSTALL ChangeLog
 
 set -ex
-# work around issue where autoreconf on rhel/centos 5.7 does not always run this
-case `uname` in Darwin*) glibtoolize ;; *) libtoolize ;; esac
+case `uname` in Darwin*) glibtoolize --copy ;;
+  *) libtoolize --copy ;; esac
+
 autoreconf -i -Wall,no-obsolete
 rm -rf autom4te.cache config.h.in~
 set +ex

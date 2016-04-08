@@ -1,5 +1,5 @@
 /****************************************************************************
-** Copyright (c) quickfixengine.org  All rights reserved.
+** Copyright (c) 2001-2014
 **
 ** This file is part of the QuickFIX FIX Engine
 **
@@ -48,7 +48,7 @@ TEST(validConfiguration)
   settings.setString(START_TIME, "12:00:00");
   settings.setString(END_TIME, "12:00:00");
   settings.setString(HEARTBTINT, "30");
-  delete object.create(sessionID, settings);
+  object.destroy(object.create(sessionID, settings));
 }
 
 TEST(startDayAndEndDayAreDifferent)
@@ -66,7 +66,7 @@ TEST(startDayAndEndDayAreDifferent)
   settings.setString(START_DAY, "Sun");
   settings.setString(END_DAY, "Mon");
   settings.setString(HEARTBTINT, "30");
-  delete object.create(sessionID, settings);
+  object.destroy(object.create(sessionID, settings));
 }
 
 }

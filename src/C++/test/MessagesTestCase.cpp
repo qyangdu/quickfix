@@ -517,7 +517,7 @@ TEST(addRemoveGroup)
   CHECK( object.hasGroup(1, group) );
   CHECK( !object.hasGroup(2, group) );
   CHECK( !object.hasGroup(3, group) );
-  CHECK_EQUAL( 1, object.groupCount(FIX::FIELD::NoOrders) );
+  CHECK_EQUAL( 1lu, object.groupCount(FIX::FIELD::NoOrders) );
   object.getField( noOrders );
   CHECK_EQUAL( 1, noOrders );
 

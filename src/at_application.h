@@ -1,7 +1,7 @@
 /* -*- C++ -*- */
 
 /****************************************************************************
-** Copyright (c) quickfixengine.org  All rights reserved.
+** Copyright (c) 2001-2014
 **
 ** This file is part of the QuickFIX FIX Engine
 **
@@ -45,8 +45,7 @@ public:
   {
     FIX::Message echo = message;
     FIX::PossResend possResend( false );
-    if ( message.getHeader().isSetField( possResend ) )
-      message.getHeader().getField( possResend );
+    message.getHeader().getFieldIfSet( possResend );
 
     FIX::ClOrdID clOrdID;
     message.getField( clOrdID );
@@ -178,11 +177,27 @@ class Application : public FIX::Application
 
   void toAdmin( FIX::Message& message, const FIX::SessionID& )
   {}
+
   void toApp( FIX::Message& message, const FIX::SessionID& )
   throw( FIX::DoNotSend )
   {}
-  void fromAdmin( const FIX::Message& message, const FIX::SessionID& )
-  throw( FIX::FieldNotFound, FIX::IncorrectDataFormat, FIX::IncorrectTagValue, FIX::RejectLogon ) {}
+
+  void fromAdmin( const FIX::Message& message, const FIX::SessionID& sessionID )
+  throw( FIX::FieldNotFound, FIX::IncorrectDataFormat, FIX::IncorrectTagValue, FIX::RejectLogon ) 
+  {
+    FIX::MsgType msgType;
+    message.getHeader().getField( msgType );
+    if(msgType == FIX::MsgType_Logon)
+    {
+      FIX::DefaultApplVerID defaultApplVerID;
+      if(message.isSetField(defaultApplVerID))
+      {
+        message.getField(defaultApplVerID);
+        FIX::Session::lookupSession(sessionID)->setSenderDefaultApplVerID(defaultApplVerID);
+      }
+    }
+  }
+
   void fromApp( const FIX::Message& message, const FIX::SessionID& sessionID )
   throw( FIX::FieldNotFound, FIX::IncorrectDataFormat, FIX::IncorrectTagValue, FIX::UnsupportedMessageType )
   {
