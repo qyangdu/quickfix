@@ -1,5 +1,5 @@
 /****************************************************************************
-** Copyright (c) quickfixengine.org  All rights reserved.
+** Copyright (c) 2001-2014
 **
 ** This file is part of the QuickFIX FIX Engine
 **
@@ -30,13 +30,12 @@
 #include "SessionSettings.h"
 #include "Session.h"
 
+#include <memory>
+
 namespace FIX
 {
 SessionFactory::~SessionFactory()
 {
-  Dictionaries::iterator i = m_dictionaries.begin();
-  for ( ; i != m_dictionaries.end(); ++i )
-    delete i->second;
 }
 
 Session* SessionFactory::create( const SessionID& sessionID,
@@ -117,14 +116,14 @@ Session* SessionFactory::create( const SessionID& sessionID,
   HeartBtInt heartBtInt( 0 );
   if ( connectionType == "initiator" )
   {
-    heartBtInt = HeartBtInt( settings.getLong( HEARTBTINT ) );
+    heartBtInt = HeartBtInt( settings.getInt( HEARTBTINT ) );
     if ( heartBtInt <= 0 ) throw ConfigError( "Heartbeat must be greater than zero" );
   }
 
-  Session* pSession = 0;
-  pSession = new Session( m_application, m_messageStoreFactory,
-                          sessionID, dataDictionaryProvider, sessionTimeRange,
-                          heartBtInt, m_pLogFactory );
+  std::auto_ptr<Session> pSession;
+  pSession.reset( new Session( m_application, m_messageStoreFactory,
+    sessionID, dataDictionaryProvider, sessionTimeRange,
+    heartBtInt, m_pLogFactory ) );
 
   pSession->setSenderDefaultApplVerID(defaultApplVerID);
 
@@ -176,11 +175,11 @@ Session* SessionFactory::create( const SessionID& sessionID,
   if ( settings.has( CHECK_LATENCY ) )
     pSession->setCheckLatency( settings.getBool( CHECK_LATENCY ) );
   if ( settings.has( MAX_LATENCY ) )
-    pSession->setMaxLatency( settings.getLong( MAX_LATENCY ) );
+    pSession->setMaxLatency( settings.getInt( MAX_LATENCY ) );
   if ( settings.has( LOGON_TIMEOUT ) )
-    pSession->setLogonTimeout( settings.getLong( LOGON_TIMEOUT ) );
+    pSession->setLogonTimeout( settings.getInt( LOGON_TIMEOUT ) );
   if ( settings.has( LOGOUT_TIMEOUT ) )
-    pSession->setLogoutTimeout( settings.getLong( LOGOUT_TIMEOUT ) );
+    pSession->setLogoutTimeout( settings.getInt( LOGOUT_TIMEOUT ) );
   if ( settings.has( RESET_ON_LOGON ) )
     pSession->setResetOnLogon( settings.getBool( RESET_ON_LOGON ) );
   if ( settings.has( RESET_ON_LOGOUT ) )
@@ -196,14 +195,19 @@ Session* SessionFactory::create( const SessionID& sessionID,
   if ( settings.has( VALIDATE_LENGTH_AND_CHECKSUM ) )
     pSession->setValidateLengthAndChecksum( settings.getBool( VALIDATE_LENGTH_AND_CHECKSUM ) );
    
-  return pSession;
+  return pSession.release();
 }
 
-const DataDictionary * SessionFactory::createDataDictionary(const SessionID& sessionID, 
-                                                    const Dictionary& settings, 
-                                                    const std::string& settingsKey) throw(ConfigError)
+void SessionFactory::destroy( Session* pSession )
 {
-  DataDictionary * pDD = 0;
+  delete pSession;
+}
+
+ptr::shared_ptr<DataDictionary> SessionFactory::createDataDictionary(const SessionID& sessionID, 
+                                                                     const Dictionary& settings, 
+                                                                     const std::string& settingsKey) throw(ConfigError)
+{
+  ptr::shared_ptr<DataDictionary> pDD;
   std::string path = settings.getString( settingsKey );
   Dictionaries::iterator i = m_dictionaries.find( path );
   if ( i != m_dictionaries.end() )
@@ -212,11 +216,11 @@ const DataDictionary * SessionFactory::createDataDictionary(const SessionID& ses
   }
   else
   {
-    pDD = new DataDictionary( path );
+    pDD = ptr::shared_ptr<DataDictionary>(new DataDictionary( path ));
     m_dictionaries[ path ] = pDD;
   }
 
-  DataDictionary * pCopyOfDD = new DataDictionary(*pDD);
+  ptr::shared_ptr<DataDictionary> pCopyOfDD = ptr::shared_ptr<DataDictionary>(new DataDictionary(*pDD));
 
   if( settings.has( VALIDATE_FIELDS_OUT_OF_ORDER ) )
     pCopyOfDD->checkFieldsOutOfOrder( settings.getBool( VALIDATE_FIELDS_OUT_OF_ORDER ) );
@@ -232,7 +236,7 @@ void SessionFactory::processFixtDataDictionaries(const SessionID& sessionID,
                                                  const Dictionary& settings, 
                                                  DataDictionaryProvider& provider) throw(ConfigError)
 {
-  const DataDictionary * pDataDictionary = createDataDictionary(sessionID, settings, TRANSPORT_DATA_DICTIONARY);
+  ptr::shared_ptr<DataDictionary> pDataDictionary = createDataDictionary(sessionID, settings, TRANSPORT_DATA_DICTIONARY);
   provider.addTransportDataDictionary(sessionID.getBeginString(), pDataDictionary);
   
   for(Dictionary::const_iterator data = settings.begin(); data != settings.end(); ++data)
@@ -263,7 +267,7 @@ void SessionFactory::processFixDataDictionary(const SessionID& sessionID,
                                               const Dictionary& settings, 
                                               DataDictionaryProvider& provider) throw(ConfigError)
 {
-  const DataDictionary * pDataDictionary = createDataDictionary(sessionID, settings, DATA_DICTIONARY);
+  ptr::shared_ptr<DataDictionary> pDataDictionary = createDataDictionary(sessionID, settings, DATA_DICTIONARY);
   provider.addTransportDataDictionary(sessionID.getBeginString(), pDataDictionary);
   provider.addApplicationDataDictionary(Message::toApplVerID(sessionID.getBeginString()), pDataDictionary);
 }

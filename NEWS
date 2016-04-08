@@ -1,7 +1,38 @@
+1.14.3
+------
+Fixed buck in SocketConnection where recv result stored in signed value.
+
+Added ruby api to RubyGems.
+
+All Python and Ruby tests pass again.
+
+1.14.2
+------
+Test for std::shared_ptr and std::tr1::shared_ptr.  Allows us to compile on
+gcc 4.1-4.2, and with anaconda python.
+
+Distribute FIX specs with pip package.
+
+Use all detected compiler flags when building ruby native library.
+
+1.14.1
+------
+Replaced libxml2 and MSXML dependencies with embedded pugixml.
+
+Fixed all warnings from -Wshorten-64-to-32.
+
+Added python api to PyPi.  Can be installed with 'pip install quickfix'.
+
+Fixed memory leak in SessionFactory when creating DataDictionaries.
+shared_ptr is used to track the objects so we don't have to.
+
 1.14.0
 ------
 Major performance improvement sending/receiving messages.  Thanks to 
 Viktor Pogrebnyak for a great patch.
+
+Added getFieldIfSet and getIfSet methods.  No longer need to check for a
+field and pull it out in two steps.
 
 UseLocalTime=Y works again.
 
@@ -16,6 +47,12 @@ Added ValidateLengthAndChecksum. Allows you to ignore the length and checksum
 fields on incoming messages. Accept the message anyway. A wild free for all.
 
 Added FIX 5.0 sp1 and sp2 support to MessageCracker.
+
+SocketReuseAddress, SocketNoDelay, SocketSendBufferSize, and SocketReceiveBufferSize
+config settings can be overriden on a per session basis.
+
+Field containing number of groups will be removed if all instances of 
+a group are removed from the message.
 
 SocketConnection would block other sessions if it was unable to connect
 immediately.  Brian Crowell submitted a patch that makes the connection
@@ -72,6 +109,12 @@ Fixed/standardized various issues with python library deployment.
 
 If session is disabled, it will immediately disconnect without sending any
 messages.
+
+Added support for visual studio 11 and 12.
+
+Removed C# library.  Use QuickFIX/n.
+
+Ruby API works with ruby 1.9.x
 
 1.13.3
 ------

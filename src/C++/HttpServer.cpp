@@ -1,5 +1,5 @@
 /****************************************************************************
-** Copyright (c) quickfixengine.org  All rights reserved.
+** Copyright (c) 2001-2014
 **
 ** This file is part of the QuickFIX FIX Engine
 **
@@ -69,7 +69,7 @@ HttpServer::HttpServer( const SessionSettings& settings ) throw( ConfigError )
 void HttpServer::onConfigure( const SessionSettings& s )
 throw ( ConfigError )
 {  
-  m_port = s.get().getLong( HTTP_ACCEPT_PORT );
+  m_port = s.get().getInt( HTTP_ACCEPT_PORT );
 }
 
 void HttpServer::onInitialize( const SessionSettings& s )

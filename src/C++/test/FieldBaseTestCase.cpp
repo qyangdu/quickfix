@@ -1,5 +1,5 @@
 /****************************************************************************
-** Copyright (c) quickfixengine.org  All rights reserved.
+** Copyright (c) 2001-2014
 **
 ** This file is part of the QuickFIX FIX Engine
 **
@@ -38,15 +38,15 @@ TEST(set)
   object.setString( "VALUE" );
   CHECK_EQUAL( "12=VALUE\001", object.getFixString() );
   CHECK_EQUAL( 542, object.getTotal() );
-  CHECK_EQUAL( 9, object.getLength() );
+  CHECK_EQUAL( 9lu, object.getLength() );
   object.setString( "VALUF" );
   CHECK_EQUAL( "12=VALUF\001", object.getFixString() );
   CHECK_EQUAL( 543, object.getTotal() );
-  CHECK_EQUAL( 9, object.getLength() );
-  object.setField( 13 );
+  CHECK_EQUAL( 9lu, object.getLength() );
+  object.setTag( 13 );
   CHECK_EQUAL( "13=VALUF\001", object.getFixString() );
   CHECK_EQUAL( 544, object.getTotal() );
-  CHECK_EQUAL( 9, object.getLength() );
+  CHECK_EQUAL( 9lu, object.getLength() );
 }
 
 }

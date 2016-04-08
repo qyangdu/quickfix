@@ -1,7 +1,7 @@
 /* -*- C++ -*- */
 
 /****************************************************************************
-** Copyright (c) quickfixengine.org  All rights reserved.
+** Copyright (c) 2001-2014
 **
 ** This file is part of the QuickFIX FIX Engine
 **
@@ -47,13 +47,13 @@ public:
   /// Get the name of the dictionary.
   std::string getName() const { return m_name; }
   /// Return the number of key/value pairs.
-  int size() const { return m_data.size(); }
+  size_t size() const { return m_data.size(); }
 
   /// Get a value as a string.
   std::string getString( const std::string&, bool capitalize = false ) const
   throw( ConfigError, FieldConvertError );
-  /// Get a value as a long.
-  long getLong( const std::string& ) const
+  /// Get a value as a int.
+  int getInt( const std::string& ) const
   throw( ConfigError, FieldConvertError );
   /// Get a value as a double.
   double getDouble( const std::string& ) const
@@ -67,8 +67,8 @@ public:
 
   /// Set a value from a string.
   void setString( const std::string&, const std::string& );
-  /// Set a value from a long.
-  void setLong( const std::string&, long );
+  /// Set a value from a int.
+  void setInt( const std::string&, int );
   /// Set a value from a double.
   void setDouble( const std::string&, double );
   /// Set a value from a bool

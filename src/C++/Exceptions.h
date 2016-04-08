@@ -1,7 +1,7 @@
 /* -*- C++ -*- */
 
 /****************************************************************************
-** Copyright (c) quickfixengine.org  All rights reserved.
+** Copyright (c) 2001-2014
 **
 ** This file is part of the QuickFIX FIX Engine
 **
@@ -255,7 +255,7 @@ struct SocketException : public Exception
 #ifdef _MSC_VER
     error = WSAGetLastError();
     char buffer[2048];
-    FormatMessage( FORMAT_MESSAGE_FROM_SYSTEM, NULL, error,
+    FormatMessageA( FORMAT_MESSAGE_FROM_SYSTEM, NULL, error,
                    MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
                    buffer, 2048, NULL );
     return buffer;
@@ -279,7 +279,7 @@ struct SocketSendFailed : public SocketException
 /// Socket recv operation failed
 struct SocketRecvFailed : public SocketException
 {
-  SocketRecvFailed( int size )
+  SocketRecvFailed( ssize_t size )
     : SocketException( size == 0 ? "Connection reset by peer." : size < 0 ? errorToWhat() : "Success." ) {}
   SocketRecvFailed( const std::string& what )
     : SocketException( what ) {}

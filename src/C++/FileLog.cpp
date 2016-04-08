@@ -1,5 +1,5 @@
 /****************************************************************************
-** Copyright (c) quickfixengine.org  All rights reserved.
+** Copyright (c) 2001-2014
 **
 ** This file is part of the QuickFIX FIX Engine
 **
@@ -44,12 +44,12 @@ Log* FileLogFactory::create()
     if( settings.has( FILE_LOG_BACKUP_PATH ) )
       backupPath = settings.getString( FILE_LOG_BACKUP_PATH );
 
-    return m_globalLog = new FileLog( path );
+    return m_globalLog = new FileLog( path, backupPath );
   }
   catch( ConfigError& )
   {
-	m_globalLogCount--;
-	throw;	
+  m_globalLogCount--;
+  throw;  
   }
 }
 
@@ -61,9 +61,14 @@ Log* FileLogFactory::create( const SessionID& s )
     return new FileLog( m_path, s );
 
   std::string path;
+  std::string backupPath;
   Dictionary settings = m_settings.get( s );
   path = settings.getString( FILE_LOG_PATH );
-  return new FileLog( path, s );
+  backupPath = path;
+  if( settings.has( FILE_LOG_BACKUP_PATH ) )
+    backupPath = settings.getString( FILE_LOG_BACKUP_PATH );
+
+  return new FileLog( path, backupPath, s );
 }
 
 void FileLogFactory::destroy( Log* pLog )
@@ -73,13 +78,13 @@ void FileLogFactory::destroy( Log* pLog )
     m_globalLogCount--;
     if( m_globalLogCount == 0 )
     {
-	    delete pLog;
-	    m_globalLogCount = 0;
-    }	
+      delete pLog;
+      m_globalLogCount = 0;
+    }  
   }
   else
   {
-  	delete pLog;
+    delete pLog;
   }
 }
 
@@ -87,6 +92,12 @@ FileLog::FileLog( const std::string& path )
 : m_millisecondsInTimeStamp( true )
 {
   init( path, path, "GLOBAL" );
+}
+
+FileLog::FileLog( const std::string& path, const std::string& backupPath )
+: m_millisecondsInTimeStamp( true )
+{
+  init( path, backupPath, "GLOBAL" );
 }
 
 FileLog::FileLog( const std::string& path, const SessionID& s )
@@ -120,7 +131,7 @@ std::string FileLog::generatePrefix( const SessionID& s )
 }
 
 void FileLog::init( std::string path, std::string backupPath, const std::string& prefix )
-{	
+{  
   file_mkdir( path.c_str() );
   file_mkdir( backupPath.c_str() );
 

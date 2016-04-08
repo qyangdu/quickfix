@@ -1,5 +1,5 @@
 /****************************************************************************
-** Copyright (c) quickfixengine.org  All rights reserved.
+** Copyright (c) 2001-2014
 **
 ** This file is part of the QuickFIX FIX Engine
 **
@@ -44,17 +44,17 @@ TEST(setGetString)
   CHECK_THROW( object.getString( "STRINGKEY3" ), ConfigError );
 }
 
-TEST(setGetLong)
+TEST(setGetInt)
 {
   Dictionary object;
-  object.setLong( "LONGKEY1", 12 );
-  object.setLong( "LONGKEY2", 9827362 );
-  object.setString( "BADLONGKEY", "AB12" );
+  object.setInt( "INTKEY1", 12 );
+  object.setInt( "INTKEY2", 9827362 );
+  object.setString( "BADINTKEY", "AB12" );
 
-  CHECK_EQUAL( 12, object.getLong( "LONGKEY1" ) );
-  CHECK_EQUAL( 9827362, object.getLong( "LONGKEY2" ) );
-  CHECK_THROW( object.getLong( "LONGKEY3" ), ConfigError );
-  CHECK_THROW( object.getLong( "BADLONGKEY" ), ConfigError );
+  CHECK_EQUAL( 12, object.getInt( "INTKEY1" ) );
+  CHECK_EQUAL( 9827362, object.getInt( "INTKEY2" ) );
+  CHECK_THROW( object.getInt( "INTKEY3" ), ConfigError );
+  CHECK_THROW( object.getInt( "BADINTKEY" ), ConfigError );
 }
 
 TEST(setGetDouble)
