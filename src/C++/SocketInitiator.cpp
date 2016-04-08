@@ -1,5 +1,5 @@
 /****************************************************************************
-** Copyright (c) quickfixengine.org  All rights reserved.
+** Copyright (c) 2001-2014
 **
 ** This file is part of the QuickFIX FIX Engine
 **
@@ -67,14 +67,16 @@ SocketInitiator::~SocketInitiator()
 void SocketInitiator::onConfigure( const SessionSettings& s )
 throw ( ConfigError )
 {
-  try { m_reconnectInterval = s.get().getInt( RECONNECT_INTERVAL ); }
-  catch ( std::exception& ) {}
-  if( s.get().has( SOCKET_NODELAY ) )
-    m_noDelay = s.get().getBool( SOCKET_NODELAY );
-  if( s.get().has( SOCKET_SEND_BUFFER_SIZE ) )
-    m_sendBufSize = s.get().getInt( SOCKET_SEND_BUFFER_SIZE );
-  if( s.get().has( SOCKET_RECEIVE_BUFFER_SIZE ) )
-    m_rcvBufSize = s.get().getInt( SOCKET_RECEIVE_BUFFER_SIZE );
+  const Dictionary& dict = s.get();
+
+  if( dict.has( RECONNECT_INTERVAL ) )
+    m_reconnectInterval = dict.getInt( RECONNECT_INTERVAL );
+  if( dict.has( SOCKET_NODELAY ) )
+    m_noDelay = dict.getBool( SOCKET_NODELAY );
+  if( dict.has( SOCKET_SEND_BUFFER_SIZE ) )
+    m_sendBufSize = dict.getInt( SOCKET_SEND_BUFFER_SIZE );
+  if( dict.has( SOCKET_RECEIVE_BUFFER_SIZE ) )
+    m_rcvBufSize = dict.getInt( SOCKET_RECEIVE_BUFFER_SIZE );
 }
 
 void SocketInitiator::onInitialize( const SessionSettings& s )
@@ -189,11 +191,11 @@ void SocketInitiator::onDisconnect( SocketConnector&, int s )
 
   SocketConnection* pSocketConnection = 0;
   if( i != m_connections.end() ) 
-	  pSocketConnection = i->second;
+    pSocketConnection = i->second;
   if( j != m_pendingConnections.end() )
-	  pSocketConnection = j->second;
+    pSocketConnection = j->second;
   if( !pSocketConnection )
-	  return;
+    return;
 
   setDisconnected( pSocketConnection->getSession()->getSessionID() );
 

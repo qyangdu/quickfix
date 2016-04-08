@@ -1,58 +1,67 @@
-<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2 Final//EN">
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN">
 
 <html>
-  <head>
-    <title>Repeating Groups</title>
-    <H1>Repeating Groups</H1>
-  </head>
-  <body>
-    QuickFIX has the ability to send messages containing repeating groups and even recursive
-    repeating groups. All repeating groups begin with a field that indicates how many repeating
-    groups are in a set. A group can be created by referencing a class named after this field
-    scoped within the parent message or group.
+<head>
+  <link href="doxygen.css" rel="stylesheet" type="text/css">
 
-    <H2>Creating Messages With Repeating Groups</H2>
+  <title>Repeating Groups</title>
+</head>
 
-    <p>
-    Here is an example of a message that distributes market data. When the message is created
-    the required field with the number of repeating groups is set to zero. This is because
-    QuickFIX will automatically set this field for you when you add groups. This way there is
-    never an inconsistancy between the number of entries in the field and in the message.
-    </p>
+<body>
+  <div class='header'>
+    <div class='headerTitle'>
+      Repeating Groups
+    </div>
+  </div>
 
-    See this code in <a href="csharp/repeating_groups_1.html">C#</a>, <a href="vbnet/repeating_groups_1.html">VB.NET</a>, <a href="python/repeating_groups_1.html">PYTHON</a>, <a href="ruby/repeating_groups_1.html">RUBY</a>
-    <PRE>
+  <div class='contents'>
+    QuickFIX has the ability to send messages containing repeating
+    groups and even recursive repeating groups. All repeating
+    groups begin with a field that indicates how many repeating
+    groups are in a set. A group can be created by referencing a
+    class named after this field scoped within the parent message
+    or group.
+
+    <h1>Creating Messages With Repeating Groups</h1>
+
+    <p>When a message is created the required field declaring the
+    number of repeating groups is set to zero. QuickFIX will
+    automatically increment field for you as you add groups.</p>See
+    this code in <a href=
+    "python/repeating_groups_1.html">PYTHON</a>, <a href=
+    "ruby/repeating_groups_1.html">RUBY</a>
+    <pre class="fragment">
     // create a market data message
-    <B>FIX42::MarketDataSnapshotFullRefresh message(FIX::Symbol("QF"));</B>
+    FIX42::MarketDataSnapshotFullRefresh message(FIX::Symbol("QF"));
 
     // repeating group in the form of MessageName::NoField
-    <B>FIX42::MarketDataSnapshotFullRefresh::NoMDEntries group;
+    FIX42::MarketDataSnapshotFullRefresh::NoMDEntries group;
     group.set(FIX::MDEntryType('0'));
     group.set(FIX::MDEntryPx(12.32));
     group.set(FIX::MDEntrySize(100));
     group.set(FIX::OrderID("ORDERID"));
-    message.addGroup(group);</B>
+    message.addGroup(group);
 
     // no need to create a new group class if we are reusing the fields
-    <B>group.set(FIX::MDEntryType('1'));
+    group.set(FIX::MDEntryType('1'));
     group.set(FIX::MDEntryPx(12.32));
     group.set(FIX::MDEntrySize(100));
     group.set(FIX::OrderID("ORDERID"));
-    message.addGroup(group);</B>
-    </PRE>
+    message.addGroup(group);
+</pre>
 
-    <H2>Reading Messages With Repeating Groups</H2>
+    <h1>Reading Messages With Repeating Groups</h1>
 
-    <p>
-    To pull a group out of a message you need to supply the group you wish to pull out. You should
-    first inspect the number of entries field (which the group is named after) to get the total number
-    of groups. The message that was created above is now parsed back out below.
-    </p>
-
-    See this code in <a href="csharp/repeating_groups_2.html">C#</a>, <a href="vbnet/repeating_groups_2.html">VB.NET</a>, <a href="python/repeating_groups_2.html">PYTHON</a>, <a href="ruby/repeating_groups_2.html">RUBY</a>
-    <PRE>
+    <p>To pull a group out of a message you need to supply the
+    group object you wish to pull out. You should first inspect the
+    number of entries field (which the group is named after) to get
+    the total number of groups. The message that was created above
+    is now parsed in this example.</p>See this code in <a href=
+    "python/repeating_groups_2.html">PYTHON</a>, <a href=
+    "ruby/repeating_groups_2.html">RUBY</a>
+    <pre class="fragment">
     // should be 2
-    <B>FIX::NoMDEntries noMDEntries;
+    FIX::NoMDEntries noMDEntries;
     message.get(noMDEntries);
 
     FIX42::MarketDataSnapshotFullRefresh::NoMDEntries group;
@@ -71,8 +80,8 @@
     group.get(MDEntryType);
     group.get(MDEntryPx);
     group.get(MDEntrySize);
-    group.get(orderID);</B>
-    </PRE>
-
-  </body>
+    group.get(orderID);
+</pre>
+  </div>
+</body>
 </html>

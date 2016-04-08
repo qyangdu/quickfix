@@ -1,5 +1,5 @@
 /****************************************************************************
-** Copyright (c) quickfixengine.org  All rights reserved.
+** Copyright (c) 2001-2014
 **
 ** This file is part of the QuickFIX FIX Engine
 **
@@ -139,7 +139,7 @@ namespace FIX
       if( time1 > time2 )
       {
         UtcTimeOnly time2TimeOnly = UtcTimeOnly(time2);
-	  	  
+
         long delta = time2TimeOnly - start;
         if( delta < 0 )
           delta = DateTime::SECONDS_PER_DAY - labs(delta);

@@ -1,7 +1,7 @@
 /* -*- C++ -*- */
 
 /****************************************************************************
-** Copyright (c) quickfixengine.org  All rights reserved.
+** Copyright (c) 2001-2014
 **
 ** This file is part of the QuickFIX FIX Engine
 **
@@ -151,7 +151,7 @@ public:
   void set( const Dictionary& defaults ) throw( ConfigError );
 
   /// Number of session settings
-  int size() const { return m_settings.size(); }
+  size_t size() const { return m_settings.size(); }
 
   typedef std::map < SessionID, Dictionary > Dictionaries;
   std::set < SessionID > getSessions() const;

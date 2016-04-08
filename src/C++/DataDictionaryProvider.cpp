@@ -1,5 +1,5 @@
 /****************************************************************************
-** Copyright (c) quickfixengine.org  All rights reserved.
+** Copyright (c) 2001-2014
 **
 ** This file is part of the QuickFIX FIX Engine
 **
@@ -59,13 +59,13 @@ DataDictionaryProvider::getApplicationDataDictionary
 }
 
 void DataDictionaryProvider::addTransportDataDictionary
-(const BeginString& beginString, const DataDictionary* pDD)
+(const BeginString& beginString, ptr::shared_ptr<DataDictionary> pDD)
 {
   m_transportDictionaries[beginString.forString( String::RvalFunc() )] = pDD;
 }
 
 void DataDictionaryProvider::addApplicationDataDictionary
-(const ApplVerID applVerID, const DataDictionary* pDD)
+(const ApplVerID& applVerID, ptr::shared_ptr<DataDictionary> pDD)
 {
   m_applicationDictionaries[applVerID.forString( String::RvalFunc() )] = pDD;
 }

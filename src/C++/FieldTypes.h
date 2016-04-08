@@ -1,7 +1,7 @@
 /* -*- C++ -*- */
 
 /****************************************************************************
-** Copyright (c) quickfixengine.org  All rights reserved.
+** Copyright (c) 2001-2014
 **
 ** This file is part of the QuickFIX FIX Engine
 **
@@ -29,6 +29,10 @@
 #include "Utility.h"
 #include <string>
 #include <time.h>
+
+#ifdef _MSC_VER
+#pragma warning( disable : 4201 ) // DISABLE warning C4201: nonstandard extension used : nameless struct/union
+#endif
 
 namespace FIX
 {
@@ -578,7 +582,7 @@ public:
   UtcDate( int date, int month, int year )
   : DateTime(year, month, date, 0, 0, 0, 0) {}
 
-  UtcDate( long sec )
+  UtcDate( int sec )
   : DateTime( sec / DateTime::SECONDS_PER_DAY, 0 ) {}
 
   UtcDate( const tm* time )
@@ -614,7 +618,7 @@ public:
   LocalDate( int date, int month, int year )
   : DateTime(year, month, date, 0, 0, 0, 0) {}
 
-  LocalDate( long sec )
+  LocalDate( int sec )
   : DateTime( sec / DateTime::SECONDS_PER_DAY, 0 ) {}
 
   LocalDate( const tm* time )
@@ -706,5 +710,9 @@ enum Type
 };
 }
 }
+
+#ifdef _MSC_VER
+#pragma warning( default : 4201 ) // RE-ENABLE warning C4201: nonstandard extension used : nameless struct/union
+#endif
 
 #endif //FIX_FIELDTYPES_H

@@ -1,7 +1,7 @@
 /* -*- C++ -*- */
 
 /****************************************************************************
-** Copyright (c) quickfixengine.org  All rights reserved.
+** Copyright (c) 2001-2014
 **
 ** This file is part of the QuickFIX FIX Engine
 **
@@ -83,6 +83,7 @@ class FileLog : public Log
 
 public:
   FileLog( const std::string& path );
+  FileLog( const std::string& path, const std::string& backupPath );
   FileLog( const std::string& path, const SessionID& sessionID );
   FileLog( const std::string& path, const std::string& backupPath, const SessionID& sessionID );
   virtual ~FileLog();

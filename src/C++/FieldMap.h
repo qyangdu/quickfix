@@ -1,7 +1,7 @@
 /* -*- C++ -*- */
 
 /****************************************************************************
-** Copyright (c) quickfixengine.org  All rights reserved.
+** Copyright (c) 2001-2014
 **
 ** This file is part of the QuickFIX FIX Engine
 **
@@ -720,10 +720,7 @@ public:
   FieldBase& getField( FieldBase& field )
   const throw( FieldNotFound )
   {
-    Fields::const_iterator iter = find( field.getTag() );
-    if ( iter == m_fields.end() )
-      throw FieldNotFound( field.getTag() );
-    field = iter->second;
+    field = getFieldRef( field.getTag() );
     return field;
   }
 
@@ -835,7 +832,7 @@ public:
   /// Check to see if a specific instance of a group exists
   bool hasGroup( int num, int tag ) const;
   /// Count the number of instance of a group
-  int groupCount( int tag ) const;
+  size_t groupCount( int tag ) const;
 
   /// Clear all fields from the map
   void clear()
@@ -855,7 +852,7 @@ public:
 #endif
   }
 
-  int totalFields() const;
+  size_t totalFields() const;
 
   std::string& calculateString( std::string&, bool clear = true ) const;
 

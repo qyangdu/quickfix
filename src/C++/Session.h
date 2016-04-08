@@ -1,7 +1,7 @@
 /* -*- C++ -*- */
 
 /****************************************************************************
-** Copyright (c) quickfixengine.org  All rights reserved.
+** Copyright (c) 2001-2014
 **
 ** This file is part of the QuickFIX FIX Engine
 **
@@ -50,7 +50,7 @@ public:
            const DataDictionaryProvider&,
            const TimeRange&,
            int heartBtInt, LogFactory* pLogFactory );
-  ~Session();
+  virtual ~Session();
 
   void logon() 
   { m_state.enabled( true ); m_state.logoutReason( "" ); }
@@ -105,7 +105,7 @@ public:
   static Session* registerSession( const SessionID& );
   static void unregisterSession( const SessionID& );
 
-  static int numSessions();
+  static size_t numSessions();
 
   bool isSessionTime(const UtcTimeStamp& time)
     { return m_sessionTime.isInRange(time); }
@@ -228,8 +228,8 @@ public:
 
   void disconnect();
 
-  long getExpectedSenderNum() { return m_state.getNextSenderMsgSeqNum(); }
-  long getExpectedTargetNum() { return m_state.getNextTargetMsgSeqNum(); }
+  int getExpectedSenderNum() { return m_state.getNextSenderMsgSeqNum(); }
+  int getExpectedTargetNum() { return m_state.getNextTargetMsgSeqNum(); }
 
   Log* getLog() { return &m_state; }
   const MessageStore* getStore() { return m_state.store(); }

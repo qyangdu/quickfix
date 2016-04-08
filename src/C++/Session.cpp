@@ -1,5 +1,5 @@
 /****************************************************************************
-** Copyright (c) quickfixengine.org  All rights reserved.
+** Copyright (c) 2001-2014
 **
 ** This file is part of the QuickFIX FIX Engine
 **
@@ -230,7 +230,7 @@ void Session::nextLogon( const Message& logon, const UtcTimeStamp& timeStamp )
   }
 
   ResetSeqNumFlag resetSeqNumFlag(false);
-  logon.getFieldIfSet( resetSeqNumFlag );
+  logon.getFieldIfSet(resetSeqNumFlag);
   m_state.receivedReset( resetSeqNumFlag );
 
   if( m_state.receivedReset() )
@@ -256,7 +256,7 @@ void Session::nextLogon( const Message& logon, const UtcTimeStamp& timeStamp )
   if ( !m_state.initiate() 
        || (m_state.receivedReset() && !m_state.sentReset()) )
   {
-    logon.getFieldIfSet( m_state.heartBtInt() );
+    logon.getFieldIfSet(m_state.heartBtInt());
     m_state.onEvent( "Received logon request" );
     generateLogon( logon );
     m_state.onEvent( "Responding to logon request" );
@@ -328,7 +328,9 @@ void Session::nextSequenceReset( const Message& sequenceReset, const UtcTimeStam
   bool isGapFill = false;
   GapFillFlag gapFillFlag;
   if ( sequenceReset.getFieldIfSet( gapFillFlag ) )
+  {
     isGapFill = gapFillFlag;
+  }
 
   if ( !verify( sequenceReset, isGapFill, isGapFill ) ) return ;
 
@@ -1126,12 +1128,11 @@ bool Session::doPossDup( const Message& msg )
 
   if ( msgType != MsgType_SequenceReset )
   {
-    if ( !header.isSetField( origSendingTime ) )
+    if ( !header.getFieldIfSet( origSendingTime ) )
     {
       generateReject( msg, SessionRejectReason_REQUIRED_TAG_MISSING, origSendingTime.getTag() );
       return false;
     }
-    header.getField( origSendingTime );
 
     if ( origSendingTime > sendingTime )
     {
@@ -1570,7 +1571,7 @@ void Session::unregisterSession( const SessionID& sessionID )
   s_registered.erase( sessionID );
 }
 
-int Session::numSessions()
+size_t Session::numSessions()
 {
   Locker locker( s_mutex );
   return s_sessions.size();

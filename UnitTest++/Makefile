@@ -1,5 +1,5 @@
 CXX = g++
-CXXFLAGS ?= -g -O0 -Wall -W -Winline -ansi 
+CXXFLAGS ?= -g -O0 -Wall -W -Winline -Wno-unused-private-field -Wno-overloaded-virtual -ansi 
 LDFLAGS ?= 
 SED = sed
 MV = mv

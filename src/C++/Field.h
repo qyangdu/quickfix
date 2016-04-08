@@ -1,7 +1,7 @@
 /* -*- C++ -*- */
 
 /****************************************************************************
-** Copyright (c) quickfixengine.org  All rights reserved.
+** Copyright (c) 2001-2014
 **
 ** This file is part of the QuickFIX FIX Engine
 **
@@ -168,7 +168,7 @@ public:
 
   /// Get the string representation of the fields value.
   const std::string& getString() const
-    { return m_string; }
+  { return m_string; }
 
   /// Get a copy of the string representation of the fields value.
   std::string dupString() const
@@ -188,7 +188,7 @@ public:
   }
 
   /// Get the length of the fields string representation
-  int getLength() const
+  size_t getLength() const
   {
     calculate_metrics();
     return m_length;

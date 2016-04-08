@@ -25,6 +25,7 @@
 #include "FieldTypes.h"
 #include "Exceptions.h"
 #include "FixString.h"
+#include <algorithm>
 #include <string>
 #include <sstream>
 #include <iomanip>
@@ -32,8 +33,19 @@
 #include <cmath>
 #include <limits>
 
+#ifdef _MSC_VER
+#pragma warning( disable : 4706 ) // DISABLE warning C4706: assignment within conditional expression
+#endif
+
 namespace FIX
 {
+
+/// Empty converter is a no-op.
+struct EmptyConvertor
+{
+  static const std::string& convert( const std::string& value )
+  { return value; }
+};
 
 /// String convertor is a no-op.
 struct StringConvertor
@@ -100,10 +112,10 @@ struct IntConvertor
           *buf = '-';
           value_type value = m_value;
           bool neg = value < 0;
-	  unsigned_value_type v = neg ? unsigned(~value) + 1 : value;
+	      unsigned_value_type v = neg ? unsigned(~value) + 1 : value;
           std::size_t len = Util::UInt::numDigits(v);
           Util::UInt::generate(buf += neg, v, len);
-	  buf[len] = '\0';
+	      buf[len] = '\0';
           return len + neg;
         }
 
@@ -117,7 +129,7 @@ struct IntConvertor
 	{
           value_type value = m_value;
           bool neg = value < 0;
-	  unsigned_value_type v = neg ? unsigned(~value) + 1 : value;
+	      unsigned_value_type v = neg ? unsigned(~value) + 1 : value;
           std::size_t len = Util::UInt::numDigits(v);
           s.resize(len + neg);
           char* buf = const_cast<char*>(String::data(s));
@@ -958,8 +970,8 @@ struct UtcTimeStampConvertor : public UtcConvertorBase
   static inline unsigned write(char* buffer, const UtcTimeStamp& value, bool showMilliseconds = false)
   {
     union {
-	char*     pc;
-	uint16_t* pu;
+      char*     pc;
+      uint16_t* pu;
     } b = { buffer };
     int year, month, day, hour, minute, second, millis;
 
@@ -981,8 +993,8 @@ struct UtcTimeStampConvertor : public UtcConvertorBase
 
       if (showMilliseconds)
       {
-	*b.pc++ = '.';
-	*b.pc++ = '0' + (unsigned)millis / 100;
+	    *b.pc++ = '.';
+	    *b.pc++ = '0' + (unsigned)millis / 100;
         *b.pu   = Util::NumData::m_pairs[(unsigned)millis % 100 ].u;
       }
       return 17 + showMilliseconds * 4;
@@ -1119,8 +1131,8 @@ struct UtcTimeOnlyConvertor : public UtcConvertorBase
   static inline unsigned write(char* buffer, const UtcTimeOnly& value, bool showMilliseconds = false)
   {
     union {
-	char*     pc;
-	uint16_t* pu;
+      char*     pc;
+      uint16_t* pu;
     } b = { buffer };
     int hour, minute, second, millis;
 
@@ -1397,5 +1409,9 @@ typedef StringConvertor XMLDATA_CONVERTOR;
 typedef StringConvertor LANGUAGE_CONVERTOR;
 typedef CheckSumConvertor CHECKSUM_CONVERTOR;
 }
+
+#ifdef _MSC_VER
+#pragma warning( default : 4706 ) // RE_ENABLE warning C4706: assignment within conditional expression
+#endif
 
 #endif //FIX_FIELDCONVERTORS_H

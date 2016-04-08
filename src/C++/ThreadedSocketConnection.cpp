@@ -1,5 +1,5 @@
 /****************************************************************************
-** Copyright (c) quickfixengine.org  All rights reserved.
+** Copyright (c) 2001-2014
 **
 ** This file is part of the QuickFIX FIX Engine
 **
@@ -33,8 +33,8 @@
 namespace FIX
 {
 ThreadedSocketConnection::ThreadedSocketConnection
-( int s, Sessions sessions, Application& application, Log* pLog )
-: m_socket( s ), m_application( application ), m_pLog( pLog ),
+( int s, Sessions sessions, Log* pLog )
+: m_socket( s ), m_pLog( pLog ),
   m_sessions( sessions ), m_pSession( 0 ),
   m_disconnect( false )
 {}
@@ -42,9 +42,9 @@ ThreadedSocketConnection::ThreadedSocketConnection
 ThreadedSocketConnection::ThreadedSocketConnection
 ( const SessionID& sessionID, int s,
   const std::string& address, short port, 
-  Application& application, Log* pLog )
+  Log* pLog )
   : m_socket( s ), m_address( address ), m_port( port ),
-    m_application( application ), m_pLog( pLog ),
+    m_pLog( pLog ),
     m_pSession( Session::lookupSession( sessionID ) ),
     m_disconnect( false )
 {
@@ -149,7 +149,7 @@ bool HEAVYUSE ThreadedSocketConnection::read()
     {
       // We can read without blocking
       Sg::sg_buf_t buf = m_parser.buffer();
-      int size = recv( m_socket, IOV_BUF(buf), IOV_LEN(buf), 0 );
+      ssize_t size = recv( m_socket, IOV_BUF(buf), IOV_LEN(buf), 0 );
       if ( LIKELY(size > 0) )
       {
         m_parser.advance( size );

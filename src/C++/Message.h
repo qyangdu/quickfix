@@ -1,7 +1,7 @@
 /* -*- C++ -*- */
 
 /****************************************************************************
-** Copyright (c) quickfixengine.org  All rights reserved.
+** Copyright (c) 2001-2014
 **
 ** This file is part of the QuickFIX FIX Engine
 **
@@ -140,10 +140,10 @@ class Message : public FieldMap
       m_end(String::c_str(s) + String::size(s)) {}
 
     char getTagLength() const
-    { return m_length + 1; }
+    { return static_cast<char>(m_length + 1); }
 
     short getTagChecksum() const
-    { return m_csum + (int)'='; }
+    { return static_cast<short>(m_csum + (int)'='); }
 
     operator bool () const
     { return m_start + m_pos < m_end; }
@@ -415,7 +415,7 @@ public:
   FieldMap& addGroup( FIX::Group& group )
   { return FieldMap::addGroup( group.field(), group ); }
 
-  void replaceGroup( unsigned num, FIX::Group& group )
+  void replaceGroup( unsigned num, const FIX::Group& group )
   { FieldMap::replaceGroup( num, group.field(), group ); }
 
   Group& getGroup( unsigned num, FIX::Group& group ) const throw( FieldNotFound )
@@ -424,14 +424,14 @@ public:
       ( FieldMap::getGroup( num, group.field(), group ) );
   }
 
-  void removeGroup( unsigned num, FIX::Group& group )
+  void removeGroup( unsigned num, const FIX::Group& group )
   { FieldMap::removeGroup( num, group.field() ); }
-  void removeGroup( FIX::Group& group )
+  void removeGroup( const FIX::Group& group )
   { FieldMap::removeGroup( group.field() ); }
 
   bool hasGroup( const FIX::Group& group ) const
   { return FieldMap::hasGroup( group.field() ); }
-  bool hasGroup( unsigned num, FIX::Group& group ) const
+  bool hasGroup( unsigned num, const FIX::Group& group ) const
   { return FieldMap::hasGroup( num, group.field() ); }
 
   /// Get a string representation without making a copy

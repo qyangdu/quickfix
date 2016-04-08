@@ -1,5 +1,5 @@
 /****************************************************************************
-** Copyright (c) quickfixengine.org  All rights reserved.
+** Copyright (c) 2001-2014
 **
 ** This file is part of the QuickFIX FIX Engine
 **
@@ -53,25 +53,25 @@ TEST(readFromIstream)
   input >> object;
 
   Settings::Sections none = object.get( "NONE" );
-  CHECK_EQUAL( (std::size_t)0, none.size() );
+  CHECK_EQUAL( 0U, none.size() );
 
   Settings::Sections foo = object.get( "FOO" );
-  CHECK_EQUAL( (std::size_t)1, foo.size() );
+  CHECK_EQUAL( 1U, foo.size() );
   CHECK_EQUAL( 24, foo[ 0 ].getInt( "bar" ) );
   CHECK_EQUAL( "moo", foo[ 0 ].getString( "baz" ) );
-  CHECK_EQUAL( 2, foo[ 0 ].size() );
+  CHECK_EQUAL( 2lu, foo[ 0 ].size() );
 
   Settings::Sections oren = object.get( "OREN" );
-  CHECK_EQUAL( (std::size_t)2, oren.size() );
-  CHECK_EQUAL( 1, oren[ 0 ].size() );
+  CHECK_EQUAL( 2lu, oren.size() );
+  CHECK_EQUAL( 1lu, oren[ 0 ].size() );
   CHECK_EQUAL( "TW", oren[ 0 ].getString( "Nero" ) );
-  CHECK_EQUAL( 2, oren[ 1 ].size() );
+  CHECK_EQUAL( 2lu, oren[ 1 ].size() );
   CHECK_EQUAL( "Nero", oren[ 1 ].getString( "ISLD" ) );
   CHECK_EQUAL( "./\\:", oren[ 1 ].getString( "STUFF" ) );
 
   Settings::Sections nero = object.get( "NERO" );
-  CHECK_EQUAL( (std::size_t)1, nero.size() );
-  CHECK_EQUAL( 4, nero[ 0 ].size() );
+  CHECK_EQUAL( 1lu, nero.size() );
+  CHECK_EQUAL( 4lu, nero[ 0 ].size() );
   CHECK_EQUAL( "D:\\This Is\\A-Directory\\ok\\", nero[ 0 ].getString( "WINDIR" ) );
   CHECK_EQUAL( "/This Is/A Directory/ok/", nero[ 0 ].getString( "UNIXDIR" ) );
   CHECK_EQUAL( "D:\\Program Files\\Tomcat 4.1\\webapps\\mek\\WEB-INF\\HTTPtoFIX.cfg", nero[ 0 ].getString( "WINFILE" ) );

@@ -1,7 +1,7 @@
 /* -*- C++ -*- */
 
 /****************************************************************************
-** Copyright (c) quickfixengine.org  All rights reserved.
+** Copyright (c) 2001-2014
 **
 ** This file is part of the QuickFIX FIX Engine
 **
@@ -255,7 +255,7 @@ typedef Util::BitSet<GroupTypeBits> FieldTypeGroupBits;
     return true;
   }
 
-  bool getFieldTag( std::string name, int& field ) const
+  bool getFieldTag( const std::string& name, int& field ) const
   {
     NameToField::const_iterator i = m_names.find( name );
     if(i == m_names.end()) return false;
@@ -516,7 +516,7 @@ private:
     int fieldNum = field.getTag();
     if( isGroup(msgType.forString( String::RvalFunc() ), fieldNum) )
     {
-      if( LIKELY(fieldMap.groupCount(fieldNum)
+      if( LIKELY((int)fieldMap.groupCount(fieldNum)
                  == IntConvertor::convert( field.forString( String::RvalFunc() ) )) )
         return;
       throw RepeatingGroupCountMismatch(fieldNum);

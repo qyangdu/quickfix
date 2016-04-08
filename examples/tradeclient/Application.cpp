@@ -1,7 +1,7 @@
 /* -*- C++ -*- */
 
 /****************************************************************************
-** Copyright (c) quickfixengine.org  All rights reserved.
+** Copyright (c) 2001-2014
 **
 ** This file is part of the QuickFIX FIX Engine
 **
@@ -126,7 +126,7 @@ void q_on_receive( const FIX::Message& message )
     const FIX::FieldBase* p = message.getFieldPtrIfSet( 76767 );
     if ( p )
     {
-      double d;
+      double d = 0.0;
       FIX::DoubleConvertor::parse(p->getString(), d);
       l = (last_in.tv_sec * 1000000 + last_in.tv_usec) % 1000000000;
       l = l >= d ? (l - d) : (l + (1000000000 - d));

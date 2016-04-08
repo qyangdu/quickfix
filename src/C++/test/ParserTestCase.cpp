@@ -1,5 +1,5 @@
 /****************************************************************************
-** Copyright (c) quickfixengine.org  All rights reserved.
+** Copyright (c) 2001-2014
 **
 ** This file is part of the QuickFIX FIX Engine
 **
@@ -100,17 +100,15 @@ struct readFixMessageFixture
 
 TEST_FIXTURE(readFixMessageFixture, readFixMessage)
 {
-  std::string readFixMsg1;
-  CHECK( object.readFixMessage( readFixMsg1 ) );
-  CHECK_EQUAL( fixMsg1, readFixMsg1 );
+  std::string readFixMsg;
+  CHECK( object.readFixMessage( readFixMsg ) );
+  CHECK_EQUAL( fixMsg1, readFixMsg );
 
-  std::string readFixMsg2;
-  CHECK( object.readFixMessage( readFixMsg2 ) );
-  CHECK_EQUAL( fixMsg2, readFixMsg2 );
+  CHECK( object.readFixMessage( readFixMsg ) );
+  CHECK_EQUAL( fixMsg2, readFixMsg );
 
-  std::string readFixMsg3;
-  CHECK( object.readFixMessage( readFixMsg3 ) );
-  CHECK_EQUAL( fixMsg3, readFixMsg3 );
+  CHECK( object.readFixMessage( readFixMsg ) );
+  CHECK_EQUAL( fixMsg3, readFixMsg );
 }
 
 struct readPartialFixMessageFixture

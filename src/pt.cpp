@@ -1,7 +1,7 @@
 /* -*- C++ -*- */
 
 /****************************************************************************
-** Copyright (c) quickfixengine.org  All rights reserved.
+** Copyright (c) 2001-2014
 **
 ** This file is part of the QuickFIX FIX Engine
 **
@@ -26,6 +26,7 @@
 #include "config.h"
 #endif
 
+#include <memory>
 #include "getopt-repl.h"
 #include <iostream>
 #include "Application.h"
@@ -94,7 +95,7 @@ int main( int argc, char** argv )
       port = (short)atol( optarg );
       break;
     case 'c':
-      count = atol( optarg );
+      count = atoi( optarg );
       break;
     default:
       std::cout << "usage: "
@@ -105,7 +106,7 @@ int main( int argc, char** argv )
   }
 
   s_dataDictionary.reset( new FIX::DataDictionary( "../spec/FIX42.xml" ) );
- 
+
   std::cout << "Converting integers to strings: ";
   report( testIntegerToString( count ), count );
 
@@ -307,7 +308,7 @@ double testSerializeFromStringHeartbeat( int count )
   FIX::Util::Sys::TickCount start = FIX::Util::Sys::TickCount::now();
   for ( int i = 0; i <= count; ++i )
   {
-    message.setString( string );
+    message.setString( string, VALIDATE, s_dataDictionary.get() );
   }
   return (FIX::Util::Sys::TickCount::now() - start).seconds();
 }
@@ -422,7 +423,7 @@ double testSerializeFromStringNewOrderSingle( int count )
   FIX::Util::Sys::TickCount start = FIX::Util::Sys::TickCount::now();
   for ( int i = 0; i <= count; ++i )
   {
-    message.setString( string );
+    message.setString( string, VALIDATE, s_dataDictionary.get() );
   }
   return (FIX::Util::Sys::TickCount::now() - start).seconds();
 }
@@ -582,7 +583,7 @@ double testSerializeFromStringQuoteRequest( int count )
   FIX::Util::Sys::TickCount start = FIX::Util::Sys::TickCount::now();
   for ( int j = 0; j <= count; ++j )
   {
-    message.setString( string );
+    message.setString( string, DONT_VALIDATE, s_dataDictionary.get() );
   }
   return (FIX::Util::Sys::TickCount::now() - start).seconds();
 }
@@ -748,13 +749,12 @@ double testValidateDictNewOrderSingle( int count )
   message.getHeader().set( FIX::TargetCompID( "TARGET" ) );
   message.getHeader().set( FIX::MsgSeqNum( 1 ) );
 
-  FIX::DataDictionary dataDictionary( "../spec/FIX42.xml" );
   count = count - 1;
 
   FIX::Util::Sys::TickCount start = FIX::Util::Sys::TickCount::now();
   for ( int i = 0; i <= count; ++i )
   {
-    dataDictionary.validate( message );
+    s_dataDictionary->validate( message );
   }
   return (FIX::Util::Sys::TickCount::now() - start).seconds();
 }
@@ -806,13 +806,12 @@ double testValidateDictQuoteRequest( int count )
     message.addGroup( noRelatedSym );
   }
 
-  FIX::DataDictionary dataDictionary( "../spec/FIX42.xml" );
   count = count - 1;
 
   FIX::Util::Sys::TickCount start = FIX::Util::Sys::TickCount::now();
   for ( int j = 0; j <= count; ++j )
   {
-    dataDictionary.validate( message );
+    s_dataDictionary->validate( message );
   }
   return (FIX::Util::Sys::TickCount::now() - start).seconds();
 }

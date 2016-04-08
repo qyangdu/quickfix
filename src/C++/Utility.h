@@ -1,7 +1,7 @@
 /* -*- C++ -*- */
 
 /****************************************************************************
-** Copyright (c) quickfixengine.org  All rights reserved.
+** Copyright (c) 2001-2014
 **
 ** This file is part of the QuickFIX FIX Engine
 **
@@ -88,6 +88,7 @@
 #include <stdint.h>
 #endif
 typedef int socklen_t;
+typedef int ssize_t;
 /////////////////////////////////////////////
 #else
 /////////////////////////////////////////////
@@ -130,6 +131,7 @@ typedef int socklen_t;
 #include <ctime>
 #include <cstdio>
 #include <cstdlib>
+#include <memory>
 
 #ifdef HAVE_BOOST
 #include <boost/date_time/posix_time/posix_time_types.hpp>
@@ -139,10 +141,25 @@ typedef int socklen_t;
 #include <boost/range.hpp>
 #endif
 
+#ifdef HAVE_BOOST
+  namespace ptr = boost;
+#elif defined(HAVE_STD_SHARED_PTR)
+  namespace ptr = std;
+#elif defined(HAVE_STD_TR1_SHARED_PTR)
+  #include <tr1/memory>
+  namespace ptr = std::tr1;
+#else
+  namespace ptr = std;
+#endif
+
 #ifdef HAVE_TBB
 #include <tbb/tick_count.h>
 #include <tbb/spin_mutex.h>
 #include <tbb/atomic.h>
+#endif
+
+ #ifdef _MSC_VER
+#pragma warning( disable : 4706 ) // DISABLE warning C4706: assignment within conditional expression
 #endif
 
 #if defined(_MSC_VER)
@@ -160,42 +177,46 @@ typedef int socklen_t;
 #endif
 
 #if defined(_MSC_VER)
-#define ALIGN_DECL(x) __declspec(align(x))
-#define NOTHROW __declspec(nothrow)
-#define NOTHROW_PRE __declspec(nothrow)
-#define NOTHROW_POST
-#define HEAVYUSE
-#define PREFETCH(addr, rw, longevity) _mm_prefetch(addr, longevity)
-#define LIKELY(x) (x)
-#define MAY_ALIAS
-#define PURE_DECL
-#define FORCE_INLINE
+  #define ALIGN_DECL(x) __declspec(align(x))
+  #define NOTHROW __declspec(nothrow)
+  #define NOTHROW_PRE __declspec(nothrow)
+  #define NOTHROW_POST
+  #define HEAVYUSE
+  #define PREFETCH(addr, rw, longevity) _mm_prefetch(addr, longevity)
+  #define LIKELY(x) (x)
+  #define MAY_ALIAS
+  #define PURE_DECL
+  #ifndef FORCE_INLINE
+    #define FORCE_INLINE
+  #endif
 #elif defined(__GNUC__)
-#define ALIGN_DECL(x) __attribute__ ((aligned(x)))
-#define NOTHROW __attribute__ ((nothrow))
-#define NOTHROW_PRE
-#define NOTHROW_POST __attribute__ ((nothrow))
-#define HEAVYUSE __attribute__((hot))
-#define PREFETCH(addr, rw, longevity) __builtin_prefetch(addr, rw, longevity)
-#define LIKELY(x) __builtin_expect((x),1)
-#define MAY_ALIAS __attribute__ ((may_alias))
-#define PURE_DECL __attribute__ ((pure))
-#if defined(__INTEL_COMPILER)
-#define FORCE_INLINE __forceinline
+  #define ALIGN_DECL(x) __attribute__ ((aligned(x)))
+  #define NOTHROW __attribute__ ((nothrow))
+  #define NOTHROW_PRE
+  #define NOTHROW_POST __attribute__ ((nothrow))
+  #define HEAVYUSE __attribute__((hot))
+  #define PREFETCH(addr, rw, longevity) __builtin_prefetch(addr, rw, longevity)
+  #define LIKELY(x) __builtin_expect((x),1)
+  #define MAY_ALIAS __attribute__ ((may_alias))
+  #define PURE_DECL __attribute__ ((pure))
+  #if defined(__INTEL_COMPILER)
+    #define FORCE_INLINE __forceinline
+  #else
+    #ifndef FORCE_INLINE
+      #define FORCE_INLINE
+    #endif
+  #endif
 #else
-#define FORCE_INLINE
-#endif
-#else
-#define ALIGN_DECL(x)
-#define NOTHROW
-#define NOTHROW_PRE
-#define NOTHROW_POST
-#define HEAVYUSE
-#define PREFETCH(addr, rw, longevity) while(false)
-#define LIKELY(x) (x)
-#define MAY_ALIAS
-#define PURE_DECL
-#define FORCE_INLINE
+  #define ALIGN_DECL(x)
+  #define NOTHROW
+  #define NOTHROW_PRE
+  #define NOTHROW_POST
+  #define HEAVYUSE
+  #define PREFETCH(addr, rw, longevity) while(false)
+  #define LIKELY(x) (x)
+  #define MAY_ALIAS
+  #define PURE_DECL
+  #define FORCE_INLINE
 #endif
 
 #define ALIGN_DECL_DEFAULT ALIGN_DECL(16)
@@ -216,7 +237,7 @@ namespace FIX
   int socket_createConnector();
   int socket_connect( int s, const char* address, int port );
   int socket_accept( int s );
-  int socket_send( int s, const char* msg, int length );
+  ssize_t socket_send( int s, const char* msg, size_t length );
   void socket_close( int s );
   bool socket_fionread( int s, int& bytes );
   bool socket_disconnected( int s );
@@ -243,6 +264,17 @@ namespace FIX
   tm time_gmtime( const time_t* t );
   tm time_localtime( const time_t* t );
 
+  template<typename InputIterator, typename OutputIterator>
+  OutputIterator copy_to_array(InputIterator first, InputIterator last, OutputIterator result, size_t result_size)
+  {
+#ifdef _MSC_VER
+    stdext::checked_array_iterator<OutputIterator> checked_array(result, result_size);
+    return std::copy(first, last, checked_array).base();
+#else
+    return std::copy(first, last, result);
+#endif
+  }
+
 #ifdef _MSC_VER
 
 #define ALIGNED_ALLOC(p, sz, alignment) (p = (CHAR*)_aligned_malloc(sz, alignment))
@@ -262,6 +294,11 @@ namespace FIX
 #define FILE_OFFSET_TYPE_SET(offt, value) ((offt).QuadPart = (value))
 #define FILE_OFFSET_TYPE_VALUE(offt) ((offt).QuadPart)
 #define FILE_OFFSET_TYPE_ADDR(offt) (&(offt).QuadPart)
+#if defined(_M_X64)
+#define SIZE_T_TYPE_MOD	"I64"
+#else
+#define SIZE_T_TYPE_MOD ""
+#endif
 
 #else /* !_MSC_VER */
 
@@ -286,6 +323,11 @@ namespace FIX
 #define FILE_OFFSET_TYPE_SET(offt, value) ((offt) = (value))
 #define FILE_OFFSET_TYPE_VALUE(offt) ((long long)offt)
 #define FILE_OFFSET_TYPE_ADDR(offt) ((long long*)&(offt))
+#if defined(__x86_64__)
+#define SIZE_T_TYPE_MOD			"l"
+#else
+#define SIZE_T_TYPE_MOD			""
+#endif
 #endif /* _MSC_VER */
 
   FILE_HANDLE_TYPE file_handle_open( const char* path );
@@ -479,7 +521,7 @@ namespace FIX
         static inline TickCount now()
         { LARGE_INTEGER data; ::QueryPerformanceCounter(&data); return data; }
 
-		TickCount() { m_data.QuadPart = 0; }
+	TickCount() { m_data.QuadPart = 0; }
 
         TickCount operator-(const TickCount& rhs) const
         {
@@ -1003,7 +1045,7 @@ namespace FIX
       public:
       static inline std::size_t PURE_DECL HEAVYUSE numDigits( int32_t i )
       {
-        return UInt::numDigits( (i < 0) ? uint32_t(~i) + 1 : i );
+        return UInt::numDigits( (i < 0) ? uint32_t(~i) + 1 : i ) + (i < 0);
       }
 
       static inline unsigned NOTHROW HEAVYUSE generate(char* buf, int32_t value)
@@ -2106,10 +2148,10 @@ namespace FIX
       {
         __asm__ __volatile__ (
           " movl (%1), %%ecx; \n\t"
-          " subq $4, %2;      \n\t"
-          " addq $4, %1;      \n\t"
+          " sub  $4, %2;      \n\t"
+          " add  $4, %1;      \n\t"
           " movl %%ecx, (%0); \n\t"
-          " addq $4, %0;      \n\t"
+          " add  $4, %0;      \n\t"
           : "+r"(p), "+r"(s), "+r"(len)
           :
           : "ecx", "memory" );
@@ -2119,10 +2161,10 @@ namespace FIX
         __asm__ __volatile__ (
 	  "1:		     \n\t"
           " movb (%1), %%cl; \n\t"
-          " incq %1;         \n\t"
+          " inc  %1;         \n\t"
           " movb %%cl, (%0); \n\t"
-          " incq %0;         \n\t"
-          " decq %2;         \n\t"
+          " inc  %0;         \n\t"
+          " dec  %2;         \n\t"
           " jne 1b;          \n\t"
           : "+r"(p), "+r"(s), "+r"(len)
           :
@@ -2238,6 +2280,10 @@ using std::exit;
 using std::strtod;
 using std::strtol;
 using std::strerror;
+#endif
+
+#ifdef _MSC_VER
+#pragma warning( default : 4706 ) // RE-ENABLE warning C4706: assignment within conditional expression
 #endif
 
 #endif

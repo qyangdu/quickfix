@@ -1,5 +1,5 @@
 /****************************************************************************
-** Copyright (c) quickfixengine.org  All rights reserved.
+** Copyright (c) 2001-2014
 **
 ** This file is part of the QuickFIX FIX Engine
 **
@@ -86,8 +86,8 @@ throw( ConfigError )
   readFromURL( url );
 }
 
-DataDictionary::DataDictionary( const DataDictionary& src )
-: DataDictionaryBase(src),
+DataDictionary::DataDictionary( const DataDictionary& copy )
+: DataDictionaryBase(copy),
   m_hasVersion( false ), m_checks(AllChecks),
   m_messageFields(get_allocator<MsgTypeToField>()),
   m_requiredFields(get_allocator<MsgTypeToField>()),
@@ -100,7 +100,7 @@ DataDictionary::DataDictionary( const DataDictionary& src )
   m_fieldValues(get_allocator<FieldToValue>()),
   m_groups(get_allocator<FieldToGroup>())
 {
-  *this = src;
+  *this = copy;
 }
 
 DataDictionary::~DataDictionary()
@@ -378,7 +378,7 @@ throw( ConfigError )
       std::string number;
       if(!attrs->get("number", number))
         throw ConfigError("<field> " + name + " does not have a number attribute");
-      int num = atol(number.c_str());
+      int num = atoi(number.c_str());
       std::string type;
       if(!attrs->get("type", type))
         throw ConfigError("<field> " + name + " does not have a type attribute");
@@ -548,7 +548,7 @@ message_order const&  DataDictionary::getOrderedFields() const
   if( m_orderedFieldsArray ) return m_orderedFieldsArray;
 
   Util::scoped_array<int>::type ordered( new int[m_orderedFields.size() + 1] );
-  std::copy(m_orderedFields.begin(), m_orderedFields.end(), ordered.get());
+  copy_to_array(m_orderedFields.begin(), m_orderedFields.end(), ordered.get(), m_orderedFields.size() + 1);
   ordered.get()[m_orderedFields.size()] = 0;
 
   return  (m_orderedFieldsArray = message_order(ordered.get()));
@@ -681,9 +681,9 @@ void DataDictionary::addXMLGroup( DOMDocument* pDoc, DOMNode* pNode,
       {
         groupDD.addRequiredField(msgtype, field);
       }
-	    bool isRequired = false;
-	    if( attrs->get("required", required) )
-		  isRequired = (required == "Y" || required == "y");
+      bool isRequired = false;
+      if( attrs->get("required", required) )
+      isRequired = (required == "Y" || required == "y");
       addXMLGroup( pDoc, node.get(), msgtype, groupDD, isRequired );
     }
     if( delim == 0 ) delim = field;
