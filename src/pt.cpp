@@ -308,7 +308,7 @@ double testSerializeFromStringHeartbeat( int count )
   FIX::Util::Sys::TickCount start = FIX::Util::Sys::TickCount::now();
   for ( int i = 0; i <= count; ++i )
   {
-    message.setString( string, VALIDATE, s_dataDictionary.get() );
+    message.setString( string, DONT_VALIDATE, s_dataDictionary.get() );
   }
   return (FIX::Util::Sys::TickCount::now() - start).seconds();
 }
@@ -423,7 +423,7 @@ double testSerializeFromStringNewOrderSingle( int count )
   FIX::Util::Sys::TickCount start = FIX::Util::Sys::TickCount::now();
   for ( int i = 0; i <= count; ++i )
   {
-    message.setString( string, VALIDATE, s_dataDictionary.get() );
+    message.setString( string, DONT_VALIDATE, s_dataDictionary.get() );
   }
   return (FIX::Util::Sys::TickCount::now() - start).seconds();
 }
