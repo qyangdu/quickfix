@@ -16,7 +16,12 @@
 
 %ignore _REENTRANT;
 %ignore FIX::SynchronizedApplication::m_mutex;
-%ignore FIX::FieldMap::FieldMap( const allocator_type&, const message_order&, const Options& );
+%ignore FIX::FieldMap::Options;
+%ignore FIX::FieldMap::FieldMap;
+%rename("%s") FIX::FieldMap::FieldMap();
+%rename("%s") FIX::FieldMap::FieldMap(message_order const&);
+%rename("%s") FIX::FieldMap::FieldMap(int const []);
+%rename("%s") FIX::FieldMap::FieldMap(FieldMap const&);
 %rename(SocketInitiatorBase) FIX::SocketInitiator;
 %rename(SocketAcceptorBase) FIX::SocketAcceptor;
 
