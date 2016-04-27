@@ -465,7 +465,7 @@ struct CheckSumConvertor
   template <typename S> static bool NOTHROW validate( const S& value )
   {
     const char* s = String::c_str(value);
-    return ::strspn(s, "0123456789") == 3 && s[0] < 3;
+    return ::strspn(s, "0123456789") == 3 && s[0] < '3';
   }
 };
 
