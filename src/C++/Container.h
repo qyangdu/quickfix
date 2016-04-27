@@ -1169,9 +1169,16 @@ class avlTree
     return node_traits::uncast(n);
   }
 
+  struct reverse_algorithms {
+    static inline node_ptr next_node(const_node_ptr p) { node_ptr n = algorithms::prev_node(p); return n ? n : algorithms::get_header(p); }
+    static inline node_ptr prev_node(const_node_ptr p) { return !tree_traits::is_header(p) ? algorithms::next_node(p) : algorithms::begin_node(p); }
+    static inline node_ptr begin_node(const_node_ptr header) { return node_traits::get_right(header); }
+    static inline node_ptr end_node(const_node_ptr header) { return node_traits::uncast(header); }
+  };
+
   public:
 
-  template <class T, class NodePtr>
+  template <class T, class NodePtr, class Algo>
   class tree_iterator
   {
     protected:
@@ -1191,7 +1198,7 @@ class avlTree
     explicit tree_iterator(const NodePtr& n)
       : m_node(n) {}
 
-    tree_iterator(const tree_iterator<Node, node_ptr>& other)
+    tree_iterator(const tree_iterator<Node, node_ptr, Algo>& other)
       : m_node(other.pointed_node()) {}
 
     NodePtr pointed_node() const
@@ -1201,16 +1208,16 @@ class avlTree
     { m_node = node_ptr; return *this; }
 
     tree_iterator& operator++()
-    { m_node = algorithms::next_node(m_node); return *this; }
+    { m_node = Algo::next_node(m_node); return *this; }
 
     tree_iterator operator++(int)
-    { tree_iterator copy(*this); m_node = algorithms::next_node(m_node); return copy; }
+    { tree_iterator copy(*this); m_node = Algo::next_node(m_node); return copy; }
 
     tree_iterator& operator--()
-    { m_node = algorithms::prev_node(m_node); return *this; }
+    { m_node = Algo::prev_node(m_node); return *this; }
 
     tree_iterator operator--(int)
-    { tree_iterator copy(*this); m_node = algorithms::prev_node(m_node); return copy; }
+    { tree_iterator copy(*this); m_node = Algo::prev_node(m_node); return copy; }
 
     friend bool operator==(const tree_iterator& l, const tree_iterator& r)
     { return l.pointed_node() == r.pointed_node(); }
@@ -1228,8 +1235,12 @@ class avlTree
 
   typedef value_type&					reference;
   typedef const value_type&				const_reference;
-  typedef tree_iterator<Node, node_ptr> 		iterator;
-  typedef tree_iterator<const Node, const_node_ptr>	const_iterator;
+
+  typedef tree_iterator<Node, node_ptr, algorithms> 		iterator;
+  typedef tree_iterator<const Node, const_node_ptr, algorithms>	const_iterator;
+
+  typedef tree_iterator<Node, node_ptr, reverse_algorithms> 		reverse_iterator;
+  typedef tree_iterator<const Node, const_node_ptr, reverse_algorithms>	const_reverse_iterator;
 
   avlTree( const value_compare& comp = value_compare() )
     : m_comp(comp)
@@ -1269,6 +1280,24 @@ class avlTree
 
   const_iterator cend() const
   { return const_iterator(algorithms::end_node(this->header_ptr())); }
+
+  reverse_iterator rbegin()
+  { return iterator(reverse_algorithms::begin_node(this->header_ptr())); }
+
+  const_reverse_iterator rbegin() const
+  { return const_reverse_iterator(reverse_algorithms::begin_node(this->header_ptr())); }
+
+  const_reverse_iterator crbegin() const
+  { return const_reverse_iterator(reverse_algorithms::begin_node(this->header_ptr())); }
+
+  reverse_iterator rend()
+  { return reverse_iterator(reverse_algorithms::end_node(this->header_ptr()));}
+
+  const_reverse_iterator rend() const
+  { return const_reverse_iterator(reverse_algorithms::end_node(this->header_ptr())); }
+
+  const_reverse_iterator crend() const
+  { return const_reverse_iterator(reverse_algorithms::end_node(this->header_ptr())); }
 
   iterator find(const_reference value)
   { return this->find(value, this->m_comp); }
@@ -1701,9 +1730,25 @@ class flatSet {
       cdata.next = std::upper_bound(data.begin(), data.end(), value, comp);
   }
 
+  struct algorithms
+  {
+    static inline void next(typename store_type::iterator& p) { ++p; }
+    static inline void next(typename store_type::const_iterator& p) { ++p; }
+    static inline void prev(typename store_type::iterator& p) { --p; }
+    static inline void prev(typename store_type::const_iterator& p) { --p; }
+  };
+
+  struct reverse_algorithms
+  {
+    static inline void next(typename store_type::iterator& p) { --p; }
+    static inline void next(typename store_type::const_iterator& p) { --p; }
+    static inline void prev(typename store_type::iterator& p) { ++p; }
+    static inline void prev(typename store_type::const_iterator& p) { ++p; }
+  };
+
   public:
 
-  template <class V, class iterator_type>
+  template <class V, class iterator_type, class Algo>
   class set_iterator
   {
     protected:
@@ -1722,7 +1767,7 @@ class flatSet {
     explicit set_iterator(iterator_type it)
       : m_it(it) {}
 
-    set_iterator(const set_iterator<T, typename store_type::iterator>& other)
+    set_iterator(const set_iterator<T, typename store_type::iterator, Algo>& other)
       : m_it(static_cast<typename store_type::iterator>(other)) {}
 
     operator iterator_type() const
@@ -1732,16 +1777,16 @@ class flatSet {
     { m_it = it; return *this; }
 
     set_iterator& operator++()
-    { ++m_it; return *this; }
+    { Algo::next(m_it); return *this; }
 
     set_iterator operator++(int)
-    { set_iterator copy(*this); ++m_it; return copy; }
+    { set_iterator copy(*this); Algo::next(m_it); return copy; }
 
     set_iterator& operator--()
-    { --m_it; return *this; }
+    { Algo::prev(m_it); return *this; }
 
     set_iterator operator--(int)
-    { set_iterator copy(*this); --m_it; return copy; }
+    { set_iterator copy(*this); Algo::prev(m_it); return copy; }
 
     friend bool operator==(const set_iterator& l, const set_iterator& r)
     { return l.m_it == r.m_it; }
@@ -1757,8 +1802,11 @@ class flatSet {
 
   };
 
-  typedef set_iterator<T, typename store_type::iterator>             iterator;
-  typedef set_iterator<const T, typename store_type::const_iterator> const_iterator;
+  typedef set_iterator<T, typename store_type::iterator, algorithms>             iterator;
+  typedef set_iterator<const T, typename store_type::const_iterator, algorithms> const_iterator;
+
+  typedef set_iterator<T, typename store_type::iterator, reverse_algorithms>             reverse_iterator;
+  typedef set_iterator<const T, typename store_type::const_iterator, reverse_algorithms> const_reverse_iterator;
 
   flatSet( const value_compare& comp = value_compare() )
     : m_comp(comp) 
@@ -1793,6 +1841,15 @@ class flatSet {
   const_iterator cbegin() const
   { return const_iterator(m_data.cbegin()); }
 
+  reverse_iterator rbegin()
+  { return reverse_iterator(m_data.end() - 1); }
+
+  const_reverse_iterator rbegin() const
+  { return const_reverse_iterator(m_data.end() - 1); }
+
+  const_reverse_iterator crbegin() const
+  { return const_reverse_iterator(m_data.cend() - 1); }
+
   iterator end()
   { return iterator(m_data.end()); }
 
@@ -1801,6 +1858,15 @@ class flatSet {
 
   const_iterator cend() const
   { return const_iterator(m_data.cend()); }
+
+  reverse_iterator rend()
+  { return reverse_iterator(m_data.begin() - 1); }
+
+  const_reverse_iterator rend() const
+  { return const_reverse_iterator(m_data.begin() - 1); }
+
+  const_reverse_iterator crend() const
+  { return const_reverse_iterator(m_data.cbegin() - 1); }
 
   iterator find(const_reference value)
   { return iterator(this->find( m_data, value, KeyPtrCompare<Compare>(m_comp))); }

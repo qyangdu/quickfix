@@ -64,6 +64,13 @@ public:
   bool hasGroup( const Group& group );
   bool hasGroup( unsigned num, const Group& group );
 
+  using FieldMap::isSetField;
+  bool isSetField( int field ) const
+  {
+    if (isEmpty() || Sequence::group_compare( *this, crbegin()->first, field)) return false;
+    return FieldMap::isSetField( field );
+  }
+
 private:
   int m_field;
   int m_delim;

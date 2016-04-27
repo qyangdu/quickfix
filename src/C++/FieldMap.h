@@ -842,7 +842,7 @@ public:
   }
 
   /// Check if map contains any fields
-  bool isEmpty()
+  bool isEmpty() const
   { 
 #if !defined(ENABLE_FLAT_FIELDMAP) && defined(ENABLE_RELAXED_ORDERING)
     NodeList* p = m_fields.list();
@@ -903,6 +903,9 @@ protected:
 #endif
     a.clear();
   }
+
+  store_type::const_reverse_iterator crbegin() const { return m_fields.crbegin(); }
+  store_type::const_reverse_iterator crend() const { return m_fields.crend(); }
 
   message_order m_order; // must precede field container
 private:
