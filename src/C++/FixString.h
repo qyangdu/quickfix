@@ -54,8 +54,9 @@ namespace FIX
        a.swap(b);
      }
 
+     template <typename Traits, typename Allocator>
      static inline std::size_t HEAVYUSE NOTHROW
-     size(const std::string& r)
+     size(const std::basic_string<char, Traits, Allocator>& r)
      {
 #if defined(__GNUC__) && defined(__GLIBCXX__)
        if( sizeof(std::string) == sizeof(uintptr_t) )
@@ -68,8 +69,9 @@ namespace FIX
        return r.size();
      }
 
+     template <typename Traits, typename Allocator>
      static inline std::size_t HEAVYUSE NOTHROW
-     length(const std::string& r)
+     length(const std::basic_string<char, Traits, Allocator>& r)
      {
 #if defined(__GNUC__) && defined(__GLIBCXX__)
        if( sizeof(std::string) == sizeof(uintptr_t) )
@@ -82,8 +84,9 @@ namespace FIX
        return r.length();
      }
 
+     template <typename Traits, typename Allocator>
      static inline const char NOTHROW_PRE * NOTHROW_POST HEAVYUSE
-     data(const std::string& r)
+     data(const std::basic_string<char, Traits, Allocator>& r)
      {
 #if defined(__GNUC__) && defined(__GLIBCXX__)
        if( sizeof(std::string) == sizeof(uintptr_t) )
@@ -95,8 +98,9 @@ namespace FIX
        return r.data();
      }
 
+     template <typename Traits, typename Allocator>
      static inline const char NOTHROW_PRE * NOTHROW_POST HEAVYUSE
-     c_str(const std::string& r)
+     c_str(const std::basic_string<char, Traits, Allocator>& r)
      {
 #if defined(__GNUC__) && defined(__GLIBCXX__)
        if( sizeof(std::string) == sizeof(uintptr_t) )
