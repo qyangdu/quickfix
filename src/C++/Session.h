@@ -438,7 +438,7 @@ private:
 
 			SgBuffer& append(const char* s, std::size_t l) {
 				Sg::sg_buf_ptr e = sg_ + n_;
-				if (l <= 32 || n_ >= (UIO_SIZE - 1)) {
+				if (l <= 32 || n_ >= (UIO_SIZE - 2)) {
 					uint64_t* dst = (uint64_t*)((char*)IOV_BUF(*e) + IOV_LEN(*e));
 					IOV_LEN(*e) += l;
 					l = (l + 7) >> 3;

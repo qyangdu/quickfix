@@ -572,7 +572,7 @@ namespace FIX
 
       public:
         static inline TickCount now()
-        { struct timespec data; ::clock_gettime(CLOCK_REALTIME, &m_data); return data; }
+        { struct timespec data; ::clock_gettime(CLOCK_REALTIME, &data); return data; }
 
         TickCount() { m_data.tv_sec = 0; m_data.tv_nsec = 0; }
 
