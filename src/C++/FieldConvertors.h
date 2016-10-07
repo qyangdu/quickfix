@@ -97,7 +97,7 @@ struct IntConvertor
   typedef unsigned int unsigned_value_type;
 
   static const std::size_t MaxValueSize = std::numeric_limits<value_type>::digits10 + 2;
-  static const std::size_t BufferSize = MaxValueSize > 16 ? MaxValueSize : 16;
+  static const std::size_t BufferSize = MaxValueSize >= 16 ? MaxValueSize : 16;
   static std::size_t RequiredSize(value_type v = 0) { return MaxValueSize; }
 
   class Proxy {
@@ -256,7 +256,7 @@ struct PositiveIntConvertor
   typedef unsigned int unsigned_value_type;
 
   static const std::size_t MaxValueSize = std::numeric_limits<value_type>::digits10 + 2;
-  static const std::size_t BufferSize = MaxValueSize > 16 ? MaxValueSize : 16;
+  static const std::size_t BufferSize = MaxValueSize >= 16 ? MaxValueSize : 16;
   static std::size_t RequiredSize(value_type v = 0) { return MaxValueSize; }
 
 
