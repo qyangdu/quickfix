@@ -438,7 +438,7 @@ private:
 
 			SgBuffer& append(const char* s, std::size_t l) {
 				Sg::sg_buf_ptr e = sg_ + n_;
-				if (l <= 32 || n_ >= (UIO_SIZE - 2)) {
+				if (l <= 32) {
 					uint64_t* dst = (uint64_t*)((char*)IOV_BUF(*e) + IOV_LEN(*e));
 					IOV_LEN(*e) += l;
 					l = (l + 7) >> 3;
@@ -451,13 +451,17 @@ private:
 					  if (LIKELY(!--l)) return *this;
 					  *dst++ = *src++;
                                         }  
-				} else {
+				} else if (n_ < (UIO_SIZE - 2)) {
 					char* p = (char*)IOV_BUF(*e);
 					IOV_BUF(sg_[++n_]) = (Sg::sg_ptr_t)s;
 					IOV_LEN(sg_[n_++]) = l;
 					p += IOV_LEN(*e);
 					IOV_BUF(sg_[n_]) = p;
 					IOV_LEN(sg_[n_]) = 0;
+				} else {
+					char* dst = (char*)IOV_BUF(*e) + IOV_LEN(*e);
+					IOV_LEN(*e) += l;
+					while (l--) *dst++ = *s++;
 				}
 				return *this;
 			}
