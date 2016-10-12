@@ -164,7 +164,7 @@ namespace FIX
             word_storage_type m_w;
            struct
            {
-             char m_data[MaxLocalCapacity]; // including '\0'!
+             Util::CharBuffer::Fixed<MaxLocalCapacity> m_fixed; // including '\0'!
              unsigned char m_length;
            };
 
@@ -179,19 +179,19 @@ namespace FIX
              {
                uint64_t v = 0x0101010101010101ULL * (unsigned char)c;
                for(std::size_t i = 0; i <= MaxQWord; i++) m_q[i] = v;
-               m_data[n] = '\0';
+               m_fixed.data[n] = '\0';
                m_length = n;
              }
              else
              {
-               new (reinterpret_cast<string_type*>(m_data)) string_type(n, c);
+               new (reinterpret_cast<string_type*>(m_fixed.data)) string_type(n, c);
                m_length = HaveString;
              }
            }
 
            Data(const std::string& s)
            {
-             new (reinterpret_cast<string_type*>(m_data)) string_type(s);
+             new (reinterpret_cast<string_type*>(m_fixed.data)) string_type(s);
              m_length = HaveString;
            }
 
@@ -206,8 +206,8 @@ namespace FIX
              std::size_t sz = last - first;
              if ( LIKELY(sz < MaxLocalCapacity) )
              {
-               std::copy(first, last, m_data);
-               m_data[sz] = '\0';
+               std::copy(first, last, m_fixed.data);
+               m_fixed.data[sz] = '\0';
                m_length = (unsigned char)sz;
              }
              else
@@ -225,8 +225,8 @@ namespace FIX
                  m_length = ( (pos + len) <= src.m_length )
                             ? (unsigned char)len
                             : (src.m_length - (unsigned char)pos);
-                 ::memcpy(m_data, src.m_data + pos, m_length);
-                 m_data[m_length] = '\0';
+                 m_fixed.set(src.m_fixed.data + pos, m_length);
+                 m_fixed.data[m_length] = '\0';
                }
                else
                  throw std::out_of_range("FIX::short_string_type::substr");
@@ -269,18 +269,18 @@ namespace FIX
                if ( isLocal() )
                {
 fin:
-                 m_data[sz] = '\0';
+                 m_fixed.data[sz] = '\0';
                  m_length = sz;
                  return;
                }
                string_type& s = asString();
                std::size_t l = String::size(s);
-               ::memcpy(m_data, String::c_str(s), l > MaxLocalCapacity ? MaxLocalCapacity : l);
+               m_fixed.set(String::c_str(s), l >= MaxLocalCapacity ? MaxLocalCapacity - 1 : l);
                s.~string_type();
                goto fin;
              }
              Data u = *this;
-             ( HaveString == m_length ? asString() : toString(u.m_data, u.m_length) ).resize(sz);
+             ( HaveString == m_length ? asString() : toString(u.m_fixed.data, u.m_length) ).resize(sz);
            }
 
            inline bool empty() const
@@ -339,22 +339,20 @@ fin:
            {
              if( LIKELY(m_length < MaxLocalCapacity - 1) )
              {
-               m_data[m_length++] = c;
-               m_data[m_length] = '\0';
+               m_fixed.data[m_length++] = c;
+               m_fixed.data[m_length] = '\0';
                return;
              }
              Data u = *this;
-             ( HaveString == m_length ? asString() : toString(u.m_data, u.m_length) ).push_back(c);
+             ( HaveString == m_length ? asString() : toString(u.m_fixed.data, u.m_length) ).push_back(c);
            }
 
            inline void HEAVYUSE append( const char* p, std::size_t sz )
            {
-             if( LIKELY(m_length + sz < MaxLocalCapacity) )
+             if( LIKELY(m_fixed.set(p, sz, m_length)) )
              {
-               Sg::sg_buf_t d = IOV_BUF_INITIALIZER(m_data, m_length);
-               Sg::append(d, p, sz);
-               m_length = (unsigned char)IOV_LEN(d);
-               m_data[m_length] = '\0';
+               m_length += sz;
+               m_fixed.data[m_length] = '\0';
                return;
              }
              if ( 0 == m_length )
@@ -362,7 +360,7 @@ fin:
              else
              {
                Data u = *this;
-               ( HaveString == m_length ? asString() : toString(u.m_data, u.m_length) ).append(p, sz);
+               ( HaveString == m_length ? asString() : toString(u.m_fixed.data, u.m_length) ).append(p, sz);
              }
            }
 
@@ -372,9 +370,9 @@ fin:
              typename InputIterator::difference_type sz = last - first;
              if( LIKELY(m_length + (std::size_t)sz < MaxLocalCapacity) )
              {
-               std::copy(first, last, m_data + m_length);
+               std::copy(first, last, m_fixed.data + m_length);
                m_length += (unsigned char)sz;
-               m_data[m_length] = '\0';
+               m_fixed.data[m_length] = '\0';
                return;
              }
              if ( 0 == m_length )
@@ -382,7 +380,7 @@ fin:
              else
              {
                Data u = *this;
-               ( HaveString == m_length ? asString() : toString(u.m_data, u.m_length) ).append(first, last);
+               ( HaveString == m_length ? asString() : toString(u.m_fixed.data, u.m_length) ).append(first, last);
              }
            }
 
@@ -398,7 +396,7 @@ fin:
              if( isLocal() )
              {
                Data u = *this;
-               return toString(u.m_data, u.m_length);
+               return toString(u.m_fixed.data, u.m_length);
              }
              return asString();
            }
@@ -417,7 +415,7 @@ fin:
 
            inline const char* HEAVYUSE c_str() const
            {
-             return ( isLocal() ) ? m_data
+             return ( isLocal() ) ? m_fixed.data
                                   : String::c_str(asString());
            }
 
@@ -431,7 +429,7 @@ fin:
            {
              if( isLocal() )
              {
-               int r = ::memcmp( m_data, p, std::min((std::size_t)m_length, sz) );
+               int r = ::memcmp( m_fixed.data, p, std::min((std::size_t)m_length, sz) );
                return (r != 0) ? r : ((int)m_length - sz);
              }
              return asString().compare(0, std::string::npos, p, sz);
@@ -439,7 +437,7 @@ fin:
 
            inline int PURE_DECL HEAVYUSE compare( const char* p ) const
            {
-             return isLocal() ? ::strcmp( m_data, p ) : asString().compare(p);
+             return isLocal() ? ::strcmp( m_fixed.data, p ) : asString().compare(p);
            }
 
            size_type find_first_of( char c, size_type pos ) const
@@ -448,8 +446,8 @@ fin:
              {
                if( LIKELY(pos < m_length) )
                {
-                 const char* p = (const char*)::memchr(m_data + pos, c, MaxLocalCapacity + 1 - pos);
-                 if( p && (pos = (p - m_data)) < m_length)
+                 const char* p = (const char*)::memchr(m_fixed.data + pos, c, MaxLocalCapacity + 1 - pos);
+                 if( p && (pos = (p - m_fixed.data)) < m_length)
                    return pos;
                }
                return std::string::npos;
@@ -467,11 +465,9 @@ fin:
 
            void HEAVYUSE set( const char* p, std::size_t sz)
            {
-             if( LIKELY(sz < MaxLocalCapacity) )
+             if( LIKELY(m_fixed.set(p, sz)) )
              {
-               Sg::sg_buf_t d = IOV_BUF_INITIALIZER(m_data, 0);
-               Sg::append(d, p, sz);
-               m_data[sz] = '\0';
+               m_fixed.data[sz] = '\0';
                m_length = (unsigned char)sz;
              }
              else
@@ -485,7 +481,7 @@ fin:
                  m_q[i] = d.m_q[i];
              } else {
                m_length = HaveString;
-               new (reinterpret_cast<string_type*>(m_data))
+               new (reinterpret_cast<string_type*>(m_fixed.data))
                                      string_type(d.asString());
              }
            }
@@ -493,27 +489,27 @@ fin:
            inline string_type& asString() 
            {
              string_type* MAY_ALIAS p =
-               reinterpret_cast<string_type*>(m_data);
+               reinterpret_cast<string_type*>(m_fixed.data);
              return *p;
            }
            inline const string_type& asString() const
            {
              const string_type* MAY_ALIAS p =
-               reinterpret_cast<const string_type*>(m_data);
+               reinterpret_cast<const string_type*>(m_fixed.data);
              return *p;
            }
 
            string_type& toString( const char* p, std::size_t sz )
            {
              m_length = HaveString;
-             return *new (reinterpret_cast<string_type*>(m_data)) string_type(p, sz);
+             return *new (reinterpret_cast<string_type*>(m_fixed.data)) string_type(p, sz);
            }
 
            template <class InputIterator>
            string_type& toString( InputIterator first, InputIterator last )
            {
              m_length = HaveString;
-             return *new (reinterpret_cast<string_type*>(m_data)) string_type(first, last);
+             return *new (reinterpret_cast<string_type*>(m_fixed.data)) string_type(first, last);
            }
          };
 
@@ -873,7 +869,7 @@ fin:
   template<> inline uint64_t* String::short_string_type::Data::storage_type<uint64_t>() { return m_q; }
   template<> inline uint32_t* String::short_string_type::Data::storage_type<uint32_t>() { return m_d; }
   template<> inline uint16_t* String::short_string_type::Data::storage_type<uint16_t>() { return m_w; }
-  template<> inline char*     String::short_string_type::Data::storage_type<char>() { return m_data; }
+  template<> inline char*     String::short_string_type::Data::storage_type<char>() { return m_fixed.data; }
 
   static inline std::ostream& operator << ( std::ostream& out, const String::value_type& bs )
   {

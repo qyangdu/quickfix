@@ -438,31 +438,44 @@ private:
 
 			SgBuffer& append(const char* s, std::size_t l) {
 				Sg::sg_buf_ptr e = sg_ + n_;
-				if (l <= 32) {
-					uint64_t* dst = (uint64_t*)((char*)IOV_BUF(*e) + IOV_LEN(*e));
-					IOV_LEN(*e) += l;
-					l = (l + 7) >> 3;
-					const uint64_t* src = (const uint64_t*)s;
-					*dst++ = *src++;
-					if (LIKELY(--l)) {
-					  *dst++ = *src++;
-					  if (LIKELY(!--l)) return *this;
-					  *dst++ = *src++;
-					  if (LIKELY(!--l)) return *this;
-					  *dst++ = *src++;
-                                        }  
-				} else if (n_ < (UIO_SIZE - 2)) {
-					char* p = (char*)IOV_BUF(*e);
-					IOV_BUF(sg_[++n_]) = (Sg::sg_ptr_t)s;
-					IOV_LEN(sg_[n_++]) = l;
-					p += IOV_LEN(*e);
-					IOV_BUF(sg_[n_]) = p;
-					IOV_LEN(sg_[n_]) = 0;
-				} else {
-					char* dst = (char*)IOV_BUF(*e) + IOV_LEN(*e);
-					IOV_LEN(*e) += l;
-					while (l--) *dst++ = *s++;
+#if defined(_MSC_VER) || (defined(__GNUC__) && (defined(__x86_64__) || defined(__i386__)))
+				union {
+					char* p;
+					uint64_t* q;
+				} dst = { (char*)IOV_BUF(*e) + IOV_LEN(*e) };
+				union {
+					const char* p;
+					const uint64_t* q;
+				} src = { s };
+				dst.q[0] = src.q[0];
+				if (l > sizeof(uint64_t)) {
+					if (LIKELY(l <= sizeof(uint64_t[3]))) {
+						dst.q[1] = src.q[1];
+						dst.p += l - sizeof(uint64_t);
+						src.p += l - sizeof(uint64_t);
+						dst.q[0] = src.q[0];
+					} else 
+					/* if (LIKELY(l < 512) || n_ >= (UIO_SIZE - 2) */ { 
+#ifdef __INTEL_COMPILER
+						std::size_t i = (l + 7 >> 3) - 1;
+#pragma unroll(0)
+						do { dst.q[i] = src.q[i]; } while(LIKELY(--i));
+#else
+						for (std::size_t i = 8; i < l; i += 8)
+							*(uint64_t*)(dst.p + i)= *(const uint64_t*)(src.p + i);
+#endif
+					} /* else {
+						IOV_BUF(sg_[++n_]) = (Sg::sg_ptr_t)src;
+						IOV_LEN(sg_[n_++]) = l;
+						IOV_BUF(sg_[n_]) = (char*)dst;
+						IOV_LEN(sg_[n_]) = 0;
+						return *this;
+					} */
 				}
+#else
+				::memcpy((char*)IOV_BUF(*e) + IOV_LEN(*e), src, l);
+#endif
+				IOV_LEN(*e) += l;	
 				return *this;
 			}
 			SgBuffer& HEAVYUSE append(int field, int sz, const char* s, std::size_t l) {

@@ -1340,6 +1340,15 @@ namespace FIX
       template <std::size_t S> union Fixed
       {
         char data[S];
+
+        /// sets contents to s
+        bool set(const char* s, std::size_t size, std::size_t at = 0) {
+	  if (at + size <= S) {
+	    for (char* p = data + at; size; size--) *p++ = *s++;
+	    return true;
+          }
+          return false;
+        }
       };
 
       /// Scans f for character v, returns array index less than S on success
@@ -1357,7 +1366,6 @@ namespace FIX
       {
         return CharBuffer::memmem( p, size, f.data, S );
       }
-
     }; // CharBuffer
 
     template <> union CharBuffer::Fixed<2>
@@ -1445,7 +1453,67 @@ namespace FIX
       );
       return at;
     }
+#endif 
 
+#if defined(_MSC_VER) || (defined(__GNUC__) && (defined(__x86_64__) || defined(__i386__)))
+
+    // specializations for use with short strings
+    template <> union CharBuffer::Fixed<15>
+    {
+      char data[15];
+
+      inline bool set(const char* s, std::size_t len, std::size_t pos = 0, std::size_t narrow = 1) {
+        if (LIKELY(len + pos <= (15 - narrow))) {
+	  if (len == 1) {
+	    data[pos] = s[0];
+	  } else if (LIKELY(len > 0)) {
+	    char* p = data + pos;
+	    if (len <= 4) {
+		*(uint16_t*)p= *(uint16_t*)s; 
+		*(uint16_t*)(p + len - 2) = *(uint16_t*)(s + len - 2);
+	    } else if (len <= 8) {
+		*(uint32_t*)p= *(uint32_t*)s;
+		*(uint32_t*)(p + len - 4) = *(uint32_t*)(s + len - 4);
+	    } else {
+		*(uint64_t*)p= *(uint64_t*)s;
+		*(uint64_t*)(p + len - 8) = *(uint64_t*)(s + len - 8);
+	    } 
+	  }
+          return true;
+        }
+	return false;
+      }
+    };
+
+    template <> union CharBuffer::Fixed<23>
+    {
+      char data[23];
+
+      inline bool set(const char* s, std::size_t len, std::size_t pos = 0, std::size_t narrow = 1) {
+        if (LIKELY(len + pos <= (23 - narrow))) {
+	  if (len == 1) {
+	    data[pos] = s[0];
+	  } else if (LIKELY(len > 0)) {
+	    char* p = data + pos;
+	    if (len <= 4) {
+		*(uint16_t*)p= *(uint16_t*)s; 
+		*(uint16_t*)(p + len - 2) = *(uint16_t*)(s + len - 2);
+	    } else if (len <= 8) {
+		*(uint32_t*)p= *(uint32_t*)s;
+		*(uint32_t*)(p + len - 4) = *(uint32_t*)(s + len - 4);
+	    } else if (len <= 16) {
+		*(uint64_t*)p= *(uint64_t*)s;
+		*(uint64_t*)(p + len - 8) = *(uint64_t*)(s + len - 8);
+	    } else {
+		_mm_storeu_si128((__m128i*)p, _mm_loadu_si128((__m128i*)s));
+		*(uint64_t*)(p + len - 8) = *(uint64_t*)(s + len - 8);
+	    }
+	  }
+          return true;
+        }
+	return false;
+      }
+    };
 #endif
   
     class Tag
@@ -2143,53 +2211,29 @@ namespace FIX
     {
       char* p = (char*)IOV_BUF(buf) + IOV_LEN(buf);
       IOV_LEN(buf) += len;
-#if defined(__GNUC__) && (defined(__x86_64__) || defined(__i386__))
-      while (len > 3)
-      {
-        __asm__ __volatile__ (
-          " movl (%1), %%ecx; \n\t"
-          " sub  $4, %2;      \n\t"
-          " add  $4, %1;      \n\t"
-          " movl %%ecx, (%0); \n\t"
-          " add  $4, %0;      \n\t"
-          : "+r"(p), "+r"(s), "+r"(len)
-          :
-          : "ecx", "memory" );
-      }
-      if (len > 0)
-      {
-        __asm__ __volatile__ (
-	  "1:		     \n\t"
-          " movb (%1), %%cl; \n\t"
-          " inc  %1;         \n\t"
-          " movb %%cl, (%0); \n\t"
-          " inc  %0;         \n\t"
-          " dec  %2;         \n\t"
-          " jne 1b;          \n\t"
-          : "+r"(p), "+r"(s), "+r"(len)
-          :
-          : "ecx", "memory" );
-/*
-        __asm__ __volatile__ (
-          " movb (%1), %%cl; \n\t"
-          " incq %1;         \n\t"
-          " movb %%cl, (%0); \n\t"
-          " decq %2;         \n\t"
-          " je 1f;           \n\t"
-          " incq %0;         \n\t"
-          " movb (%1), %%cl; \n\t"
-          " incq %1;         \n\t"
-          " movb %%cl, (%0); \n\t"
-          " decq %2;         \n\t"
-          " je 1f;           \n\t"
-          " movb (%1), %%cl; \n\t"
-          " incq %0;         \n\t"
-          " movb %%cl, (%0); \n\t"
-          "1:                \n\t"
-          : "+r"(p), "+r"(s), "+r"(len)
-          :
-          : "ecx", "memory" );
-*/
+#if defined(_MSC_VER) || (defined(__GNUC__) && (defined(__x86_64__) || defined(__i386__)))
+      if (len == 1) {
+	p[0] = s[0];
+      } else if (LIKELY(len > 0)) {
+	if (len <= 4) {
+		*(uint16_t*)p= *(uint16_t*)s; 
+		*(uint16_t*)(p + len - 2) = *(uint16_t*)(s + len - 2); 
+	} else if (len <= 8) {
+		*(uint32_t*)p= *(uint32_t*)s;
+		*(uint32_t*)(p + len - 4) = *(uint32_t*)(s + len - 4); 
+	} else if (len <= 16) {
+		*(uint64_t*)p= *(uint64_t*)s;
+		*(uint64_t*)(p + len - 8) = *(uint64_t*)(s + len - 8);
+	} else if (LIKELY(len <= 24)) {
+		_mm_storeu_si128((__m128i*)p, _mm_loadu_si128((__m128i*)s));
+		*(uint64_t*)(p + len - 8) = *(uint64_t*)(s + len - 8);
+	} else {
+		std::size_t tmp = (len >> 4) - ((len & 15) == 0);
+		for (std::size_t i = 0; i < tmp; i++) {
+		  _mm_storeu_si128((__m128i*)p + i, _mm_loadu_si128((__m128i*)s + i));
+		}
+		_mm_storeu_si128((__m128i*)(p + len - 16), _mm_loadu_si128((__m128i*)(s + len - 16)));
+	}
       }
 #else
       while(len--) *p++ = *s++;
