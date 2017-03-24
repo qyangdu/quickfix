@@ -95,7 +95,7 @@ throw( ConfigError, FieldConvertError )
   try
   {
     std::string value = i->second;
-    if( value.size() < 2 ) throw FieldConvertError(0);
+    if( value.size() < 2 ) throw FieldConvertError();
     std::string abbr = value.substr(0, 2);
     std::transform( abbr.begin(), abbr.end(), abbr.begin(), ::tolower );
     if( abbr == "su" ) return 1;
@@ -105,7 +105,6 @@ throw( ConfigError, FieldConvertError )
     if( abbr == "th" ) return 5;
     if( abbr == "fr" ) return 6;
     if( abbr == "sa" ) return 7;
-    if( value.size() < 2 ) throw FieldConvertError(0);
   }
   catch ( FieldConvertError& )
   {
