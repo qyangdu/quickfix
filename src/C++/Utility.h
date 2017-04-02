@@ -1342,8 +1342,8 @@ namespace FIX
         char data[S];
 
         /// sets contents to s
-        bool set(const char* s, std::size_t size, std::size_t at = 0) {
-	  if (at + size <= S) {
+        bool set(const char* s, std::size_t size, std::size_t at = 0, std::size_t narrow = 1) {
+	  if (at + size <= (S - narrow)) {
 	    for (char* p = data + at; size; size--) *p++ = *s++;
 	    return true;
           }
@@ -2228,7 +2228,7 @@ namespace FIX
 		_mm_storeu_si128((__m128i*)p, _mm_loadu_si128((__m128i*)s));
 		*(uint64_t*)(p + len - 8) = *(uint64_t*)(s + len - 8);
 	} else {
-		std::size_t tmp = (len >> 4) - ((len & 15) == 0);
+		std::size_t tmp = (len + 15) >> 4;
 		for (std::size_t i = 0; i < tmp; i++) {
 		  _mm_storeu_si128((__m128i*)p + i, _mm_loadu_si128((__m128i*)s + i));
 		}

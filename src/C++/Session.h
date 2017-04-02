@@ -457,7 +457,7 @@ private:
 					} else 
 					/* if (LIKELY(l < 512) || n_ >= (UIO_SIZE - 2) */ { 
 #ifdef __INTEL_COMPILER
-						std::size_t i = (l + 7 >> 3) - 1;
+						std::size_t i = ((l + 7) >> 3) - 1;
 #pragma unroll(0)
 						do { dst.q[i] = src.q[i]; } while(LIKELY(--i));
 #else
