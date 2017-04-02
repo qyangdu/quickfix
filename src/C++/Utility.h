@@ -2228,7 +2228,7 @@ namespace FIX
 		_mm_storeu_si128((__m128i*)p, _mm_loadu_si128((__m128i*)s));
 		*(uint64_t*)(p + len - 8) = *(uint64_t*)(s + len - 8);
 	} else {
-		std::size_t tmp = (len + 15) >> 4;
+		std::size_t tmp = ((len + 15) >> 4) - 1;
 		for (std::size_t i = 0; i < tmp; i++) {
 		  _mm_storeu_si128((__m128i*)p + i, _mm_loadu_si128((__m128i*)s + i));
 		}
