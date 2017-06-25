@@ -963,7 +963,7 @@ FIX::Price Application::queryPrice()
   std::cout << std::endl << "Price: ";
   std::string line;
   std::getline( std::cin, line );
-  if (line.empty()) value = atof(line.c_str());
+  if (!line.empty()) value = atof(line.c_str());
   return FIX::Price( value );
 }
 
