@@ -172,6 +172,7 @@ int main( int argc, char** argv )
 
   std::cout << "Storing NewOrderSingle messages: ";
   report( testFileStoreNewOrderSingle( count ), count );
+
   std::cout << "Validating NewOrderSingle messages with no data dictionary: ";
   report( testValidateNewOrderSingle( count ), count );
 

@@ -47,6 +47,7 @@ namespace FIX
  */
 class FieldMap
 {
+  friend class Message;
 
   struct stored_type
 #ifndef ENABLE_FLAT_FIELDMAP
@@ -902,6 +903,13 @@ protected:
     a.header()->clear();
 #endif
     a.clear();
+  }
+
+  void discard() {
+    for (store_type::iterator it = m_fields.begin(); it != m_fields.end(); ++it) it->second.~FieldBase();
+    new (&m_fields) store_type( m_order );
+    if (LIKELY(m_groups.empty())) return;
+    g_clear();
   }
 
   store_type::const_reverse_iterator crbegin() const { return m_fields.crbegin(); }

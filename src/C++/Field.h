@@ -165,7 +165,7 @@ public:
 
   /// Get a copy of the string representation of the fields value.
   std::string dupString() const
-    { return String::CopyFunc()(m_string); }
+    { return String::Copy()(m_string); }
 
   /// Get the string representation of the Field (i.e.) 55=MSFT[SOH]
   const std::string& getFixString() const

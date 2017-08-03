@@ -75,7 +75,10 @@ public:
   const SessionID& getSessionID() const
   { return m_sessionID; }
   void setDataDictionaryProvider( const DataDictionaryProvider& dataDictionaryProvider )
-  { m_dataDictionaryProvider = dataDictionaryProvider; }
+  {
+    m_dataDictionaryProvider = dataDictionaryProvider;
+    m_sessionDD = dataDictionaryProvider.getSessionDataDictionary(m_sessionID.getBeginString());
+  }
   const DataDictionaryProvider& getDataDictionaryProvider() const
   { return m_dataDictionaryProvider; }
 
@@ -124,12 +127,20 @@ public:
   const std::string& getSenderDefaultApplVerID()
     { return m_senderDefaultApplVerID; }
   void setSenderDefaultApplVerID( const std::string& senderDefaultApplVerID )
-    { m_senderDefaultApplVerID = senderDefaultApplVerID; }
+  {
+    DataDictionaryProvider::key_type key( senderDefaultApplVerID.c_str(), senderDefaultApplVerID.size() );
+    m_senderDefaultApplVerID = senderDefaultApplVerID;
+    m_defaultApplicationDD = m_dataDictionaryProvider.getApplicationDataDictionary( key );
+  }
 
   const std::string& getTargetDefaultApplVerID()
     { return m_targetDefaultApplVerID; }
   void setTargetDefaultApplVerID( const std::string& targetDefaultApplVerID )
-    { m_targetDefaultApplVerID = targetDefaultApplVerID; }
+  {
+    DataDictionaryProvider::key_type key( targetDefaultApplVerID.c_str(), targetDefaultApplVerID.size() );
+    m_targetDefaultApplVerID = targetDefaultApplVerID;
+    m_defaultApplicationDD = m_dataDictionaryProvider.getApplicationDataDictionary( key );
+  }
 
   bool getSendRedundantResendRequests()
     { return m_sendRedundantResendRequests; }
@@ -210,10 +221,12 @@ public:
     return m_pResponder->send( b, n );
   }
 
-  void next( const Message&, const DataDictionary& sessionDD, const UtcTimeStamp& timeStamp, bool queued );
+  void next( const Message&, DataDictionary::MsgInfo&, const DataDictionary* sessionDD, const UtcTimeStamp& timeStamp, bool queued );
   void next( const Message& msg, const UtcTimeStamp& timeStamp, bool queued = false )
-  { next( msg, m_dataDictionaryProvider.getSessionDataDictionary(m_sessionID.getBeginString()), timeStamp, queued ); }
-
+  {
+    DataDictionary::MsgInfo msgInfo( m_defaultApplicationDD, m_sessionDD );
+    next( msg, msgInfo, m_sessionDD, timeStamp, queued );
+  }
   void next( Sg::sg_buf_t buf, const UtcTimeStamp& timeStamp, bool queued = false );
   void next( const std::string& message, const UtcTimeStamp& timeStamp, bool queued = false )
   {
@@ -301,8 +314,8 @@ private:
   bool shouldSendReset();
 
   bool validLogonState( const MsgType& msgType );
-  bool validLogonState( const char* msgTypeValue );
-  void fromCallback( const char* msgTypeValue, const Message& msg,
+  bool validLogonState( Message::Admin::AdminType adminType );
+  void fromCallback( Message::Admin::AdminType adminType, const Message& msg,
                      const SessionID& sessionID );
 
   void doBadTime( const Message& msg );
@@ -346,17 +359,22 @@ private:
   void populateRejectReason( Message&, int field, const std::string& );
   void populateRejectReason( Message&, const std::string& );
 
-  bool verify( const Message& msg, const UtcTimeStamp& now,
+  bool verify( const Message& msg, Message::Admin::AdminType adminType,
+				   const UtcTimeStamp& now,
                                    const Header& header,
-                                   const char* pMsgTypeValue,
                                    bool  checkTooHigh, bool checkTooLow );
-
   bool verify( const Message& msg,
-               bool checkTooHigh = true, bool checkTooLow = true ) {
+               bool checkTooHigh = true, bool checkTooLow = true )
+  {
     const Header&  header = msg.getHeader();
     const MsgType* pType = FIELD_GET_PTR( header, MsgType );
-    return verify( msg, UtcTimeStamp(), header,
-                   pType ? pType->forString(String::CstrFunc()) : NULL,
+    return verify( msg, pType ? Message::msgAdminType(*pType) : Message::Admin::None,
+                   UtcTimeStamp(), header, checkTooHigh, checkTooLow );
+  }
+  bool verify( const Message& msg, Message::Admin::AdminType adminType,
+               bool checkTooHigh = true, bool checkTooLow = true )
+  {
+    return verify( msg, adminType, UtcTimeStamp(), msg.getHeader(),
                    checkTooHigh, checkTooLow );
   }
 
@@ -385,6 +403,7 @@ private:
 
   SessionState m_state;
   DataDictionaryProvider m_dataDictionaryProvider;
+  const DataDictionary* m_sessionDD, *m_defaultApplicationDD;
   MessageStoreFactory& m_messageStoreFactory;
   LogFactory* m_pLogFactory;
   Responder* m_pResponder;

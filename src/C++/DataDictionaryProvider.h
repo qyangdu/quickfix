@@ -42,13 +42,17 @@ class ApplVerID;
 class DataDictionaryProvider
 {
 public:
+  typedef DataDictionary::string_type key_type;
+
   DataDictionaryProvider() {}
   DataDictionaryProvider( const DataDictionaryProvider& copy );
 
-  const DataDictionary& getSessionDataDictionary(const BeginString& beginString)
+  const DataDictionary* getSessionDataDictionary(const BeginString& beginString) const
   throw( DataDictionaryNotFound );
 
-  const DataDictionary& getApplicationDataDictionary(const ApplVerID& applVerID)
+  const DataDictionary* getApplicationDataDictionary(const key_type& applVerID) const
+  throw( DataDictionaryNotFound );
+  const DataDictionary* getApplicationDataDictionary(const ApplVerID& applVerID) const
   throw( DataDictionaryNotFound );
 
   void addTransportDataDictionary(const BeginString& beginString, ptr::shared_ptr<DataDictionary>);
@@ -59,16 +63,21 @@ public:
   void addApplicationDataDictionary(const ApplVerID& applVerID, const std::string& path)
   { addApplicationDataDictionary(applVerID, ptr::shared_ptr<DataDictionary>( new DataDictionary(path) )); }
 
+  static DataDictionary& defaultSessionDataDictionary() { return m_emptyDictionary; }
+  static DataDictionaryProvider& defaultProvider() { return m_empty; }
+
 private:
 #ifdef HAVE_BOOST
-  typedef boost::unordered_map<String::value_type, ptr::shared_ptr<DataDictionary>, ItemHash, String::equal_to> dictionary_map_t;
+  typedef boost::unordered_map<key_type, ptr::shared_ptr<DataDictionary>, ItemHash, String::equal_to> dictionary_map_t;
 #else
-  typedef std::map<String::value_type, ptr::shared_ptr<DataDictionary>> dictionary_map_t;
+  typedef std::map<key_type, ptr::shared_ptr<DataDictionary>> dictionary_map_t;
 #endif
 
   dictionary_map_t m_transportDictionaries;
   dictionary_map_t m_applicationDictionaries;
-  DataDictionary emptyDataDictionary;
+
+  static DataDictionary m_emptyDictionary;
+  static DataDictionaryProvider m_empty;
 };
 }
 

@@ -181,9 +181,11 @@ typedef int ssize_t;
   #define NOTHROW __declspec(nothrow)
   #define NOTHROW_PRE __declspec(nothrow)
   #define NOTHROW_POST
-  #define HEAVYUSE
+  #define LIGHTUSE
+  #define RAREUSE
   #define PREFETCH(addr, rw, longevity) _mm_prefetch(addr, longevity)
   #define LIKELY(x) (x)
+  #define UNLIKELY(x) (x)
   #define MAY_ALIAS
   #define PURE_DECL
   #ifndef FORCE_INLINE
@@ -195,8 +197,10 @@ typedef int ssize_t;
   #define NOTHROW_PRE
   #define NOTHROW_POST __attribute__ ((nothrow))
   #define HEAVYUSE __attribute__((hot))
+  #define LIGHTUSE __attribute__((cold))
   #define PREFETCH(addr, rw, longevity) __builtin_prefetch(addr, rw, longevity)
   #define LIKELY(x) __builtin_expect((x),1)
+  #define UNLIKELY(x) __builtin_expect((x),0)
   #define MAY_ALIAS __attribute__ ((may_alias))
   #define PURE_DECL __attribute__ ((pure))
   #if defined(__INTEL_COMPILER)
@@ -212,8 +216,10 @@ typedef int ssize_t;
   #define NOTHROW_PRE
   #define NOTHROW_POST
   #define HEAVYUSE
+  #define LIGHTUSE 
   #define PREFETCH(addr, rw, longevity) while(false)
   #define LIKELY(x) (x)
+  #define UNLIKELY(x) (x)
   #define MAY_ALIAS
   #define PURE_DECL
   #define FORCE_INLINE

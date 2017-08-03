@@ -33,6 +33,7 @@ namespace FIX
 const char* Message::FieldReader::ErrDelimiter = "Equal sign not found in field";
 const char* Message::FieldReader::ErrSOH = "SOH not found at end of field";
 
+ALIGN_DECL_DEFAULT Message::AdminSet Message::s_adminTypeSet;
 std::auto_ptr<DataDictionary> Message::s_dataDictionary;
 
 int Message::FieldCounter::countGroups(FieldMap::g_const_iterator git,
@@ -47,72 +48,6 @@ int Message::FieldCounter::countGroups(FieldMap::g_const_iterator git,
       result += countBody(**it);
   }
   return result;
-}
-
-Message::Message()
-: FieldMap( FieldMap::create_allocator(), message_order( message_order::normal ), Options( bodyFieldCountEstimate(), false ) ),
-  m_header( get_allocator(), message_order( message_order::header ), Options( HeaderFieldCountEstimate ) ),
-  m_trailer( get_allocator(), message_order( message_order::trailer ), Options( TrailerFieldCountEstimate ) ),
-  m_status( 0 ) {}
-
-Message::Message( SerializationHint hint, int fieldCount )
-: FieldMap( FieldMap::create_allocator( fieldCount ), message_order( message_order::normal ), Options( bodyFieldCountEstimate( fieldCount ), false) ),
-  m_header( get_allocator(), message_order( message_order::header ), Options( HeaderFieldCountEstimate ) ),
-  m_trailer( get_allocator(), message_order( message_order::trailer ), Options( TrailerFieldCountEstimate ) ),
-  m_status( createStatus(serialized_once, hint == SerializedOnce) ) {}
-
-Message::Message( const std::string& string, bool validate )
-throw( InvalidMessage )
-: FieldMap( FieldMap::create_allocator(), message_order( message_order::normal ), Options( bodyFieldCountEstimate(), false ) ),
-  m_header( get_allocator(), message_order( message_order::header ), Options( HeaderFieldCountEstimate ) ),
-  m_trailer( get_allocator(), message_order( message_order::trailer ), Options( TrailerFieldCountEstimate ) ),
-  m_status( 0 )
-{
-  setString( string, validate );
-}
-
-Message::Message( const std::string& string,
-                  const DataDictionary& dataDictionary,
-                  bool validate )
-throw( InvalidMessage )
-: FieldMap( FieldMap::create_allocator(), message_order( message_order::normal ), Options( bodyFieldCountEstimate(), false) ),
-  m_header( get_allocator(), message_order( message_order::header ), Options( HeaderFieldCountEstimate ) ),
-  m_trailer( get_allocator(), message_order( message_order::trailer ), Options( TrailerFieldCountEstimate ) ),
-  m_status( 0 )
-{
-  setString( string, validate, &dataDictionary, &dataDictionary );
-}
-
-HEAVYUSE Message::Message( const std::string& string,
-                  const DataDictionary& sessionDataDictionary,
-                  const DataDictionary& applicationDataDictionary,
-                  bool validate )
-throw( InvalidMessage )
-: FieldMap( FieldMap::create_allocator(), message_order( message_order::normal ), Options( bodyFieldCountEstimate(), false ) ),
-  m_header( get_allocator(), message_order( message_order::header ), Options( HeaderFieldCountEstimate ) ),
-  m_trailer( get_allocator(), message_order( message_order::trailer ), Options( TrailerFieldCountEstimate ) ),
-  m_status( 0 )
-{
-  if( isAdminMsg( string ) )
-    setString( string, validate, &sessionDataDictionary, &sessionDataDictionary );
-  else
-    setString( string, validate, &sessionDataDictionary, &applicationDataDictionary );
-}
-
-HEAVYUSE Message::Message( const std::string& string,
-                  const FIX::DataDictionary& sessionDataDictionary,
-                  const FIX::DataDictionary& applicationDataDictionary,
-                  FieldMap::allocator_type& allocator, bool validate )
-  throw( InvalidMessage )
-: FieldMap( allocator, message_order( message_order::normal ), Options( bodyFieldCountEstimate(), false) ),
-  m_header( allocator, message_order( message_order::header ), Options( HeaderFieldCountEstimate ) ),
-  m_trailer( allocator, message_order( message_order::trailer ), Options( TrailerFieldCountEstimate ) ),
-  m_status( 0 )
-{
-  if( isAdminMsg( string ) )
-    setString( string, validate, &sessionDataDictionary, &sessionDataDictionary );
-  else
-    setString( string, validate, &sessionDataDictionary, &applicationDataDictionary );
 }
 
 namespace detail {
@@ -201,26 +136,7 @@ Message::toString( const FieldCounter& c, std::string& str ) const
   return str;
 }
 
-inline bool Message::extractFieldDataLength( Message::FieldReader& reader, const Group* pGroup, int field )
-{
-  // length field is 1 less except for Signature
-  int lenField = (field != FIELD::Signature) ? (field - 1) : FIELD::SignatureLength;
-  const FieldBase* fieldPtr = (pGroup) ? pGroup->getFieldPtrIfSet( lenField ) : NULL;
-  if ( fieldPtr || NULL != (fieldPtr = (!isHeaderField(field)? this : &m_header)->getFieldPtrIfSet( lenField )) )
-  {
-    const FieldBase::string_type& fieldLength = fieldPtr->getRawString();
-    if ( IntConvertor::parse( fieldLength, lenField ) )
-      reader.pos( lenField );
-    else
-    {
-      setErrorStatusBit( incorrect_data_format, lenField );
-      return false;
-    }
-  }
-  return true;
-}
-
-inline bool HEAVYUSE Message::extractField ( Message::FieldReader& reader,
+bool Message::extractField ( Message::FieldReader& reader,
     const DataDictionary* pSessionDD, const DataDictionary* pAppDD,
     const Group* pGroup)
 {
@@ -228,195 +144,504 @@ inline bool HEAVYUSE Message::extractField ( Message::FieldReader& reader,
   if( LIKELY(!errpos) )
   {
     int field = reader.getField();
-    if ((LIKELY(!pSessionDD || !pSessionDD->isDataField(field)) &&
-         LIKELY(!pAppDD || pAppDD == pSessionDD || !pAppDD->isDataField(field))) ||
-         extractFieldDataLength( reader, pGroup, field) )
-      return true;
+    return (LIKELY(!pSessionDD || !pSessionDD->isDataField(field)) &&
+            LIKELY(!pAppDD || pAppDD == pSessionDD || !pAppDD->isDataField(field))) ||
+            extractFieldDataLength( reader, pGroup ? static_cast<const FieldMap&>(*pGroup)
+                                                   : (isHeaderField(field) ? m_header : *this), field );
   }
-  else
-    setErrorStatusBit( invalid_tag_format, (intptr_t)errpos );
 
+  setErrorStatusBit( invalid_tag_format, (intptr_t)errpos );
   reader.skip();
   return false;
 }
 
-ALIGN_DECL_DEFAULT static const DataDictionary::FieldPresenceMap::key_type group_key_header_ =
-       DataDictionary::FieldPresenceMap::key_type("_header_");
-ALIGN_DECL_DEFAULT static const DataDictionary::FieldPresenceMap::key_type group_key_trailer_ =
-       DataDictionary::FieldPresenceMap::key_type("_trailer_");
-
-#ifndef __clang__
-inline
-#endif
+// FIXT deserialization with separate session and application dictionaries
 void HEAVYUSE
-Message::setString( const char* data, std::size_t length,
-                    bool doValidation,
-                    const DataDictionary* pSessionDataDictionary,
-                    const DataDictionary* pApplicationDataDictionary )
+Message::readString( Message::FieldReader& reader, bool doValidation,
+                    DataDictionary::MsgInfo& msgInfo,
+                    const DataDictionary& sessionDataDictionary,
+                    DataDictionaryProvider& dictionaryProvider )
 throw( InvalidMessage )
 {
-  DataDictionary::FieldPresenceMap::key_type msg_key;
-  const BodyLength* pBodyLength = NULL;
-  FieldReader reader( data, length );
+  const DataDictionary* pApplicationDictionary = msgInfo.applicationDictionary();
 
-  clear();
+  FieldMap* section[3] = { this, &m_header, &m_trailer };
+  const DataDictionary::FieldToGroup* groupFields[3] = { NULL, &sessionDataDictionary.headerGroups(),
+                                                               &sessionDataDictionary.trailerGroups() };
+  const DataDictionary* dict[3] = { pApplicationDictionary, &sessionDataDictionary, &sessionDataDictionary };
+  const DataDictionary::string_type* dictionary_ver = NULL;
+  DataDictionary::FieldProperties::location_type location, order =
+    DataDictionary::FieldProperties::locationOrder( DataDictionary::FieldProperties::Header );
+  int field;
+  const MsgType* msgType;
+  const char* errpos;
 
-  field_type type = header;
-
-  if( reader && 
-      extractField( reader, pSessionDataDictionary, pApplicationDataDictionary ) )
+  if ( doValidation )
   {
-    if( LIKELY(reader.getField() == FIELD::BeginString) )
-      reader.flushSpecHeaderField( m_header );
-    else
-    {
-      if( doValidation )
-        throw InvalidMessage("BeginString field out of order");
-      goto loop;
-    }
-  }
-  
-  if ( reader &&
-       extractField( reader, pSessionDataDictionary, pApplicationDataDictionary ) )
-  {
-    if( LIKELY(reader.getField() == FIELD::BodyLength) )
-      pBodyLength = (const BodyLength*)reader.flushSpecHeaderField( m_header );
-    else
-    {
-      if( doValidation )
-        throw InvalidMessage("BodyLength field out of order");
-      goto loop;
-    }
-  }
-  
-  if ( reader &&
-       extractField( reader, pSessionDataDictionary, pApplicationDataDictionary ) )
-  {
-    if ( LIKELY(reader.getField() == FIELD::MsgType) )
-    {
-      const FieldBase* p = reader.flushSpecHeaderField( m_header );
-
-      if ( pApplicationDataDictionary )
-        msg_key = p->forString( String::RvalFunc() );
-    }
-    else 
-    {
-      if( doValidation )
-        throw InvalidMessage("MsgType field out of order");
-      goto loop;
-    }
-  }
-
-  while ( reader )
-  {
-    if( extractField( reader, pSessionDataDictionary, pApplicationDataDictionary ) )
-    {
-loop:
-      int field = reader.getField();
-      if ( isHeaderField( field, pSessionDataDictionary ) )
+    const BodyLength* pBodyLength = readSpecHeader( reader, msgType );
+     
+    msgInfo.messageType( msgType );
+    if ( UNLIKELY(isAdminMsgType( *msgType )) )
+      msgInfo.applicationDictionary( dict[ DataDictionary::FieldProperties::Body ] =
+                                     pApplicationDictionary = &sessionDataDictionary );
+    while ( reader ) {
+      if( LIKELY(!(errpos = reader.scan())) )
       {
-        if ( LIKELY(type == header) )
+        field = reader.getField();
+        if ( LIKELY(field != FIELD::ApplVerID) )
         {
-          if ( field == FIELD::SenderCompID || field == FIELD::TargetCompID )
-            setStatusBit( ( field == FIELD::SenderCompID )
-                          ? has_sender_comp_id : has_target_comp_id );
+          DataDictionary::FieldProperties props = sessionDataDictionary.getProps( field );
+          location = props.location();
+
+          if ( UNLIKELY(DataDictionary::FieldProperties::locationOrder(location) < order) )
+            setErrorStatusBit( tag_out_of_order, field );
+
+          if ( LIKELY(DataDictionary::FieldProperties::isBody( location )) )
+          {
+            order = DataDictionary::FieldProperties::locationOrder( DataDictionary::FieldProperties::Body );
+            if ( LIKELY(pApplicationDictionary != NULL) )
+            {
+vdict:
+              props = pApplicationDictionary->getProps( field );
+              if ( UNLIKELY(props.hasData()) ) extractFieldDataLength( reader, *this, field );
+            }
+            else
+            {
+              dict[DataDictionary::FieldProperties::Body] = pApplicationDictionary =
+                dictionary_ver ? dictionaryProvider.getApplicationDataDictionary( *dictionary_ver )
+                               : msgInfo.defaultApplicationDictionary();
+              if ( LIKELY(pApplicationDictionary != NULL) )
+              {
+                msgInfo.applicationDictionary( pApplicationDictionary );
+                goto vdict;
+              }
+            }
+            reader.flushField( *this );
+          }
+          else
+          {
+            if ( UNLIKELY(props.hasData()) ) extractFieldDataLength( reader, *section[location], field );
+            if ( LIKELY(DataDictionary::FieldProperties::isHeader( location )) )
+            {
+              setStatusCompID( field );
+              reader.flushHeaderField( m_header );
+            }
+            else
+            {
+              order = DataDictionary::FieldProperties::locationOrder( DataDictionary::FieldProperties::Trailer );
+              reader.flushTrailerField( m_trailer );
+            }
+          }
+          if ( LIKELY(!props.hasGroup()) ) continue; // fast path
+
+          const DataDictionary::MsgTypeData* typeData;
+          const DataDictionary::FieldToGroup* groups;
+          if ( LIKELY((groups = groupFields[location]) != NULL) ||
+               ((typeData = msgInfo.messageData()) && (groups = groupFields[location] = typeData->groups())) )
+          {
+            int delim;
+            const DataDictionary* groupDD = dict[location]->getGroup( *groups, field, delim );     
+            if ( LIKELY(groupDD != NULL) ) setGroup( reader, *section[location], *dict[location], field, delim, *groupDD );
+          }
         }
         else
-          setErrorStatusBit( tag_out_of_order, field );
-  
-        const FieldBase* p = reader.flushHeaderField( m_header );
-  
-        if ( LIKELY(field != FIELD::MsgType) )
-        { 
-          if ( pSessionDataDictionary )
-            setGroup( reader, group_key_header_, field, m_header, *pSessionDataDictionary );
+        {
+          const FieldBase* applVerID = reader.flushHeaderField( *this );
+          dictionary_ver = &applVerID->getRawString();
         }
-        else if ( pApplicationDataDictionary )
-          msg_key = p->forString( String::RvalFunc() );
-      }
-      else if ( LIKELY(!isTrailerField( field, pSessionDataDictionary )) )
-      {
-        if ( type == trailer )
-          setErrorStatusBit( tag_out_of_order, field );
-  
-        type = body;
-  
-        reader.flushField( *this );
-        if ( pApplicationDataDictionary )
-          setGroup( reader, msg_key, field, *this, *pApplicationDataDictionary );
       }
       else
       {
-        type = trailer;
-  
-        reader.flushTrailerField( m_trailer );
-        if ( field != FIELD::CheckSum && pSessionDataDictionary )
-          setGroup( reader, group_key_trailer_, field, m_trailer, *pSessionDataDictionary );
+        setErrorStatusBit( invalid_tag_format, (intptr_t)errpos );
+        reader.skip();
       }
     }
-  }
-
-  if ( doValidation )
     validate(pBodyLength);
+  }
+  else
+  {
+    msgType = NULL;
+    if ( LIKELY(readSpecHeaderField( reader, FIELD::BeginString ) &&
+                readSpecHeaderField( reader, FIELD::BodyLength )) )
+    {
+      while ( reader )
+      {
+        if( LIKELY(!(errpos = reader.scan())) )
+        {
+rest:
+          field = reader.getField();
+          if ( LIKELY(field != FIELD::ApplVerID) )
+          {
+            DataDictionary::FieldProperties props = sessionDataDictionary.getProps( field );
+            location = props.location();
+  
+            if ( UNLIKELY(DataDictionary::FieldProperties::locationOrder(location) < order) )
+              setErrorStatusBit( tag_out_of_order, field );
+  
+            if ( LIKELY(DataDictionary::FieldProperties::isBody( location )) )
+            {
+              order = DataDictionary::FieldProperties::locationOrder( DataDictionary::FieldProperties::Body );
+              if ( LIKELY(pApplicationDictionary != NULL) )
+              {
+ndict:
+                props = pApplicationDictionary->getProps( field );
+                if ( UNLIKELY(props.hasData()) ) extractFieldDataLength( reader, *this, field );
+              }
+              else 
+              {
+                dict[DataDictionary::FieldProperties::Body] = pApplicationDictionary =
+                  dictionary_ver ? dictionaryProvider.getApplicationDataDictionary( *dictionary_ver )
+                                 : msgInfo.defaultApplicationDictionary(); 
+                if ( LIKELY(pApplicationDictionary != NULL) )
+                {
+                  msgInfo.applicationDictionary( pApplicationDictionary );
+                  goto ndict;
+                }
+              }
+              reader.flushField( *this );
+            }
+            else
+            {
+              if ( UNLIKELY(props.hasData()) ) extractFieldDataLength( reader, *section[location], field );
+              if ( LIKELY(DataDictionary::FieldProperties::isHeader( location )) )
+              {
+                setStatusCompID( field );
+                const FieldBase* stored = reader.flushHeaderField( m_header );
+                if ( UNLIKELY(field == FIELD::MsgType) )
+                {
+                  msgType = (MsgType*)stored;
+                  msgInfo.messageType( msgType );
+                  if ( UNLIKELY(isAdminMsgType( *msgType )) )
+                    msgInfo.applicationDictionary( dict[ DataDictionary::FieldProperties::Body ] =
+                                                   pApplicationDictionary = &sessionDataDictionary );
+                }
+              }
+              else
+              {
+                order = DataDictionary::FieldProperties::locationOrder( DataDictionary::FieldProperties::Trailer );
+                reader.flushTrailerField( m_trailer );
+              }
+            }
+            if ( LIKELY(!props.hasGroup()) ) continue; // fast path
+  
+            const DataDictionary::MsgTypeData* typeData;
+            const DataDictionary::FieldToGroup* groups;
+            if ( LIKELY((groups = groupFields[location]) != NULL) ||
+                 ((typeData = msgInfo.messageData()) && (groups = groupFields[location] = typeData->groups())) )
+            {
+              int delim;
+              const DataDictionary* groupDD = dict[location]->getGroup( *groups, field, delim );     
+              if ( LIKELY(groupDD != NULL) ) setGroup( reader, *section[location], *dict[location], field, delim, *groupDD );
+            }
+          }
+          else
+          {
+            const FieldBase* applVerID = reader.flushHeaderField( *this );
+            dictionary_ver = &applVerID->getRawString();
+          }
+        }
+        else
+        {
+          setErrorStatusBit( invalid_tag_format, (intptr_t)errpos );
+          reader.skip();
+        }
+      }
+    }
+    else goto rest;
+  }
 }
 
-void Message::setGroup( const std::string& msg,
+// standard deserializatrion with a single dictionary only
+void HEAVYUSE
+Message::readString( Message::FieldReader& reader, bool doValidation,
+                     DataDictionary::MsgInfo& msgInfo, const DataDictionary& dataDictionary )
+throw( InvalidMessage )
+{
+  FieldMap* section[3] = { this, &m_header, &m_trailer };
+  const DataDictionary::FieldToGroup* groupFields[3] = { NULL, &dataDictionary.headerGroups(),
+                                                               &dataDictionary.trailerGroups() };
+  DataDictionary::FieldProperties::location_type location, order =
+    DataDictionary::FieldProperties::locationOrder( DataDictionary::FieldProperties::Header );
+  int field;
+  const MsgType* msgType;
+  const char* errpos;
+
+  if( doValidation )
+  {
+    const BodyLength* pBodyLength = readSpecHeader( reader, msgType );
+
+    msgInfo.messageType( msgType );
+    while ( reader )
+    {
+      if( LIKELY(!(errpos = reader.scan())) )
+      {
+        field = reader.getField();
+        DataDictionary::FieldProperties props = dataDictionary.getProps( field );
+        location = props.location();
+
+        if ( UNLIKELY(DataDictionary::FieldProperties::locationOrder(location) < order) )
+          setErrorStatusBit( tag_out_of_order, field );
+
+        if ( UNLIKELY(props.hasData()) ) extractFieldDataLength( reader, *section[location], field );
+
+        if ( LIKELY(DataDictionary::FieldProperties::isBody( location )) )
+        {
+          order = DataDictionary::FieldProperties::locationOrder( DataDictionary::FieldProperties::Body );
+          reader.flushField( *this );
+        }
+        else
+        {
+          if ( LIKELY(DataDictionary::FieldProperties::isHeader( location )) )
+          {
+            setStatusCompID( field );
+            reader.flushHeaderField( m_header );
+          }
+          else
+          {
+            order = DataDictionary::FieldProperties::locationOrder( DataDictionary::FieldProperties::Trailer );
+            reader.flushTrailerField( m_trailer );
+          }
+        }
+        if ( LIKELY(!props.hasGroup()) ) continue; // fast path
+
+        const DataDictionary::MsgTypeData* typeData;
+        const DataDictionary::FieldToGroup* groups = groupFields[location];
+        if ( LIKELY(groups != NULL) ||
+             ((typeData = msgInfo.messageData()) && (groups = groupFields[location] = typeData->groups())) )
+        {
+          int delim;
+          const DataDictionary* groupDD = dataDictionary.getGroup( *groups, field, delim );     
+          if ( LIKELY(groupDD != NULL) ) setGroup( reader, *section[location], dataDictionary, field, delim, *groupDD );
+        }
+      }
+      else
+      {
+        setErrorStatusBit( invalid_tag_format, (intptr_t)errpos );
+        reader.skip();
+      }
+    }
+    validate(pBodyLength);
+  }
+  else
+  {
+    msgType = NULL;
+    if ( LIKELY(readSpecHeaderField( reader, FIELD::BeginString ) &&
+                readSpecHeaderField( reader, FIELD::BodyLength )) )
+    {
+      while ( reader )
+      {
+        if( LIKELY(!(errpos = reader.scan())) )
+        {
+rest:
+          field = reader.getField();
+          DataDictionary::FieldProperties props = dataDictionary.getProps( field );
+          location = props.location();
+  
+          if ( UNLIKELY(DataDictionary::FieldProperties::locationOrder(location) < order) )
+            setErrorStatusBit( tag_out_of_order, field );
+  
+          if ( UNLIKELY(props.hasData()) ) extractFieldDataLength( reader, *section[location], field );
+  
+          if ( LIKELY(DataDictionary::FieldProperties::isBody( location )) )
+          {
+            order = DataDictionary::FieldProperties::locationOrder( DataDictionary::FieldProperties::Body );
+            reader.flushField( *this );
+          }
+          else
+          {
+            if ( LIKELY(DataDictionary::FieldProperties::isHeader( location )) )
+            {
+              setStatusCompID( field );
+              const FieldBase* stored = reader.flushHeaderField( m_header );
+	      if( field == FIELD::MsgType ) msgInfo.messageType( msgType = (MsgType*)stored );
+            }
+            else
+            {
+              order = DataDictionary::FieldProperties::locationOrder( DataDictionary::FieldProperties::Trailer );
+              reader.flushTrailerField( m_trailer );
+            }
+          }
+          if ( LIKELY(!props.hasGroup()) ) continue; // fast path
+  
+          const DataDictionary::MsgTypeData* typeData;
+          const DataDictionary::FieldToGroup* groups = groupFields[location];
+          if ( LIKELY(groups != NULL) ||
+               ((typeData = msgInfo.messageData()) && (groups = groupFields[location] = typeData->groups())) )
+          {
+            int delim;
+            const DataDictionary* groupDD = dataDictionary.getGroup( *groups, field, delim );     
+            if ( LIKELY(groupDD != NULL) ) setGroup( reader, *section[location], dataDictionary, field, delim, *groupDD );
+          }
+        }
+        else 
+        {
+          setErrorStatusBit( invalid_tag_format, (intptr_t)errpos );
+          reader.skip();
+        }
+      }
+    }
+    else goto rest;
+  }
+}
+
+// generic case without a dictionary
+const MsgType* HEAVYUSE
+Message::readString( Message::FieldReader& reader, bool doValidation )
+throw( InvalidMessage )
+{
+  int field;
+  field_type type = header;
+  const char* errpos;
+  const MsgType* msgType = NULL;
+
+  if ( doValidation ) {
+    const BodyLength* pBodyLength = readSpecHeader( reader, msgType );
+  
+    while ( reader )
+    {
+      if( LIKELY(!(errpos = reader.scan())) )
+      {
+        field = reader.getField();
+        if ( isHeaderField( field ) )
+        {
+          if ( UNLIKELY(type != header) ) setErrorStatusBit( tag_out_of_order, field );
+          setStatusCompID( field );
+          reader.flushHeaderField( m_header );
+        }
+        else if ( LIKELY(!isTrailerField( field )) )
+        {
+          if ( UNLIKELY(type == trailer) ) setErrorStatusBit( tag_out_of_order, field );
+          type = body;
+          reader.flushField( *this );
+        }
+        else
+        {
+          type = trailer;
+          reader.flushTrailerField( m_trailer );
+        }
+      }
+      else
+      {
+        setErrorStatusBit( invalid_tag_format, (intptr_t)errpos );
+        reader.skip();
+      }
+    }
+    validate(pBodyLength);
+  }
+  else
+  {
+    if ( LIKELY(readSpecHeaderField( reader, FIELD::BeginString ) &&
+                readSpecHeaderField( reader, FIELD::BodyLength )) )
+    {
+      while ( reader )
+      {
+        if ( LIKELY(!(errpos = reader.scan())) ) {
+rest:
+          field = reader.getField();
+          if ( isHeaderField( field ) )
+          {
+            if ( UNLIKELY(type != header) ) setErrorStatusBit( tag_out_of_order, field );
+  	    setStatusCompID( field );
+	    const FieldBase* f = reader.flushHeaderField( m_header );
+	    msgType = (field == FIELD::MsgType) ? (const MsgType*)f : msgType;
+ 	  }
+          else if ( LIKELY(!isTrailerField( field )) )
+          {
+            if ( UNLIKELY(type == trailer) ) setErrorStatusBit( tag_out_of_order, field );
+            type = body;
+            reader.flushField( *this );
+          }
+          else 
+          {
+            type = trailer;
+            reader.flushTrailerField( m_trailer );
+          }
+        }
+        else 
+        {
+          setErrorStatusBit( invalid_tag_format, (intptr_t)errpos );
+          reader.skip();
+        }
+      }
+    }
+    else goto rest; 
+  }
+  return msgType;
+}
+
+void LIGHTUSE Message::setGroup( const std::string& msg,
                         const FieldBase& field, const std::string& str,
-                        std::string::size_type& pos, FieldMap& map,
+                        std::string::size_type& pos, FieldMap& fields,
                         const DataDictionary& dataDictionary )
 {
   FieldReader reader( str, pos );
-  setGroup( reader, String::CopyFunc()(msg), field.getTag(), map, dataDictionary );
+  const DataDictionary::MsgTypeData* mdata =
+    dataDictionary.getMessageData( static_cast<const DataDictionary::string_type&>(msg) );
+  const DataDictionary::FieldToGroup* groups;
+  if ( mdata && (groups = mdata->groups()) != NULL )
+  {
+    int delim;
+    const DataDictionary* groupDD = dataDictionary.getGroup( *groups, field.getTag(), delim );     
+    if ( groupDD ) setGroup( reader, fields, dataDictionary, field.getTag(), delim, *groupDD );
+  }
   pos = reader.pos() - String::c_str(str);
 }
 
 void HEAVYUSE Message::setGroup( Message::FieldReader& reader,
-			const DataDictionary::FieldPresenceMap::key_type& msg, const int group,
-                        FieldMap& map, const DataDictionary& dataDictionary )
+			FieldMap& fields,
+                        const DataDictionary& dataDictionary,
+                        int group, int delim,
+                        const DataDictionary& groupDD )
 {
-  int delim;
-  const DataDictionary* pDD = 0;
-  if ( LIKELY(!dataDictionary.getGroup( msg, group, delim, pDD )) ) return;
-
   std::auto_ptr<Group> pGroup;
   while ( reader )
   {
     const char* pos = reader.pos();
-    if( extractField( reader, &dataDictionary, &dataDictionary, pGroup.get() ) )
+    const char* errpos = reader.scan();
+    if( LIKELY(!errpos) )
     {
       int field = reader.getField();
-      if( // found delimiter
+      DataDictionary::FieldProperties props = dataDictionary.getProps( field );
+      if ( props.hasData() ) extractFieldDataLength( reader, pGroup.get() ? *pGroup : fields, field );
+
+      if ( // found delimiter
            (field == delim)
            // no delimiter, but field belongs to group or already processed
            || ((pGroup.get() == 0 || pGroup->isSetField( field )) &&
-                pDD->isField( field )) )
+                groupDD.isField( field )) )
       {
         if ( pGroup.get() )
         {
-          map.addGroupPtr( group, pGroup.release(), false );
+          fields.addGroupPtr( group, pGroup.release(), false );
         }
         reader.startGroupAt();
-        pGroup.reset( new Group( field, delim, pDD->getOrderedFields() ) );
+        pGroup.reset( new Group( field, delim, groupDD.getOrderedFields() ) );
       }
-      else if ( !pDD->isField( field ) )
+      else if ( !groupDD.isField( field ) )
       {
         if ( pGroup.get() )
         {
-          map.addGroupPtr( group, pGroup.release(), false );
+          fields.addGroupPtr( group, pGroup.release(), false );
         }
         reader.rewind( pos );
         return ;
       }
   
       if ( !pGroup.get() ) return ;
-      int end = reader.flushGroupField( *pGroup );
-      setGroup( reader, msg, field, *pGroup, *pDD );
+      int d, end = reader.flushGroupField( *pGroup );
+      const DataDictionary* pDD = groupDD.getNestedGroup( field, d );
+      if ( pDD ) setGroup( reader, *pGroup, dataDictionary, field, d, *pDD );
       reader.startGroupAt( end );
+    }
+    else
+    {
+      setErrorStatusBit( invalid_tag_format, (intptr_t)errpos );
+      reader.skip();
     }
   }
 }
 
-bool Message::setStringHeader( const std::string& str )
+bool LIGHTUSE Message::setStringHeader( const std::string& str )
 {
   clear();
 
@@ -485,7 +710,7 @@ ALIGN_DECL_DEFAULT const int Message::HeaderFieldSet::m_fields[] =
 {
 FIELD::BeginString,
 FIELD::BodyLength,
-FIELD::MsgType,
+FIELD::MsgType, // first 3 in this order!
 FIELD::SenderCompID,
 FIELD::TargetCompID,
 FIELD::OnBehalfOfCompID,
@@ -513,6 +738,25 @@ FIELD::ApplVerID,
 FIELD::CstmApplVerID,
 FIELD::NoHops,
 0
+};
+
+ALIGN_DECL_DEFAULT const int Message::TrailerFieldSet::m_fields[] =
+{
+FIELD::CheckSum, // should be first
+FIELD::Signature,
+FIELD::SignatureLength,
+0
+};
+
+Message::AdminSet::AdminSet()
+{
+  _value.set('0');
+  _value.set('1');
+  _value.set('2');
+  _value.set('3');
+  _value.set('4');
+  _value.set('5');
+  _value.set('A');
 };
 
 void Message::reverseRoute( const Header& header )

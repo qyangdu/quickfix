@@ -29,45 +29,54 @@
 
 namespace FIX
 {
+DataDictionary DataDictionaryProvider::m_emptyDictionary;
+DataDictionaryProvider DataDictionaryProvider::m_empty;
+
 DataDictionaryProvider::DataDictionaryProvider( const DataDictionaryProvider& copy )
 {
   *this = copy;
 }
 
-const DataDictionary NOTHROW_PRE & NOTHROW_POST HEAVYUSE
+const DataDictionary NOTHROW_PRE * NOTHROW_POST HEAVYUSE
 DataDictionaryProvider::getSessionDataDictionary
-(const BeginString& beginString) throw( DataDictionaryNotFound )
+(const BeginString& beginString) const throw( DataDictionaryNotFound )
 {
-  dictionary_map_t::iterator find =
-    m_transportDictionaries.find(beginString.forString( String::RvalFunc() ));
+  dictionary_map_t::const_iterator find =
+    m_transportDictionaries.find(beginString.forString( String::Rval() ));
   if( find != m_transportDictionaries.end() )
-    return *find->second;
+    return &*find->second;
   
-  return emptyDataDictionary;
+  return NULL;
 }
 
-const DataDictionary NOTHROW_PRE & NOTHROW_POST HEAVYUSE
+const DataDictionary NOTHROW_PRE * NOTHROW_POST HEAVYUSE
 DataDictionaryProvider::getApplicationDataDictionary
-(const ApplVerID& applVerID) throw( DataDictionaryNotFound )
+(const DataDictionaryProvider::key_type& applVerID) const throw( DataDictionaryNotFound )
 {
-  dictionary_map_t::iterator find =
-    m_applicationDictionaries.find(applVerID.forString( String::RvalFunc() ));
+  dictionary_map_t::const_iterator find = m_applicationDictionaries.find(applVerID);
   if( find != m_applicationDictionaries.end() )
-    return *find->second;
+    return &*find->second;
 
-  return emptyDataDictionary;
+  return NULL;
+}
+
+const DataDictionary NOTHROW_PRE * NOTHROW_POST HEAVYUSE
+DataDictionaryProvider::getApplicationDataDictionary
+(const ApplVerID& applVerID) const throw( DataDictionaryNotFound )
+{
+  return getApplicationDataDictionary( applVerID.forString( String::Rval() ) );
 }
 
 void DataDictionaryProvider::addTransportDataDictionary
 (const BeginString& beginString, ptr::shared_ptr<DataDictionary> pDD)
 {
-  m_transportDictionaries[beginString.forString( String::RvalFunc() )] = pDD;
+  m_transportDictionaries[beginString.forString( String::Rval() )] = pDD;
 }
 
 void DataDictionaryProvider::addApplicationDataDictionary
 (const ApplVerID& applVerID, ptr::shared_ptr<DataDictionary> pDD)
 {
-  m_applicationDictionaries[applVerID.forString( String::RvalFunc() )] = pDD;
+  m_applicationDictionaries[applVerID.forString( String::Rval() )] = pDD;
 }
 }
 

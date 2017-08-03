@@ -65,6 +65,8 @@ Session::Session( Application& application,
   m_millisecondsAllowed( ( sessionID.getBeginString() == BeginString_FIXT11 )
                      || ( sessionID.getBeginString() >= BeginString_FIX42 ) ),
   m_dataDictionaryProvider( dataDictionaryProvider ),
+  m_sessionDD(dataDictionaryProvider.getSessionDataDictionary(sessionID.getBeginString())),
+  m_defaultApplicationDD( NULL ),
   m_messageStoreFactory( messageStoreFactory ),
   m_pLogFactory( pLogFactory ),
   m_pResponder( 0 ),
@@ -117,12 +119,8 @@ Message::admin_trait Session::fill( Header& header, int num, UtcTimeStamp now )
   if ( it->first == FIX::FIELD::BodyLength )
     ++it;
   if ( it->first == FIX::FIELD::MsgType )
-  {
-    const char* p = it->second.forString( String::CstrFunc() );
-    char msgType = *p;
-    if( msgType && p[1] == '\0' )
-      trait = Message::getAdminTrait( msgType );
-  }
+    trait = Message::msgAdminTrait( it->second );
+
   Message::Sequence::set_in_ordered(header, m_sessionID.getSenderCompID() );
   Message::Sequence::set_in_ordered(header, m_sessionID.getTargetCompID() );
   Message::Sequence::set_in_ordered(header, MsgSeqNum::Pack( num ? num : getExpectedSenderNum() ) );
@@ -249,7 +247,7 @@ void Session::nextLogon( const Message& logon, const UtcTimeStamp& timeStamp )
   if( !m_state.initiate() && m_resetOnLogon )
     m_state.reset();
 
-  if( !verify( logon, false, true ) )
+  if( !verify( logon, Message::Admin::Logon, false, true ) )
     return;
   m_state.receivedLogon( true );
 
@@ -285,7 +283,7 @@ void Session::nextLogon( const Message& logon, const UtcTimeStamp& timeStamp )
 
 void Session::nextHeartbeat( const Message& heartbeat, const UtcTimeStamp& timeStamp )
 {
-  if ( !verify( heartbeat ) ) return ;
+  if ( !verify( heartbeat, Message::Admin::Heartbeat ) ) return ;
   m_state.incrNextTargetMsgSeqNum();
   nextQueued( timeStamp );
 
@@ -293,7 +291,7 @@ void Session::nextHeartbeat( const Message& heartbeat, const UtcTimeStamp& timeS
 
 void Session::nextTestRequest( const Message& testRequest, const UtcTimeStamp& timeStamp )
 {
-  if ( !verify( testRequest ) ) return ;
+  if ( !verify( testRequest, Message::Admin::TestRequest ) ) return ;
   generateHeartbeat( testRequest );
   m_state.incrNextTargetMsgSeqNum();
   nextQueued( timeStamp );
@@ -301,7 +299,7 @@ void Session::nextTestRequest( const Message& testRequest, const UtcTimeStamp& t
 
 void Session::nextLogout( const Message& logout, const UtcTimeStamp& timeStamp )
 {
-  if ( !verify( logout, false, false ) ) return ;
+  if ( !verify( logout, Message::Admin::Logout, false, false ) ) return ;
   if ( !m_state.sentLogout() )
   {
     m_state.onEvent( "Received logout request" );
@@ -318,7 +316,7 @@ void Session::nextLogout( const Message& logout, const UtcTimeStamp& timeStamp )
 
 void Session::nextReject( const Message& reject, const UtcTimeStamp& timeStamp )
 {
-  if ( !verify( reject, false, true ) ) return ;
+  if ( !verify( reject, Message::Admin::Reject, false, true ) ) return ;
   m_state.incrNextTargetMsgSeqNum();
   nextQueued( timeStamp );
 }
@@ -332,7 +330,7 @@ void Session::nextSequenceReset( const Message& sequenceReset, const UtcTimeStam
     isGapFill = gapFillFlag;
   }
 
-  if ( !verify( sequenceReset, isGapFill, isGapFill ) ) return ;
+  if ( !verify( sequenceReset, Message::Admin::SequenceReset, isGapFill, isGapFill ) ) return ;
 
   NewSeqNo newSeqNo;
   if ( sequenceReset.getFieldIfSet( newSeqNo ) )
@@ -350,7 +348,7 @@ void Session::nextSequenceReset( const Message& sequenceReset, const UtcTimeStam
 
 void Session::nextResendRequest( const Message& resendRequest, const UtcTimeStamp& timeStamp )
 {
-  if ( !verify( resendRequest, false, false ) ) return ;
+  if ( !verify( resendRequest, Message::Admin::ResendRequest, false, false ) ) return ;
 
   Locker l( m_mutex );
 
@@ -387,29 +385,14 @@ void Session::nextResendRequest( const Message& resendRequest, const UtcTimeStam
   MsgType msgType;
   int begin = 0;
   int current = beginSeqNo;
-  Message msg;
+  FieldMap::allocator_type msgAllocator( Message::create_allocator( ItemAllocatorTraits::DefaultCapacity << 3 ) );
 
   for ( i = messages.begin(); i != messages.end(); ++i )
   {
-    const DataDictionary& sessionDD = 
-      m_dataDictionaryProvider.getSessionDataDictionary(m_sessionID.getBeginString());
-
-    if( m_sessionID.isFIXT() )
-    {
-      msg.setStringHeader(*i);
-      ApplVerID applVerID;
-      if( !msg.getHeader().getFieldIfSet(applVerID) )
-        applVerID = m_senderDefaultApplVerID;
-
-      const DataDictionary& applicationDD =
-        m_dataDictionaryProvider.getApplicationDataDictionary(applVerID);
-      msg = Message( *i, sessionDD, applicationDD, m_validateLengthAndChecksum );
-    }
-    else
-    {
-      msg = Message( *i, sessionDD, m_validateLengthAndChecksum );
-    }
-
+    DataDictionary::MsgInfo msgInfo( m_defaultApplicationDD );
+    Message msg( *i, msgInfo, m_sessionDD,
+                 m_sessionID.isFIXT() ? &m_dataDictionaryProvider : NULL,
+                 msgAllocator, m_validateLengthAndChecksum );
 
     msg.getHeader().getField( msgSeqNum );
     msg.getHeader().getField( msgType );
@@ -751,13 +734,13 @@ void Session::generateReject( const Message& message, int err, int field )
   message.getHeader().getField( msgType );
   if( message.getHeader().getFieldIfSet( msgSeqNum ) )
   {
-    if( msgSeqNum.forString( String::SizeFunc() ) )
+    if( msgSeqNum.forString( String::Size() ) )
       reject.setField( RefSeqNum( msgSeqNum ) );
   }
 
   if ( beginString >= FIX::BeginString_FIX42 )
   {
-    if( msgType.forString( String::SizeFunc() ) )
+    if( msgType.forString( String::Size() ) )
       reject.setField( RefMsgType( msgType ) );
     if ( (beginString == FIX::BeginString_FIX42
           && err <= SessionRejectReason_INVALID_MSGTYPE)
@@ -956,9 +939,9 @@ void Session::populateRejectReason( Message& reject, const std::string& text )
   reject.setField( Text::Pack( text ) );
 }
 
-bool HEAVYUSE Session::verify( const Message& msg, const UtcTimeStamp& now,
+bool HEAVYUSE Session::verify( const Message& msg, Message::Admin::AdminType adminType,
+                                          const UtcTimeStamp& now,
                                           const Header& header,
-                                          const char* pMsgTypeValue,
                                           bool checkTooHigh, bool checkTooLow )
 {
   const MsgSeqNum* pMsgSeqNum = 0;
@@ -972,7 +955,7 @@ bool HEAVYUSE Session::verify( const Message& msg, const UtcTimeStamp& now,
     if ( checkTooHigh || checkTooLow )
       pMsgSeqNum = FIELD_GET_PTR( header, MsgSeqNum );
 
-    if ( validLogonState( pMsgTypeValue ) )
+    if ( validLogonState( adminType ) )
     {
       if ( isGoodTime( sendingTime, now ) )
       {
@@ -1033,7 +1016,7 @@ bool HEAVYUSE Session::verify( const Message& msg, const UtcTimeStamp& now,
   m_state.lastReceivedTime( now );
   m_state.testRequest( 0 );
 
-  fromCallback( pMsgTypeValue ? pMsgTypeValue : "", msg, m_sessionID );
+  fromCallback( adminType, msg, m_sessionID );
   return true;
 }
 
@@ -1049,59 +1032,52 @@ bool Session::shouldSendReset()
 
 bool Session::validLogonState( const MsgType& msgType )
 {
-  return validLogonState( msgType.forString( String::CstrFunc() ) );
+  return validLogonState( Message::msgAdminType( msgType ) );
 }
 
-bool Session::validLogonState( const char* msgTypeValue )
+bool Session::validLogonState( Message::Admin::AdminType adminType )
 {
-  char sym = msgTypeValue[0];
-  if ( LIKELY(sym != '\0') )
-  {
-    if ( LIKELY(msgTypeValue[1] == '\0') )
-    {
-      if ( LIKELY(sym != 'A') ) // MsgType_Logon
-      { 
-        if ( LIKELY(m_state.receivedLogon()) )
-          return true;
-      }
-      else
-      {
-        if ( m_state.sentReset() || !m_state.receivedLogon() )
-          return true;
-      }
+  if ( LIKELY(adminType == Message::Admin::None) )
+    return m_state.receivedLogon() ||
+           m_state.receivedReset() ||
+           m_state.sentLogout();
 
-      if ( LIKELY(sym != '5') ) // MsgType_Logout
-      {
-        if ( m_state.sentLogout() )
-          return true;
-      }
-      else
-      {
-        if ( m_state.sentLogon() )
-          return true;
-      }
-
-      if ( sym == '4' || sym == '3' )  // MsgType_SequenceReset, MsgType_Reject
-        return true;
-    }
-    else
-    {
-      return m_state.receivedLogon() ||
-             m_state.receivedReset() ||
-             m_state.sentLogout();
-
-    }
+  if ( LIKELY(adminType != Message::Admin::Logon) )
+  { 
+    if ( LIKELY(m_state.receivedLogon()) )
+      return true;
   }
+  else
+  {
+    if ( !m_state.receivedLogon() || m_state.sentReset() )
+      return true;
+  }
+
+  if ( LIKELY(adminType != Message::Admin::Logout) ) 
+  {
+    if ( m_state.sentLogout() )
+      return true;
+  }
+  else
+  {
+    if ( m_state.sentLogon() )
+      return true;
+  }
+
+  if ( adminType == Message::Admin::SequenceReset ||
+       adminType == Message::Admin::Reject )
+    return true;
+
   return m_state.receivedReset();
 }
 
-void Session::fromCallback( const char* msgTypeValue, const Message& msg,
+void Session::fromCallback( Message::Admin::AdminType adminType, const Message& msg,
                             const SessionID& sessionID )
 {
-  if ( Message::isAdminMsgTypeValue( msgTypeValue ) )
-    m_application.fromAdmin( msg, m_sessionID );
-  else
+  if ( LIKELY(adminType == Message::Admin::None) )
     m_application.fromApp( msg, m_sessionID );
+  else
+    m_application.fromAdmin( msg, m_sessionID );
 }
 
 void Session::doBadTime( const Message& msg )
@@ -1206,14 +1182,25 @@ bool Session::OnNextQueued::operator() ( int num, Message& msg)
   session.m_state.onEvent( "Processing QUEUED message: "
                      + IntConvertor::convert( num ) );
   msg.getHeader().getField( msgType );
-  if( msgType == MsgType_Logon
-      || msgType == MsgType_ResendRequest )
+  Message::Admin::AdminType adminType = Message::msgAdminType( msgType );
+  if( adminType == Message::Admin::Logon
+      || adminType == Message::Admin::ResendRequest )
   {
     session.m_state.incrNextTargetMsgSeqNum();
   }
+  else if ( LIKELY(!session.m_sessionID.isFIXT() || adminType != Message::Admin::None) )
+  {
+    DataDictionary::MsgInfo msgInfo( session.m_sessionDD, session.m_sessionDD, &msgType );
+    session.next( msg, msgInfo, session.m_sessionDD, tstamp, true );
+  }
   else
   {
-    session.next( msg, tstamp, true );
+    const FieldBase* applVerID = msg.getHeader().getFieldPtrIfSet( FIELD::ApplVerID );
+    DataDictionary::MsgInfo msgInfo( session.m_defaultApplicationDD, applVerID
+      ? session.m_dataDictionaryProvider.getApplicationDataDictionary( applVerID->forString( String::Rval() ) )
+      : session.m_defaultApplicationDD,
+      &msgType );
+    session.next( msg, msgInfo, session.m_sessionDD, tstamp, true );
   }
   return true;
 }
@@ -1232,30 +1219,30 @@ void HEAVYUSE Session::next( Sg::sg_buf_t buf, const UtcTimeStamp& timeStamp, bo
   const char* msg = Sg::data<const char*>(buf);
   try
   {
-    const DataDictionary& sessionDD = 
-      m_dataDictionaryProvider.getSessionDataDictionary(m_sessionID.getBeginString());
-
     m_state.onIncoming( &buf, 1 );
     Message::reset_allocator( m_rcvAllocator );
 
     if( LIKELY(!m_sessionID.isFIXT()) )
     {
+      DataDictionary::MsgInfo msgInfo( m_sessionDD, m_sessionDD );
       next( Message( msg, Sg::size(buf),
-                     sessionDD,
+                     msgInfo,
+                     m_sessionDD,
                      m_rcvAllocator,
                      m_validateLengthAndChecksum ),
-            sessionDD, timeStamp, queued );
+                     msgInfo, m_sessionDD, timeStamp, queued );
     }
     else
     {
-      const DataDictionary& applicationDD =
-        m_dataDictionaryProvider.getApplicationDataDictionary(m_senderDefaultApplVerID);
-      next( Message( msg, Sg::size(buf),
-                     sessionDD,
-                     applicationDD,
+      DataDictionary::MsgInfo msgInfo( m_defaultApplicationDD );
+      Message message( msg, Sg::size(buf),
+                     msgInfo,
+                     m_sessionDD,
+                     m_dataDictionaryProvider,
                      m_rcvAllocator,
-                     m_validateLengthAndChecksum ),
-            sessionDD, timeStamp, queued );
+                     m_validateLengthAndChecksum );
+      if ( !msgInfo.applicationDictionary() ) msgInfo.applicationDictionary( m_defaultApplicationDD );
+      next( message, msgInfo, m_sessionDD, timeStamp, queued );
     }
   }
   catch( InvalidMessage& e )
@@ -1274,7 +1261,8 @@ void HEAVYUSE Session::next( Sg::sg_buf_t buf, const UtcTimeStamp& timeStamp, bo
   }
 }
 
-void HEAVYUSE Session::next( const Message& message, const DataDictionary& sessionDD, const UtcTimeStamp& timeStamp, bool queued )
+void HEAVYUSE Session::next( const Message& message, DataDictionary::MsgInfo& msgInfo,
+                             const DataDictionary* sessionDD, const UtcTimeStamp& timeStamp, bool queued )
 {
   const Header& header = message.getHeader();
 
@@ -1291,33 +1279,19 @@ void HEAVYUSE Session::next( const Message& message, const DataDictionary& sessi
       const BeginString& beginString = FIELD_GET_REF( header, BeginString );
       if( beginString == m_sessionID.getBeginString() )
       {
-        const MsgType& msgType = FIELD_GET_REF( header, MsgType );
-        const char* msgTypeValue = msgType.forString( String::CstrFunc() );
+        const MsgType& msgType = msgInfo.messageType( header );
+        Message::Admin::AdminType adminType = Message::msgAdminType( msgType );
     
-        if( LIKELY(!Message::isAdminMsgTypeValue(msgTypeValue)) )
+        if( LIKELY(adminType == Message::Admin::None) )
         {
-          if( LIKELY(!m_sessionID.isFIXT()) )
-          {
-            sessionDD.validate( message, beginString, msgType,
-                                &sessionDD, &sessionDD );
-          }
-          else
-          {
-            ApplVerID applVerID;
-            if( !header.getFieldIfSet(applVerID) )
-              applVerID = m_targetDefaultApplVerID;
-            const DataDictionary& applicationDataDictionary = 
-              m_dataDictionaryProvider.getApplicationDataDictionary(applVerID);
-            DataDictionary::validate( message, beginString, msgType,
-      				&sessionDD, &applicationDataDictionary );
-          }
-          if ( !verify( message, timeStamp, header,
-                                 msgTypeValue, true, true ) ) return ;
+          DataDictionary::validate( message, beginString, msgInfo, sessionDD );
+          if ( !verify( message, adminType, timeStamp, 
+                                 header, true, true ) ) return ;
           m_state.incrNextTargetMsgSeqNum();
         } 
         else
         {
-          if( msgType == MsgType_Logon )			// "A"
+          if( adminType == Message::Admin::Logon )
           {
             if( m_sessionID.isFIXT() )
             {
@@ -1328,31 +1302,36 @@ void HEAVYUSE Session::next( const Message& message, const DataDictionary& sessi
             {
               setTargetDefaultApplVerID(Message::toApplVerID(beginString));
             }
-            sessionDD.validate( message, beginString, msgType,
-                                &sessionDD, &sessionDD );
+            DataDictionary::validate( message, beginString, msgInfo, sessionDD );
             nextLogon( message, timeStamp );
           }
           else
           {
-            sessionDD.validate( message, beginString, msgType,
-                                &sessionDD, &sessionDD );
-            if ( msgType == MsgType_Heartbeat )		// "0"
-              nextHeartbeat( message, timeStamp );
-            else if ( msgType == MsgType_TestRequest )	// "1"
-              nextTestRequest( message, timeStamp );
-            else if ( msgType == MsgType_SequenceReset )	// "4"
-              nextSequenceReset( message, timeStamp );
-            else if ( msgType == MsgType_Logout )		// "5"
-              nextLogout( message, timeStamp );
-            else if ( msgType == MsgType_ResendRequest )	// "2"
-              nextResendRequest( message,timeStamp );
-            else if ( msgType == MsgType_Reject )		// "3"
-              nextReject( message, timeStamp );
-            else
+            DataDictionary::validate( message, beginString, msgInfo, sessionDD );
+            switch( adminType )
             {
-              if ( !verify( message, timeStamp, header,
-                                     msgTypeValue, true, true ) ) return ;
-              m_state.incrNextTargetMsgSeqNum();
+              case Message::Admin::Heartbeat:
+                nextHeartbeat( message, timeStamp );
+                break;
+              case Message::Admin::TestRequest:
+                nextTestRequest( message, timeStamp );
+                break;
+              case Message::Admin::SequenceReset:
+                nextSequenceReset( message, timeStamp );
+                break;
+              case Message::Admin::Logout:
+                nextLogout( message, timeStamp );
+                break;
+              case Message::Admin::ResendRequest:
+                nextResendRequest( message,timeStamp );
+                break;
+              case Message::Admin::Reject:
+                nextReject( message, timeStamp );
+                break;
+              default:
+                if ( !verify( message, adminType, timeStamp, 
+                                     header, true, true ) ) return ;
+                m_state.incrNextTargetMsgSeqNum();
             }
           }
         }

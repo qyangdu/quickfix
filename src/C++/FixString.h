@@ -762,28 +762,28 @@ fin:
 #endif
      };
 
-     struct CstrFunc
+     struct Cstr
      {
        typedef const char* result_type;
        result_type operator()( const value_type& v ) const
        { return c_str(v); }
      };
 
-     struct RvalFunc
+     struct Rval
      {
        typedef const value_type& result_type;
        result_type operator()( const value_type& v ) const
        { return v; }
      };
 
-     struct SizeFunc
+     struct Size
      {
        typedef std::size_t result_type;
        result_type operator()( const value_type& v ) const
        { return String::size(v); }
      };
 
-     struct CopyFunc
+     struct Copy
      {
        typedef std::string result_type;
        result_type operator()( const value_type& v ) const
