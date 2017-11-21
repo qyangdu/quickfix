@@ -182,7 +182,7 @@ typedef int ssize_t;
   #define NOTHROW_PRE __declspec(nothrow)
   #define NOTHROW_POST
   #define LIGHTUSE
-  #define RAREUSE
+  #define HEAVYUSE
   #define PREFETCH(addr, rw, longevity) _mm_prefetch(addr, longevity)
   #define LIKELY(x) (x)
   #define UNLIKELY(x) (x)
