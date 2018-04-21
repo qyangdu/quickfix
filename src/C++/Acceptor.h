@@ -23,17 +23,17 @@
 #define FIX_ACCEPTOR_H
 
 #ifdef _MSC_VER
-#pragma warning( disable : 4503 4355 4786 4290 )
+#pragma warning(disable : 4503 4355 4786 4290)
 #endif
 
-#include "Application.h"
-#include "MessageStore.h"
-#include "Log.h"
-#include "Responder.h"
-#include "SessionSettings.h"
-#include "Exceptions.h"
 #include <map>
 #include <string>
+#include "Application.h"
+#include "Exceptions.h"
+#include "Log.h"
+#include "MessageStore.h"
+#include "Responder.h"
+#include "SessionSettings.h"
 
 namespace FIX
 {
@@ -48,67 +48,80 @@ class Session;
  */
 class Acceptor
 {
-public:
-  Acceptor( Application&, MessageStoreFactory&,
-            const SessionSettings& ) throw( ConfigError );
-  Acceptor( Application&, MessageStoreFactory&,
-            const SessionSettings&, LogFactory& ) throw( ConfigError );
+ public:
+  Acceptor(Application&, MessageStoreFactory&, const SessionSettings&);
+  Acceptor(Application&, MessageStoreFactory&, const SessionSettings&,
+           LogFactory&);
 
   virtual ~Acceptor();
 
-  Log* getLog() 
-  { 
-    if( m_pLog ) return m_pLog;
+  Log* getLog()
+  {
+    if (m_pLog)
+      return m_pLog;
     return &m_nullLog;
   }
 
   /// Start acceptor.
-  void start() throw ( ConfigError, RuntimeError );
+  void start();
   /// Block on the acceptor
-  void block() throw ( ConfigError, RuntimeError );
+  void block();
   /// Poll the acceptor
-  bool poll( double timeout = 0.0 ) throw ( ConfigError, RuntimeError );
+  bool poll(double timeout = 0.0);
 
   /// Stop acceptor.
-  void stop( bool force = false );
+  void stop(bool force = false);
 
   /// Check to see if any sessions are currently logged on
   bool isLoggedOn();
 
-  Session* getSession( const std::string& msg, Responder& );
-  Session* getSession( Sg::sg_buf_t msg, Responder& );
+  Session* getSession(const std::string& msg, Responder&);
+  Session* getSession(Sg::sg_buf_t msg, Responder&);
 
-  const std::set<SessionID>& getSessions() const { return m_sessionIDs; }
-  Session* getSession( const SessionID& sessionID ) const;
-  const Dictionary* getSessionSettings( const SessionID& sessionID ) const;
+  const std::set<SessionID>& getSessions() const
+  {
+    return m_sessionIDs;
+  }
+  Session* getSession(const SessionID& sessionID) const;
+  const Dictionary* getSessionSettings(const SessionID& sessionID) const;
 
-  bool has( const SessionID& id )
-  { return m_sessions.find( id ) != m_sessions.end(); }
+  bool has(const SessionID& id)
+  {
+    return m_sessions.find(id) != m_sessions.end();
+  }
 
-  bool isStopped() { return m_stop; }
+  bool isStopped()
+  {
+    return m_stop;
+  }
 
-  Application& getApplication() { return m_application; }
+  Application& getApplication()
+  {
+    return m_application;
+  }
   MessageStoreFactory& getMessageStoreFactory()
-  { return m_messageStoreFactory; }
+  {
+    return m_messageStoreFactory;
+  }
 
-private:
-  void initialize() throw ( ConfigError );
+ private:
+  void initialize();
 
   /// Implemented to configure acceptor
-  virtual void onConfigure( const SessionSettings& ) throw ( ConfigError ) {};
+  virtual void onConfigure(const SessionSettings&){};
   /// Implemented to initialize acceptor
-  virtual void onInitialize( const SessionSettings& ) throw ( RuntimeError ) {};
+  virtual void onInitialize(const SessionSettings&){};
   /// Implemented to start listening for connections.
   virtual void onStart() = 0;
   /// Implemented to connect and poll for events.
-  virtual bool onPoll( double second ) = 0;
+  virtual bool onPoll(double second) = 0;
   /// Implemented to stop a running acceptor.
   virtual void onStop() = 0;
 
-  static THREAD_PROC startThread( void* p );
+  static THREAD_PROC startThread(void* p);
 
-  typedef std::set < SessionID > SessionIDs;
-  typedef std::map < SessionID, Session* > Sessions;
+  typedef std::set<SessionID> SessionIDs;
+  typedef std::map<SessionID, Session*> Sessions;
 
   thread_id m_threadid;
   Sessions m_sessions;
@@ -123,6 +136,6 @@ private:
   bool m_stop;
 };
 /*! @} */
-}
+} // namespace FIX
 
 #endif // FIX_ACCEPTOR_H

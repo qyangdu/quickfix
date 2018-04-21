@@ -466,13 +466,13 @@ typedef std::map < std::pair < int, std::string > ,
 
   DataDictionary();
   DataDictionary( const DataDictionary& copy );
-  DataDictionary( std::istream& stream ) throw( ConfigError );
-  DataDictionary( const std::string& url ) throw( ConfigError );
+  DataDictionary( std::istream& stream );
+  DataDictionary( const std::string& url );
   virtual ~DataDictionary();
 
-  void LIGHTUSE readFromURL( const std::string& url ) throw( ConfigError );
-  void LIGHTUSE readFromDocument( DOMDocumentPtr pDoc ) throw( ConfigError );
-  void LIGHTUSE readFromStream( std::istream& stream ) throw( ConfigError );
+  void LIGHTUSE readFromURL( const std::string& url );
+  void LIGHTUSE readFromDocument( DOMDocumentPtr pDoc );
+  void LIGHTUSE readFromStream( std::istream& stream );
 
   message_order const& getOrderedFields() const;
 
@@ -692,14 +692,11 @@ typedef std::map < std::pair < int, std::string > ,
   static void HEAVYUSE  validate( const Message& message,
                         const BeginString& beginString,
                         const MsgInfo& msgInfo,
-                        const DataDictionary* const pSessionDD)
-  throw( FIX::Exception );
+                        const DataDictionary* const pSessionDD);
 
-  void validate( const Message& message, bool bodyOnly ) const
-  throw( FIX::Exception );
+  void validate( const Message& message, bool bodyOnly ) const;
 
   void validate( const Message& message ) const
-  throw( FIX::Exception )
   { validate( message, false ); }
 
   DataDictionary& operator=( const DataDictionary& rhs );
@@ -739,14 +736,12 @@ private:
 
   /// Check if field tag number is defined in spec.
   void checkValidTagNumber( const FieldBase& field ) const
-  throw( InvalidTagNumber )
   {
     if( LIKELY(isField( field.getTag()) ) ) return;
     throw InvalidTagNumber( field.getTag() );
   }
 
   void checkValidFormat( const FieldBase& field ) const
-  throw( IncorrectDataFormat )
   {
     TYPE::Type type = TYPE::Unknown;
     getFieldType( field.getTag(), type );
@@ -777,7 +772,6 @@ private:
   }
 
   void checkValue( const FieldBase& field ) const
-  throw( IncorrectTagValue )
   {
     int f = field.getTag();
     FieldToValue::const_iterator i = m_fieldValues.find( f );
@@ -791,7 +785,6 @@ private:
 
   /// Check if a field has a value.
   void checkHasValue( const FieldBase& field ) const
-  throw( NoTagValue )
   {
     if ( LIKELY(!isChecked(FieldsHaveValues) ||
 		         field.forString( String::Size() )) )
@@ -802,7 +795,6 @@ private:
   /// Check if a field is in this message type.
   void checkIsInMessage
   ( const FieldBase& field, const MsgType& msgType ) const
-  throw( TagNotDefinedForMessage )
   {
     if ( LIKELY(isMsgField( msgType.forString( String::Rval() ), field.getTag() )) )
       return;
@@ -811,7 +803,6 @@ private:
 
   void checkIsInMessage
   ( const FieldBase& field, const MsgTypeData& msgData ) const
-  throw( TagNotDefinedForMessage )
   {
     if ( LIKELY(msgData.m_defined.find( field.getTag() ) != msgData.m_defined.end()) )
       return;
@@ -821,7 +812,6 @@ private:
   /// Check if group count matches number of groups in
   void checkGroupCount
   ( const FieldBase& field, const FieldMap& fieldMap, const MsgType& msgType ) const
-  throw( RepeatingGroupCountMismatch )
   {
     int fieldNum = field.getTag();
     if( isGroup(msgType.forString( String::Rval() ), fieldNum) )
@@ -834,7 +824,6 @@ private:
   }
   void checkGroupCount
   ( const FieldBase& field, const FieldMap& fieldMap, const MsgTypeData& msgData ) const
-  throw( RepeatingGroupCountMismatch )
   {
     int fieldNum = field.getTag();
     const FieldToGroup* groups = msgData.groups();
@@ -852,7 +841,6 @@ private:
   void checkHasRequired
   ( const FieldMap& header, const FieldMap& body, const FieldMap& trailer,
     const MsgType& msgType ) const
-  throw( RequiredTagMissing )
   {
     MsgTypeToData::const_iterator iM
       = m_messageData.find( msgType.forString( String::Rval() ) );
@@ -862,7 +850,6 @@ private:
   void checkHasRequired
   ( const MsgTypeData* messageData,
     const FieldMap& header, const FieldMap& body, const FieldMap& trailer ) const
-  throw( RequiredTagMissing )
   {
     HeaderFields::const_iterator h = includes(header.begin(), header.end(),
                  m_requiredHeaderFields.begin(), m_requiredHeaderFields.end(), HeaderCompare() );
@@ -878,12 +865,10 @@ private:
 #endif
   } 
 
-  void checkHasRequiredInGroups( const FieldToGroup& groupFields, const FieldMap& body ) const
-  throw( RequiredTagMissing );
+  void checkHasRequiredInGroups( const FieldToGroup& groupFields, const FieldMap& body ) const;
 
   void checkHasRequiredUnordered
   ( const MsgFields& fields, const FieldToGroup* groupFields, const FieldMap& body ) const
-  throw( RequiredTagMissing )
   {
     for ( MsgFields::const_iterator r = fields.begin(); r != fields.end(); ++r )
     {
@@ -895,7 +880,6 @@ private:
 
   void checkHasRequired
   ( const MsgFields& fields, const FieldToGroup* groupFields, const FieldMap& body ) const
-  throw( RequiredTagMissing )
   {
     MsgFields::const_iterator r = includes(body.begin(), body.end(),
                  fields.begin(), fields.end(), FieldCompare() );

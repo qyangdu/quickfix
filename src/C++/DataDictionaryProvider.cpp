@@ -39,7 +39,7 @@ DataDictionaryProvider::DataDictionaryProvider( const DataDictionaryProvider& co
 
 const DataDictionary NOTHROW_PRE * NOTHROW_POST HEAVYUSE
 DataDictionaryProvider::getSessionDataDictionary
-(const BeginString& beginString) const throw( DataDictionaryNotFound )
+(const BeginString& beginString) const
 {
   dictionary_map_t::const_iterator find =
     m_transportDictionaries.find(beginString.forString( String::Rval() ));
@@ -51,7 +51,7 @@ DataDictionaryProvider::getSessionDataDictionary
 
 const DataDictionary NOTHROW_PRE * NOTHROW_POST HEAVYUSE
 DataDictionaryProvider::getApplicationDataDictionary
-(const DataDictionaryProvider::key_type& applVerID) const throw( DataDictionaryNotFound )
+(const DataDictionaryProvider::key_type& applVerID) const
 {
   dictionary_map_t::const_iterator find = m_applicationDictionaries.find(applVerID);
   if( find != m_applicationDictionaries.end() )
@@ -62,7 +62,7 @@ DataDictionaryProvider::getApplicationDataDictionary
 
 const DataDictionary NOTHROW_PRE * NOTHROW_POST HEAVYUSE
 DataDictionaryProvider::getApplicationDataDictionary
-(const ApplVerID& applVerID) const throw( DataDictionaryNotFound )
+(const ApplVerID& applVerID) const
 {
   return getApplicationDataDictionary( applVerID.forString( String::Rval() ) );
 }

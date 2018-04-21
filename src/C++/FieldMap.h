@@ -694,7 +694,6 @@ public:
 
   /// Set a field without type checking
   void setField( const FieldBase& field, bool overwrite = true )
-  throw( RepeatedTag )
   {
     if ( overwrite )
       assign( field.getTag(), field );
@@ -704,7 +703,6 @@ public:
 
   /// Set a field without a field class
   void setField( int tag, const std::string& value )
-  throw( RepeatedTag, NoTagValue )
   { assign( tag, value ); }
 
   /// Get a field if set
@@ -719,7 +717,7 @@ public:
 
   /// Get a field without type checking
   FieldBase& getField( FieldBase& field )
-  const throw( FieldNotFound )
+  const
   {
     field = getFieldRef( field.getTag() );
     return field;
@@ -727,12 +725,12 @@ public:
 
   /// Get a field without a field class
   const std::string& getField( int tag )
-  const throw( FieldNotFound )
+  const
   { return getFieldRef( tag ).getString(); }
 
   /// Get direct access to a field through a reference
   const FieldBase& getFieldRef( int tag )
-  const throw( FieldNotFound )
+  const
   {
     Fields::const_iterator iter = find( tag );
     if ( iter == m_fields.end() )
@@ -742,7 +740,7 @@ public:
 
   /// Get direct access to a field through a pointer
   const FieldBase* getFieldPtr( int tag )
-  const throw( FieldNotFound )
+  const
   { return &getFieldRef( tag ); }
 
   /// Get direct access to a field through a pointer
@@ -804,12 +802,10 @@ public:
 
   /// Get a specific instance of a group.
   FieldMap& getGroup( int num, int tag, FieldMap& group ) const
-  throw( FieldNotFound )
   { return group = getGroupRef( num, tag ); }
 
   /// Get direct access to a field through a reference
   FieldMap& getGroupRef( int num, int tag ) const
-  throw( FieldNotFound )
   {
     Groups::const_iterator i = m_groups.find( tag );
     if( i == m_groups.end() ) throw FieldNotFound( tag );
@@ -820,7 +816,6 @@ public:
 
   /// Get direct access to a field through a pointer
   FieldMap* getGroupPtr( int num, int tag ) const
-  throw( FieldNotFound )
   { return &getGroupRef( num, tag ); }
 
   /// Remove a specific instance of a group.

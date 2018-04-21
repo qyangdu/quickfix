@@ -37,7 +37,7 @@ bool Group::replaceGroup( unsigned num, const FIX::Group& group )
   return FieldMap::replaceGroup( num, group.field(), group ); 
 }
 
-Group& Group::getGroup( unsigned num, FIX::Group& group ) const throw( FieldNotFound )
+Group& Group::getGroup( unsigned num, FIX::Group& group ) const
 {
   return static_cast < Group& > ( FieldMap::getGroup( num, group.field(), group ) );
 }

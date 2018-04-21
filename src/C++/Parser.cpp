@@ -33,7 +33,6 @@ namespace FIX
 {
 
 std::size_t Parser::extractLength( const char* msg, std::size_t sz )
-throw( MessageParseError )
 {
   if( LIKELY(sz > 3) )
   {

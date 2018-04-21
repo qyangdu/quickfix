@@ -67,7 +67,6 @@ DataDictionary::DataDictionary()
 }
 
 DataDictionary::DataDictionary( std::istream& stream )
-throw( ConfigError )
 : m_hasVersion( false ), m_checks(AllChecks),
   m_headerData( false ), m_trailerData( false ),
   m_headerGroups( get_allocator<FieldToGroup>() ),
@@ -86,7 +85,6 @@ throw( ConfigError )
 }
 
 DataDictionary::DataDictionary( const std::string& url )
-throw( ConfigError )
 : m_hasVersion( false ), m_checks(AllChecks),
   m_headerData( false ), m_trailerData( false ),
   m_headerGroups( get_allocator<FieldToGroup>() ),
@@ -209,7 +207,6 @@ DataDictionary& DataDictionary::operator=( const DataDictionary& rhs )
 }
 
 void DataDictionary::checkHasRequiredInGroups( const FieldToGroup& groupFields, const FieldMap& body ) const
-throw( RequiredTagMissing )
 {
   FieldMap::g_iterator g, gend = body.g_end();
   for( g = body.g_begin(); g != gend; ++g )
@@ -229,7 +226,6 @@ throw( RequiredTagMissing )
 }
 
 void LIGHTUSE DataDictionary::validate( const Message& message, bool bodyOnly ) const
-throw( FIX::Exception )
 {
   const Header& header = message.getHeader();
   FieldMap::iterator it = header.begin();
@@ -261,7 +257,6 @@ void HEAVYUSE DataDictionary::validate( const Message& message,
                                const BeginString& beginString,
                                const DataDictionary::MsgInfo& msgInfo,
                                const DataDictionary* const pSessionDD)
-throw( FIX::Exception )
 {
   const DataDictionary* pAppDD = msgInfo.applicationDictionary();
   unsigned session_checks, app_checks;
@@ -408,7 +403,6 @@ void HEAVYUSE DataDictionary::iterate( const FieldMap& map, const MsgTypeData& m
 }
 
 void LIGHTUSE DataDictionary::readFromURL( const std::string& url )
-throw( ConfigError )
 {
   DOMDocumentPtr pDoc = DOMDocumentPtr(new PUGIXML_DOMDocument());
 
@@ -426,7 +420,6 @@ throw( ConfigError )
 }
 
 void LIGHTUSE DataDictionary::readFromStream( std::istream& stream )
-throw( ConfigError )
 {
   DOMDocumentPtr pDoc = DOMDocumentPtr(new PUGIXML_DOMDocument());
 
@@ -437,7 +430,6 @@ throw( ConfigError )
 }
 
 void LIGHTUSE DataDictionary::readFromDocument( DOMDocumentPtr pDoc )
-throw( ConfigError )
 {
   // VERSION
   DOMNodePtr pFixNode = pDoc->getNode("/fix");

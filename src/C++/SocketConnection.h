@@ -79,7 +79,7 @@ private:
     Queue;
 
   bool isValidSession();
-  void readFromSocket() throw( SocketRecvFailed );
+  void readFromSocket();
   bool readMessage( Sg::sg_buf_t& msg );
   void readMessages( SocketMonitor& s );
 

@@ -214,7 +214,6 @@ bool SocketConnection::isValidSession()
 }
 
 void SocketConnection::readFromSocket()
-throw( SocketRecvFailed )
 {
   Sg::sg_buf_t buf = m_parser.buffer();
   ssize_t size = recv( m_socket, IOV_BUF(buf), IOV_LEN(buf), 0 );

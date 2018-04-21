@@ -651,7 +651,7 @@ public:
 
   void setValue( char value )
     { setPacked( Packed<0>(value) ); }
-  char getValue() const throw ( IncorrectDataFormat )
+  char getValue() const
     { try
       { return Data::Convertor::convert( getRawString() ); }
       catch( FieldConvertError& )
@@ -735,7 +735,7 @@ public:
     { setPacked( Packed<0>(value, padding, false ) ); }
   void setValue( double value, int padding, bool rounded )
     { setPacked( Packed<0>(value, padding, rounded ) ); }
-  double getValue() const throw ( IncorrectDataFormat )
+  double getValue() const
     { try
       { return Data::Convertor::convert( getRawString() ); }
       catch( FieldConvertError& )
@@ -810,7 +810,7 @@ public:
 
   void setValue( int value )
     { setPacked( Packed<0>( value ) ); }
-  int getValue() const throw ( IncorrectDataFormat )
+  int getValue() const
     { try
       { return Data::Convertor::convert( getRawString() ); }
       catch( FieldConvertError& )
@@ -945,7 +945,7 @@ public:
 
   void setValue( bool value )
     { setPacked( Packed<0>( value ) ); }
-  bool getValue() const throw ( IncorrectDataFormat )
+  bool getValue() const
     { try
       { return Data::Convertor::convert( getRawString() ); }
       catch( FieldConvertError& )
@@ -1025,7 +1025,7 @@ public:
 
   void setValue( const UtcTimeStamp& value )
     { setPacked( Packed<0>( value ) ); }
-  UtcTimeStamp getValue() const throw ( IncorrectDataFormat )
+  UtcTimeStamp getValue() const
     { try
       { return Data::Convertor::convert( getRawString() ); }
       catch( FieldConvertError& )
@@ -1108,7 +1108,7 @@ public:
 
   void setValue( const UtcDate& value )
     { setPacked( Packed<0>( value ) ); }
-  UtcDate getValue() const throw ( IncorrectDataFormat )
+  UtcDate getValue() const
     { try
       { return Data::Convertor::convert( getRawString() ); }
       catch( FieldConvertError& )
@@ -1195,7 +1195,7 @@ public:
 
   void setValue( const UtcTimeOnly& value )
     { setPacked( Packed<0>( value ) ); }
-  UtcTimeOnly getValue() const throw ( IncorrectDataFormat )
+  UtcTimeOnly getValue() const
     { try
       { return Data::Convertor::convert( getRawString() ); }
       catch( FieldConvertError& )
@@ -1279,7 +1279,7 @@ public:
 
   void setValue( int value )
     { setPacked( Packed<0>( value ) ); }
-  int getValue() const throw ( IncorrectDataFormat )
+  int getValue() const
     { try
       { return Data::Convertor::convert( getRawString() ); }
       catch( FieldConvertError& )

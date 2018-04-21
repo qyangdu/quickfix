@@ -201,7 +201,6 @@ void FileStoreFactory::destroy( MessageStore* pStore )
 }
 
 bool FileStore::set( int msgSeqNum, const std::string& msg )
-throw ( IOException )
 {
   if ( fseek( m_headerFile, 0, SEEK_END ) ) 
     throw IOException( "Cannot seek to end of " + m_headerFileName );
@@ -225,7 +224,6 @@ throw ( IOException )
 }
 
 bool FileStore::set( int msgSeqNum, Sg::sg_buf_ptr b, int n )
-throw ( IOException )
 {
   if ( fseek( m_headerFile, 0, SEEK_END ) ) 
     throw IOException( "Cannot seek to end of " + m_headerFileName );
@@ -251,7 +249,6 @@ throw ( IOException )
 
 void FileStore::get( int begin, int end,
                      std::vector < std::string > & result ) const
-throw ( IOException )
 {
   result.clear();
   for ( int i = begin; i <= end; ++i )
@@ -264,48 +261,48 @@ throw ( IOException )
   }
 }
 
-int FileStore::getNextSenderMsgSeqNum() const throw ( IOException )
+int FileStore::getNextSenderMsgSeqNum() const
 {
   return m_cache.getNextSenderMsgSeqNum();
 }
 
-int FileStore::getNextTargetMsgSeqNum() const throw ( IOException )
+int FileStore::getNextTargetMsgSeqNum() const
 {
   return m_cache.getNextTargetMsgSeqNum();
 }
 
-void FileStore::setNextSenderMsgSeqNum( int value ) throw ( IOException )
+void FileStore::setNextSenderMsgSeqNum( int value )
 {
   m_cache.setNextSenderMsgSeqNum( value );
   setSeqNum();
 }
 
-void FileStore::setNextTargetMsgSeqNum( int value ) throw ( IOException )
+void FileStore::setNextTargetMsgSeqNum( int value )
 {
   m_cache.setNextTargetMsgSeqNum( value );
   setSeqNum();
 }
 
-void FileStore::incrNextSenderMsgSeqNum() throw ( IOException )
+void FileStore::incrNextSenderMsgSeqNum()
 {
   m_cache.incrNextSenderMsgSeqNum();
   setSeqNum();
 }
 
-void FileStore::incrNextTargetMsgSeqNum() throw ( IOException )
+void FileStore::incrNextTargetMsgSeqNum()
 {
   m_cache.incrNextTargetMsgSeqNum();
   setSeqNum();
 }
 
-void FileStore::reset() throw ( IOException )
+void FileStore::reset()
 {
   m_cache.reset();
   open( true );
   setSession();
 }
 
-void FileStore::refresh() throw ( IOException )
+void FileStore::refresh()
 {
   m_cache.reset();
   open( false );
@@ -334,7 +331,6 @@ void FileStore::setSession()
 }
 
 bool FileStore::get( int msgSeqNum, std::string& msg ) const
-throw ( IOException )
 {
   NumToOffset::const_iterator find = m_offsets.find( msgSeqNum );
   if ( find == m_offsets.end() ) return false;
