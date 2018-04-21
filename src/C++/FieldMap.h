@@ -77,7 +77,6 @@ public:
 
   /// Set a field without type checking
   void setField( const FieldBase& field, bool overwrite = true )
-  throw( RepeatedTag )
   {
       if(!overwrite)
           m_fields.insert( Fields::value_type( field.getTag(), field ) );
@@ -92,7 +91,6 @@ public:
   }
   /// Set a field without a field class
   void setField( int tag, const std::string& value )
-  throw( RepeatedTag, NoTagValue )
   {
     FieldBase fieldBase( tag, value );
     setField( fieldBase );
@@ -109,23 +107,20 @@ public:
   }
 
   /// Get a field without type checking
-  FieldBase& getField( FieldBase& field )
-  const throw( FieldNotFound )
+  FieldBase& getField( FieldBase& field ) const
   {
     field = getFieldRef( field.getTag() );
     return field;
   }
 
   /// Get a field without a field class
-  const std::string& getField( int tag )
-  const throw( FieldNotFound )
+  const std::string& getField( int tag ) const
   {
     return getFieldRef( tag ).getString();
   }
 
   /// Get direct access to a field through a reference
-  const FieldBase& getFieldRef( int tag )
-  const throw( FieldNotFound )
+  const FieldBase& getFieldRef( int tag ) const
   {
     Fields::const_iterator iter = m_fields.find( tag );
     if ( iter == m_fields.end() )
@@ -134,8 +129,7 @@ public:
   }
 
   /// Get direct access to a field through a pointer
-  const FieldBase* const getFieldPtr( int tag )
-  const throw( FieldNotFound )
+  const FieldBase* const getFieldPtr( int tag ) const
   {
     return &getFieldRef( tag );
   }
@@ -161,14 +155,12 @@ public:
 
   /// Get a specific instance of a group.
   FieldMap& getGroup( int num, int tag, FieldMap& group ) const
-  throw( FieldNotFound )
   {
     return group = getGroupRef( num, tag );
   }
 
   /// Get direct access to a field through a reference
   FieldMap& getGroupRef( int num, int tag ) const
-  throw( FieldNotFound )
   {
     Groups::const_iterator i = m_groups.find( tag );
     if( i == m_groups.end() ) throw FieldNotFound( tag );
@@ -179,7 +171,6 @@ public:
 
   /// Get direct access to a field through a pointer
   FieldMap* getGroupPtr( int num, int tag ) const
-  throw( FieldNotFound )
   {
     return &getGroupRef( num, tag );
   }

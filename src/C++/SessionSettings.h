@@ -131,21 +131,21 @@ class SessionSettings
 {
 public:
   SessionSettings() {}
-  SessionSettings( std::istream& stream ) throw( ConfigError );
-  SessionSettings( const std::string& file ) throw( ConfigError );
+  SessionSettings( std::istream& stream );
+  SessionSettings( const std::string& file );
 
   /// Check if session setings are present
   const bool has( const SessionID& ) const;
 
   /// Get a dictionary for a session.
-  const Dictionary& get( const SessionID& ) const throw( ConfigError );
+  const Dictionary& get( const SessionID& ) const;
   /// Set a dictionary for a session
-  void set( const SessionID&, Dictionary ) throw( ConfigError );
+  void set( const SessionID&, Dictionary );
 
   /// Get global default settings
   const Dictionary& get() const { return m_defaults; }
   /// Set global default settings
-  void set( const Dictionary& defaults ) throw( ConfigError );
+  void set( const Dictionary& defaults );
 
   /// Number of session settings
   size_t size() const { return m_settings.size(); }
@@ -154,7 +154,7 @@ public:
   std::set < SessionID > getSessions() const;
 
 private:
-  void validate( const Dictionary& ) const throw( ConfigError );
+  void validate( const Dictionary& ) const;
 
   Dictionaries m_settings;
   Dictionary m_defaults;
@@ -163,8 +163,7 @@ private:
 };
 /*! @} */
 
-std::istream& operator>>( std::istream&, SessionSettings& )
-throw( ConfigError );
+std::istream& operator>>( std::istream&, SessionSettings& );
 std::ostream& operator<<( std::ostream&, const SessionSettings& );
 }
 

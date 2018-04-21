@@ -199,7 +199,6 @@ struct IntConvertor
   }
 
   static signed_int convert( const std::string& value )
-  throw( FieldConvertError )
   {
     signed_int result = 0;
     if( !convert( value.begin(), value.end(), result ) )
@@ -263,7 +262,6 @@ struct IntConvertor
   }
 
   static signed_int convertPositive( const std::string& value )
-  throw( FieldConvertError )
   {
     signed_int result = 0;
     if( !convertPositive( value.begin(), value.end(), result ) )
@@ -277,7 +275,6 @@ struct IntConvertor
 struct CheckSumConvertor
 {
   static std::string convert( int value )
-  throw( FieldConvertError )
   {
     if ( value > 255 || value < 0 ) throw FieldConvertError();
     char result[4];
@@ -294,7 +291,6 @@ struct CheckSumConvertor
   }
 
   static int convert( const std::string& value )
-  throw( FieldConvertError )
   {
     return IntConvertor::convert( value );
   }
@@ -490,7 +486,6 @@ static bool convert( const std::string& value, double& result )
   }
 
   static double convert( const std::string& value )
-  throw( FieldConvertError )
   {
     double result = 0.0;
     if( !convert( value, result ) )
@@ -517,7 +512,6 @@ struct CharConvertor
   }
 
   static char convert( const std::string& value )
-  throw( FieldConvertError )
   {
     char result = '\0';
     if( !convert( value, result ) )
@@ -550,7 +544,6 @@ struct BoolConvertor
   }
 
   static bool convert( const std::string& value )
-  throw( FieldConvertError )
   {
     bool result = false;
     if( !convert( value, result ) )
@@ -565,7 +558,6 @@ struct UtcTimeStampConvertor
 {
   static std::string convert( const UtcTimeStamp& value,
                               bool showMilliseconds = false )
-  throw( FieldConvertError )
   {
     char result[ 18+4 ];
     int year, month, day, hour, minute, second, millis;
@@ -598,7 +590,6 @@ struct UtcTimeStampConvertor
 
   static UtcTimeStamp convert( const std::string& value,
                                bool calculateDays = false )
-  throw( FieldConvertError )
   {
     bool haveMilliseconds = false;
 
@@ -688,7 +679,6 @@ struct UtcTimeOnlyConvertor
 {
   static std::string convert( const UtcTimeOnly& value,
                               bool showMilliseconds = false)
-  throw( FieldConvertError )
   {
     char result[ 9+4 ];
     int hour, minute, second, millis;
@@ -713,7 +703,6 @@ struct UtcTimeOnlyConvertor
   }
 
   static UtcTimeOnly convert( const std::string& value )
-  throw( FieldConvertError )
   {
     bool haveMilliseconds = false;
 
@@ -780,7 +769,6 @@ struct UtcTimeOnlyConvertor
 struct UtcDateConvertor
 {
   static std::string convert( const UtcDate& value )
-  throw( FieldConvertError )
   {
     char result[ 9 ];
     int year, month, day;
@@ -794,7 +782,6 @@ struct UtcDateConvertor
   }
 
   static UtcDate convert( const std::string& value )
-  throw( FieldConvertError )
   {
     if( value.size() != 8 ) throw FieldConvertError(value);
 

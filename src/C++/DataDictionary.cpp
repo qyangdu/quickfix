@@ -44,7 +44,6 @@ DataDictionary::DataDictionary()
 {}
 
 DataDictionary::DataDictionary( std::istream& stream )
-throw( ConfigError )
 : m_hasVersion( false ), m_checkFieldsOutOfOrder( true ),
   m_checkFieldsHaveValues( true ), m_checkUserDefinedFields( true )
 {
@@ -52,7 +51,6 @@ throw( ConfigError )
 }
 
 DataDictionary::DataDictionary( const std::string& url )
-throw( ConfigError )
 : m_hasVersion( false ), m_checkFieldsOutOfOrder( true ),
   m_checkFieldsHaveValues( true ), m_checkUserDefinedFields( true ),
   m_orderedFieldsArray(0)
@@ -117,7 +115,6 @@ DataDictionary& DataDictionary::operator=( const DataDictionary& rhs )
 void DataDictionary::validate( const Message& message,
                                const DataDictionary* const pSessionDD,
                                const DataDictionary* const pAppDD )
-throw( FIX::Exception )
 {  
   const Header& header = message.getHeader();
   const BeginString& beginString = FIELD_GET_REF( header, BeginString );
@@ -189,7 +186,6 @@ void DataDictionary::iterate( const FieldMap& map, const MsgType& msgType ) cons
 }
 
 void DataDictionary::readFromURL( const std::string& url )
-throw( ConfigError )
 {
   DOMDocumentPtr pDoc = DOMDocumentPtr(new PUGIXML_DOMDocument());
 
@@ -207,7 +203,6 @@ throw( ConfigError )
 }
 
 void DataDictionary::readFromStream( std::istream& stream )
-throw( ConfigError )
 {
   DOMDocumentPtr pDoc = DOMDocumentPtr(new PUGIXML_DOMDocument());
 
@@ -218,7 +213,6 @@ throw( ConfigError )
 }
 
 void DataDictionary::readFromDocument( DOMDocumentPtr pDoc )
-throw( ConfigError )
 {
   // VERSION
   DOMNodePtr pFixNode = pDoc->getNode("/fix");

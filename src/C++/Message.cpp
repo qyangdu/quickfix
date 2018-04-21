@@ -36,7 +36,6 @@ Message::Message()
 : m_validStructure( true ) {}
 
 Message::Message( const std::string& string, bool validate )
-throw( InvalidMessage )
 : m_validStructure( true )
 {
   setString( string, validate );
@@ -45,7 +44,6 @@ throw( InvalidMessage )
 Message::Message( const std::string& string,
                   const DataDictionary& dataDictionary,
                   bool validate )
-throw( InvalidMessage )
 : m_validStructure( true )
 {
   setString( string, validate, &dataDictionary, &dataDictionary );
@@ -55,7 +53,6 @@ Message::Message( const std::string& string,
                   const DataDictionary& sessionDataDictionary,
                   const DataDictionary& applicationDataDictionary,
                   bool validate )
-throw( InvalidMessage )
 : m_validStructure( true )
 {
   setStringHeader( string );
@@ -266,7 +263,6 @@ void Message::setString( const std::string& string,
                          bool doValidation,
                          const DataDictionary* pSessionDataDictionary,
                          const DataDictionary* pApplicationDataDictionary )
-throw( InvalidMessage )
 {
   clear();
 
@@ -466,7 +462,6 @@ bool Message::isTrailerField( const FieldBase& field,
 }
 
 SessionID Message::getSessionID( const std::string& qualifier ) const
-throw( FieldNotFound )
 {
   BeginString beginString;
   SenderCompID senderCompID;

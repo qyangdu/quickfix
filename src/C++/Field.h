@@ -329,7 +329,7 @@ public:
 
   void setValue( char value )
     { setString( CharConvertor::convert( value ) ); }
-  char getValue() const throw ( IncorrectDataFormat )
+  char getValue() const
     { try
       { return CharConvertor::convert( getString() ); }
       catch( FieldConvertError& )
@@ -349,7 +349,7 @@ public:
 
   void setValue( double value, int padding = 0 )
     { setString( DoubleConvertor::convert( value, padding ) ); }
-  double getValue() const throw ( IncorrectDataFormat )
+  double getValue() const
     { try
       { return DoubleConvertor::convert( getString() ); }
       catch( FieldConvertError& )
@@ -369,7 +369,7 @@ public:
 
   void setValue( int value )
     { setString( IntConvertor::convert( value ) ); }
-  int getValue() const throw ( IncorrectDataFormat )
+  int getValue() const
     { try
       { return IntConvertor::convert( getString() ); }
       catch( FieldConvertError& )
@@ -389,7 +389,7 @@ public:
 
   void setValue( bool value )
     { setString( BoolConvertor::convert( value ) ); }
-  bool getValue() const throw ( IncorrectDataFormat )
+  bool getValue() const
     { try
       { return BoolConvertor::convert( getString() ); }
       catch( FieldConvertError& )
@@ -409,7 +409,7 @@ public:
 
   void setValue( const UtcTimeStamp& value )
     { setString( UtcTimeStampConvertor::convert( value ) ); }
-  UtcTimeStamp getValue() const throw ( IncorrectDataFormat )
+  UtcTimeStamp getValue() const
     { try
       { return UtcTimeStampConvertor::convert( getString() ); }
       catch( FieldConvertError& )
@@ -436,7 +436,7 @@ public:
 
   void setValue( const UtcDate& value )
     { setString( UtcDateConvertor::convert( value ) ); }
-  UtcDate getValue() const throw ( IncorrectDataFormat )
+  UtcDate getValue() const
     { try
       { return UtcDateConvertor::convert( getString() ); }
       catch( FieldConvertError& )
@@ -463,7 +463,7 @@ public:
 
   void setValue( const UtcTimeOnly& value )
     { setString( UtcTimeOnlyConvertor::convert( value ) ); }
-  UtcTimeOnly getValue() const throw ( IncorrectDataFormat )
+  UtcTimeOnly getValue() const
     { try
       { return UtcTimeOnlyConvertor::convert( getString() ); }
       catch( FieldConvertError& )
@@ -490,7 +490,7 @@ public:
 
   void setValue( int value )
     { setString( CheckSumConvertor::convert( value ) ); }
-  int getValue() const throw ( IncorrectDataFormat )
+  int getValue() const
     { try
       { return CheckSumConvertor::convert( getString() ); }
       catch( FieldConvertError& )
