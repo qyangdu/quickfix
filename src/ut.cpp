@@ -26,7 +26,7 @@
 
 #include "C++/Utility.h"
 #include "C++/SessionSettings.h"
-#ifndef _MSC_VER
+#ifdef _MSC_VER
 #include <DataDictionaryTestCase.cpp>
 #include <DictionaryTestCase.cpp>
 #include <FieldBaseTestCase.cpp>

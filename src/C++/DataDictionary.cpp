@@ -194,7 +194,7 @@ void DataDictionary::readFromURL( const std::string& url )
 
   try
   {
-    readFromDocument( pDoc );
+    readFromDocument( std::move(pDoc) );
   }
   catch( ConfigError& e )
   {
@@ -209,7 +209,7 @@ void DataDictionary::readFromStream( std::istream& stream )
   if(!pDoc->load(stream))
     throw ConfigError("Could not parse data dictionary stream");
 
-  readFromDocument( pDoc );
+  readFromDocument( std::move(pDoc) );
 }
 
 void DataDictionary::readFromDocument( DOMDocumentPtr pDoc )

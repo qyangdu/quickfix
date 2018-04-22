@@ -28,8 +28,8 @@
 #define FIX_POSTGRESQLCONNECTION_H
 
 #ifdef _MSC_VER
-#pragma warning( disable : 4503 4355 4786 4290 )
-#pragma comment( lib, "libpq" )
+#pragma warning(disable : 4503 4355 4786 4290)
+#pragma comment(lib, "libpq")
 #endif
 
 #include <libpq-fe.h>
@@ -41,88 +41,87 @@ namespace FIX
 {
 class PostgreSQLQuery
 {
-public:
-  PostgreSQLQuery( const std::string& query ) 
-  : m_result( 0 ), m_query( query ) 
-  {}
+ public:
+  PostgreSQLQuery(const std::string& query) : m_result(0), m_query(query)
+  {
+  }
 
   ~PostgreSQLQuery()
   {
-    if( m_result )
-      PQclear( m_result );
+    if (m_result)
+      PQclear(m_result);
   }
 
-  bool execute( PGconn* pConnection )
+  bool execute(PGconn* pConnection)
   {
     int retry = 0;
-    
+
     do
     {
-      if( m_result ) PQclear( m_result );
-      m_result = PQexec( pConnection, m_query.c_str() );
-      m_status = PQresultStatus( m_result );
-      if( success() ) return true;
-      PQreset( pConnection );
+      if (m_result)
+        PQclear(m_result);
+      m_result = PQexec(pConnection, m_query.c_str());
+      m_status = PQresultStatus(m_result);
+      if (success())
+        return true;
+      PQreset(pConnection);
       retry++;
-    } while( retry <= 1 );
+    } while (retry <= 1);
     return success();
   }
 
   bool success()
   {
-    return m_status == PGRES_TUPLES_OK
-      || m_status == PGRES_COMMAND_OK;
+    return m_status == PGRES_TUPLES_OK || m_status == PGRES_COMMAND_OK;
   }
 
   int rows()
   {
-    return PQntuples( m_result );
+    return PQntuples(m_result);
   }
 
   char* reason()
   {
-    return PQresultErrorMessage( m_result );
+    return PQresultErrorMessage(m_result);
   }
 
-  char* getValue( int row, int column )
+  char* getValue(int row, int column)
   {
-    return PQgetvalue( m_result, row, column );
+    return PQgetvalue(m_result, row, column);
   }
 
   void throwException()
   {
-    if( !success() )
-      throw IOException( "Query failed [" + m_query + "] " );
+    if (!success())
+      throw IOException("Query failed [" + m_query + "] ");
   }
 
-private:
+ private:
   PGresult* m_result;
   ExecStatusType m_status;
-  std::string m_query; 
+  std::string m_query;
 };
 
 class PostgreSQLConnection
 {
-public:
-  PostgreSQLConnection
-  ( const DatabaseConnectionID& id )
-  : m_connectionID( id )
+ public:
+  PostgreSQLConnection(const DatabaseConnectionID& id) : m_connectionID(id)
   {
     connect();
   }
 
-  PostgreSQLConnection
-  ( const std::string& database, const std::string& user,
-    const std::string& password, const std::string& host, short port )
-  : m_connectionID( database, user, password, host, port )
+  PostgreSQLConnection(const std::string& database, const std::string& user,
+                       const std::string& password, const std::string& host,
+                       short port)
+    : m_connectionID(database, user, password, host, port)
   {
     connect();
   }
 
   ~PostgreSQLConnection()
   {
-    if( m_pConnection )
-      PQfinish( m_pConnection );
+    if (m_pConnection)
+      PQfinish(m_pConnection);
   }
 
   const DatabaseConnectionID& connectionID()
@@ -132,33 +131,35 @@ public:
 
   bool connected()
   {
-    Locker locker( m_mutex );
-    return PQstatus( m_pConnection ) == CONNECTION_OK;
+    Locker locker(m_mutex);
+    return PQstatus(m_pConnection) == CONNECTION_OK;
   }
 
   bool reconnect()
   {
-    Locker locker( m_mutex );
-    PQreset( m_pConnection );
+    Locker locker(m_mutex);
+    PQreset(m_pConnection);
     return connected();
   }
 
-  bool execute( PostgreSQLQuery& pQuery )
+  bool execute(PostgreSQLQuery& pQuery)
   {
-    Locker locker( m_mutex );
-    return pQuery.execute( m_pConnection );
+    Locker locker(m_mutex);
+    return pQuery.execute(m_pConnection);
   }
 
-private:
+ private:
   void connect()
   {
-    short port = m_connectionID.getPort();
-    m_pConnection = PQsetdbLogin
-      ( m_connectionID.getHost().c_str(), port == 0 ? "" : IntConvertor::convert( port ).c_str(),
-        "", "", m_connectionID.getDatabase().c_str(), m_connectionID.getUser().c_str(), m_connectionID.getPassword().c_str() );
+    short port    = m_connectionID.getPort();
+    m_pConnection = PQsetdbLogin(
+        m_connectionID.getHost().c_str(),
+        port == 0 ? "" : IntConvertor::convert(port).c_str(), "", "",
+        m_connectionID.getDatabase().c_str(), m_connectionID.getUser().c_str(),
+        m_connectionID.getPassword().c_str());
 
-    if( !connected() )
-      throw ConfigError( "Unable to connect to database" );
+    if (!connected())
+      throw ConfigError("Unable to connect to database");
   }
 
   PGconn* m_pConnection;
@@ -166,11 +167,9 @@ private:
   Mutex m_mutex;
 };
 
-typedef DatabaseConnectionPool<PostgreSQLConnection>
-  PostgreSQLConnectionPool;
-typedef std::auto_ptr< PostgreSQLConnectionPool >
-  PostgreSQLConnectionPoolPtr;
-}
+typedef DatabaseConnectionPool<PostgreSQLConnection> PostgreSQLConnectionPool;
+typedef std::unique_ptr<PostgreSQLConnectionPool> PostgreSQLConnectionPoolPtr;
+} // namespace FIX
 
-#endif //FIX_POSTGRESQLCONNECTION_H
-#endif //HAVE_POSTGRESQL
+#endif // FIX_POSTGRESQLCONNECTION_H
+#endif // HAVE_POSTGRESQL
