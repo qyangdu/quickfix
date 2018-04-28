@@ -1,7 +1,7 @@
 /* -*- C++ -*- */
 
 /****************************************************************************
-** Copyright (c) quickfixengine.org  All rights reserved.
+** Copyright (c) 2001-2014
 **
 ** This file is part of the QuickFIX FIX Engine
 **
@@ -218,7 +218,7 @@ private:
       result = SQLAllocHandle( SQL_HANDLE_ENV, SQL_NULL_HANDLE, &m_environment );
       if( !odbcSuccess(result) )
       throw ConfigError( "Unable to allocate ODBC environment" );
-	    
+
       result = SQLSetEnvAttr(m_environment, SQL_ATTR_ODBC_VERSION, (void*)SQL_OV_ODBC3, 0);
       if( !odbcSuccess(result) )
         throw ConfigError( "Unable to find ODBC version 3.0" );

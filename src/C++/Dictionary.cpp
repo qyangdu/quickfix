@@ -1,5 +1,5 @@
 /****************************************************************************
-** Copyright (c) quickfixengine.org  All rights reserved.
+** Copyright (c) 2001-2014
 **
 ** This file is part of the QuickFIX FIX Engine
 **
@@ -42,7 +42,7 @@ throw( ConfigError, FieldConvertError )
   return result;
 }
 
-long Dictionary::getLong( const std::string& key ) const
+int Dictionary::getInt( const std::string& key ) const
 throw( ConfigError, FieldConvertError )
 {
   try
@@ -87,7 +87,7 @@ throw( ConfigError, FieldConvertError )
   try
   {
     std::string value = getString(key);
-    if( value.size() < 2 ) throw FieldConvertError(0);
+    if( value.size() < 2 ) throw FieldConvertError();
     std::string abbr = value.substr(0, 2);
     std::transform( abbr.begin(), abbr.end(), abbr.begin(), tolower );
     if( abbr == "su" ) return 1;
@@ -97,7 +97,6 @@ throw( ConfigError, FieldConvertError )
     if( abbr == "th" ) return 5;
     if( abbr == "fr" ) return 6;
     if( abbr == "sa" ) return 7;
-    if( value.size() < 2 ) throw FieldConvertError(0);
   }
   catch ( FieldConvertError& )
   {
@@ -111,7 +110,7 @@ void Dictionary::setString( const std::string& key, const std::string& value )
   m_data[ string_strip(string_toUpper(key)) ] = string_strip(value);
 }
 
-void Dictionary::setLong( const std::string& key, long value )
+void Dictionary::setInt( const std::string& key, int value )
 {
   m_data[ string_strip(string_toUpper(key)) ] = IntConvertor::convert( value );
 }

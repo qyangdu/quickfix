@@ -1,5 +1,5 @@
 /****************************************************************************
-** Copyright (c) quickfixengine.org  All rights reserved.
+** Copyright (c) 2001-2014
 **
 ** This file is part of the QuickFIX FIX Engine
 **
@@ -85,50 +85,45 @@ void Message::reverseRoute( const Header& header )
   SenderCompID senderCompID;
   TargetCompID targetCompID;
 
-  m_header.removeField( beginString.getField() );
-  m_header.removeField( senderCompID.getField() );
-  m_header.removeField( targetCompID.getField() );
+  m_header.removeField( beginString.getTag() );
+  m_header.removeField( senderCompID.getTag() );
+  m_header.removeField( targetCompID.getTag() );
 
-  if( header.isSetField( beginString ) )
+  if( header.getFieldIfSet( beginString ) )
   {
-    header.getField( beginString );
     if( beginString.getValue().size() )
       m_header.setField( beginString );
 
     OnBehalfOfLocationID onBehalfOfLocationID;
     DeliverToLocationID deliverToLocationID;
 
-    m_header.removeField( onBehalfOfLocationID.getField() );
-    m_header.removeField( deliverToLocationID.getField() );
+    m_header.removeField( onBehalfOfLocationID.getTag() );
+    m_header.removeField( deliverToLocationID.getTag() );
 
     if( beginString >= BeginString_FIX41 )
     {
-      if( header.isSetField( onBehalfOfLocationID ) )
+      if( header.getFieldIfSet( onBehalfOfLocationID ) )
       {
-        header.getField( onBehalfOfLocationID );
         if( onBehalfOfLocationID.getValue().size() )
           m_header.setField( DeliverToLocationID( onBehalfOfLocationID ) );
       }
 
-      if( header.isSetField( deliverToLocationID ) )
+      if( header.getFieldIfSet( deliverToLocationID ) )
       {
-        header.getField( deliverToLocationID );
         if( deliverToLocationID.getValue().size() )
           m_header.setField( OnBehalfOfLocationID( deliverToLocationID ) );
       }
     }
   }
 
-  if( header.isSetField( senderCompID ) )
+  if( header.getFieldIfSet( senderCompID ) )
   {
-    header.getField( senderCompID );
     if( senderCompID.getValue().size() )
       m_header.setField( TargetCompID( senderCompID ) );
   }
 
-  if( header.isSetField( targetCompID ) )
+  if( header.getFieldIfSet( targetCompID ) )
   {
-    header.getField( targetCompID );
     if( targetCompID.getValue().size() )
       m_header.setField( SenderCompID( targetCompID ) );
   }
@@ -139,35 +134,31 @@ void Message::reverseRoute( const Header& header )
   DeliverToCompID deliverToCompID;
   DeliverToSubID deliverToSubID;
 
-  m_header.removeField( onBehalfOfCompID.getField() );
-  m_header.removeField( onBehalfOfSubID.getField() );
-  m_header.removeField( deliverToCompID.getField() );
-  m_header.removeField( deliverToSubID.getField() );
+  m_header.removeField( onBehalfOfCompID.getTag() );
+  m_header.removeField( onBehalfOfSubID.getTag() );
+  m_header.removeField( deliverToCompID.getTag() );
+  m_header.removeField( deliverToSubID.getTag() );
 
-  if( header.isSetField( onBehalfOfCompID ) )
+  if( header.getFieldIfSet( onBehalfOfCompID ) )
   {
-    header.getField( onBehalfOfCompID );
     if( onBehalfOfCompID.getValue().size() )
       m_header.setField( DeliverToCompID( onBehalfOfCompID ) );
   }
 
-  if( header.isSetField( onBehalfOfSubID ) )
+  if( header.getFieldIfSet( onBehalfOfSubID ) )
   {
-    header.getField( onBehalfOfSubID );
     if( onBehalfOfSubID.getValue().size() )
       m_header.setField( DeliverToSubID( onBehalfOfSubID ) );
   }
 
-  if( header.isSetField( deliverToCompID ) )
+  if( header.getFieldIfSet( deliverToCompID ) )
   {
-    header.getField( deliverToCompID );
     if( deliverToCompID.getValue().size() )
       m_header.setField( OnBehalfOfCompID( deliverToCompID ) );
   }
 
-  if( header.isSetField( deliverToSubID ) )
+  if( header.getFieldIfSet( deliverToSubID ) )
   {
-    header.getField( deliverToSubID );
     if( deliverToSubID.getValue().size() )
       m_header.setField( OnBehalfOfSubID( deliverToSubID ) );
   }
@@ -190,9 +181,18 @@ std::string& Message::toString( std::string& str,
   m_header.setField( IntField(bodyLengthField, length) );
   m_trailer.setField( CheckSumField(checkSumField, checkSum(checkSumField)) );
 
-  m_header.calculateString( str, true );
-  FieldMap::calculateString( str, false );
-  m_trailer.calculateString( str, false );
+#if defined(_MSC_VER) && _MSC_VER < 1300
+  str = "";
+#else
+  str.clear();
+#endif
+
+  /*small speculation about the space needed for FIX string*/
+  str.reserve( length + 64 );
+
+  m_header.calculateString( str );
+  FieldMap::calculateString( str );
+  m_trailer.calculateString( str );
 
   return str;
 }
@@ -286,18 +286,18 @@ throw( InvalidMessage )
   while ( pos < string.size() )
   {
     FieldBase field = extractField( string, pos, pSessionDataDictionary, pApplicationDataDictionary );
-    if ( count < 3 && headerOrder[ count++ ] != field.getField() )
+    if ( count < 3 && headerOrder[ count++ ] != field.getTag() )
       if ( doValidation ) throw InvalidMessage("Header fields out of order");
 
     if ( isHeaderField( field, pSessionDataDictionary ) )
     {
       if ( type != header )
       {
-        if(m_field == 0) m_field = field.getField();
+        if(m_tag == 0) m_tag = field.getTag();
         m_validStructure = false;
       }
 
-      if ( field.getField() == FIELD::MsgType )
+      if ( field.getTag() == FIELD::MsgType )
         msg = field.getString();
 
       m_header.setField( field, false );
@@ -317,7 +317,7 @@ throw( InvalidMessage )
     {
       if ( type == trailer )
       {
-        if(m_field == 0) m_field = field.getField();
+        if(m_tag == 0) m_tag = field.getTag();
         m_validStructure = false;
       }
 
@@ -338,7 +338,7 @@ void Message::setGroup( const std::string& msg, const FieldBase& field,
                         std::string::size_type& pos, FieldMap& map,
                         const DataDictionary& dataDictionary )
 {
-  int group = field.getField();
+  int group = field.getTag();
   int delim;
   const DataDictionary* pDD = 0;
   if ( !dataDictionary.getGroup( msg, group, delim, pDD ) ) return ;
@@ -351,17 +351,17 @@ void Message::setGroup( const std::string& msg, const FieldBase& field,
        
     // Start a new group because...
     if (// found delimiter
-		(field.getField() == delim) ||
-		// no delimiter, but field belongs to group OR field already processed
-		(pDD->isField( field.getField() ) && (pGroup.get() == 0 || pGroup->isSetField( field.getField() )) ))
+    (field.getTag() == delim) ||
+    // no delimiter, but field belongs to group OR field already processed
+    (pDD->isField( field.getTag() ) && (pGroup.get() == 0 || pGroup->isSetField( field.getTag() )) ))
     {
       if ( pGroup.get() )
       {
         map.addGroupPtr( group, pGroup.release(), false );
       }
-      pGroup.reset( new Group( field.getField(), delim, pDD->getOrderedFields() ) );
+      pGroup.reset( new Group( field.getTag(), delim, pDD->getOrderedFields() ) );
     }
-    else if ( !pDD->isField( field.getField() ) )
+    else if ( !pDD->isField( field.getTag() ) )
     {
       if ( pGroup.get() )
       {
@@ -387,7 +387,7 @@ bool Message::setStringHeader( const std::string& string )
   while ( pos < string.size() )
   {
     FieldBase field = extractField( string, pos );
-    if ( count < 3 && headerOrder[ count++ ] != field.getField() )
+    if ( count < 3 && headerOrder[ count++ ] != field.getTag() )
       return false;
 
     if ( isHeaderField( field ) )
@@ -439,8 +439,8 @@ bool Message::isHeaderField( int field )
 bool Message::isHeaderField( const FieldBase& field,
                              const DataDictionary* pD )
 {
-  if ( isHeaderField( field.getField() ) ) return true;
-  if ( pD ) return pD->isHeaderField( field.getField() );
+  if ( isHeaderField( field.getTag() ) ) return true;
+  if ( pD ) return pD->isHeaderField( field.getTag() );
   return false;
 }
 
@@ -460,8 +460,8 @@ bool Message::isTrailerField( int field )
 bool Message::isTrailerField( const FieldBase& field,
                               const DataDictionary* pD )
 {
-  if ( isTrailerField( field.getField() ) ) return true;
-  if ( pD ) return pD->isTrailerField( field.getField() );
+  if ( isTrailerField( field.getTag() ) ) return true;
+  if ( pD ) return pD->isTrailerField( field.getTag() );
   return false;
 }
 
@@ -492,31 +492,101 @@ void Message::validate()
   {
     const BodyLength& aBodyLength = FIELD_GET_REF( m_header, BodyLength );
 
-    if ( aBodyLength != bodyLength() )
+    const int expectedLength = (int)aBodyLength;
+    const int actualLength = bodyLength();
+
+    if ( expectedLength != actualLength )
     {
       std::stringstream text;
-      text << "Expected BodyLength=" << bodyLength()
-           << ", Recieved BodyLength=" << (int)aBodyLength;
+      text << "Expected BodyLength=" << actualLength
+           << ", Received BodyLength=" << expectedLength;
       throw InvalidMessage(text.str());
     }
 
     const CheckSum& aCheckSum = FIELD_GET_REF( m_trailer, CheckSum );
 
-    if ( aCheckSum != checkSum() )
+    const int expectedChecksum = (int)aCheckSum;
+    const int actualChecksum = checkSum();
+
+    if ( expectedChecksum != actualChecksum )
     {
       std::stringstream text;
-      text << "Expected CheckSum=" << checkSum()
-           << ", Recieved CheckSum=" << (int)aCheckSum;
+      text << "Expected CheckSum=" << actualChecksum
+           << ", Received CheckSum=" << expectedChecksum;
       throw InvalidMessage(text.str());
     }
   }
-  catch ( FieldNotFound& )
+  catch ( FieldNotFound& e )
   {
-    throw InvalidMessage("BodyLength or CheckSum missing");
+    const std::string fieldName = ( e.field == FIX::FIELD::BodyLength ) ? "BodyLength" : "CheckSum";
+    throw InvalidMessage( fieldName + std::string(" is missing") );
   }
-  catch ( IncorrectDataFormat& )
+  catch ( IncorrectDataFormat& e )
   {
-    throw InvalidMessage("BodyLength or Checksum has wrong format");
+    const std::string fieldName = ( e.field == FIX::FIELD::BodyLength ) ? "BodyLength" : "CheckSum";
+    throw InvalidMessage( fieldName + std::string(" has wrong format: ") + e.detail );
   }
+}
+
+FIX::FieldBase Message::extractField( const std::string& string, std::string::size_type& pos, 
+                                      const DataDictionary* pSessionDD /*= 0*/, const DataDictionary* pAppDD /*= 0*/, 
+                                      const Group* pGroup /*= 0*/ )
+{
+  std::string::const_iterator const tagStart = string.begin() + pos;
+  std::string::const_iterator const strEnd = string.end();
+
+  std::string::const_iterator const equalSign = std::find( tagStart, strEnd, '=' );
+  if( equalSign == strEnd )
+    throw InvalidMessage("Equal sign not found in field");
+
+  int field = 0;
+  IntConvertor::convert( tagStart, equalSign, field );
+
+  std::string::const_iterator const valueStart = equalSign + 1;
+
+  std::string::const_iterator soh = std::find( valueStart, strEnd, '\001' );
+  if ( soh == strEnd )
+    throw InvalidMessage("SOH not found at end of field");
+
+  if ( IsDataField( field, pSessionDD, pAppDD ) )
+  {
+    // Assume length field is 1 less.
+    int lenField = field - 1;
+    // Special case for Signature which violates above assumption.
+    if ( field == FIELD::Signature ) lenField = FIELD::SignatureLength;
+
+    if ( pGroup && pGroup->isSetField( lenField ) )
+    {
+      const std::string& fieldLength = pGroup->getField( lenField );
+      soh = valueStart + atol( fieldLength.c_str() );
+    }
+    else
+    {
+      FIX::FieldMap *lenMap;
+      if ( isHeaderField( lenField ) )
+      {
+          lenMap = &m_header;
+      }
+      else
+      {
+          lenMap = this;
+      }
+      if ( lenMap->isSetField( lenField ) )
+      {
+        const std::string& fieldLength = lenMap->getField( lenField );
+        soh = valueStart + atol( fieldLength.c_str() );
+      }
+    }
+  }
+
+  std::string::const_iterator const tagEnd = soh + 1;
+  pos = std::distance( string.begin(), tagEnd );
+
+  return FieldBase (
+    field,
+    valueStart,
+    soh,
+    tagStart, 
+    tagEnd );
 }
 }

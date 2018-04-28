@@ -1,5 +1,5 @@
 /****************************************************************************
-** Copyright (c) quickfixengine.org  All rights reserved.
+** Copyright (c) 2001-2014
 **
 ** This file is part of the QuickFIX FIX Engine
 **
@@ -125,21 +125,19 @@ void FileStore::open( bool deleteFile )
 
 void FileStore::populateCache()
 {
-  std::string msg;
-  Message message;
-
-  FILE* headerFile;
-  headerFile = file_fopen( m_headerFileName.c_str(), "r+" );
+  FILE* headerFile = file_fopen( m_headerFileName.c_str(), "r+" );
   if ( headerFile )
   {
-    int num, offset, size;
-    while ( FILE_FSCANF( headerFile, "%d,%d,%d ", &num, &offset, &size ) == 3 )
+    int num;
+    long offset;
+    size_t size;
+
+    while ( FILE_FSCANF( headerFile, "%d,%ld,%lu ", &num, &offset, &size ) == 3 )
       m_offsets[ num ] = std::make_pair( offset, size );
     fclose( headerFile );
   }
 
-  FILE* seqNumsFile;
-  seqNumsFile = file_fopen( m_seqNumsFileName.c_str(), "r+" );
+  FILE* seqNumsFile = file_fopen( m_seqNumsFileName.c_str(), "r+" );
   if ( seqNumsFile )
   {
     int sender, target;
@@ -151,8 +149,7 @@ void FileStore::populateCache()
     fclose( seqNumsFile );
   }
 
-  FILE* sessionFile;
-  sessionFile = file_fopen( m_sessionFileName.c_str(), "r+" );
+  FILE* sessionFile = file_fopen( m_sessionFileName.c_str(), "r+" );
   if ( sessionFile )
   {
     char time[ 22 ];
@@ -192,12 +189,12 @@ throw ( IOException )
   if ( fseek( m_headerFile, 0, SEEK_END ) ) 
     throw IOException( "Cannot seek to end of " + m_headerFileName );
 
-  int offset = ftell( m_msgFile );
+  long offset = ftell( m_msgFile );
   if ( offset < 0 ) 
     throw IOException( "Unable to get file pointer position from " + m_msgFileName );
-  int size = msg.size();
+  size_t size = msg.size();
 
-  if ( fprintf( m_headerFile, "%d,%d,%d ", msgSeqNum, offset, size ) < 0 )
+  if ( fprintf( m_headerFile, "%d,%ld,%lu ", msgSeqNum, offset, size ) < 0 )
     throw IOException( "Unable to write to file " + m_headerFileName );
   m_offsets[ msgSeqNum ] = std::make_pair( offset, size );
   fwrite( msg.c_str(), sizeof( char ), msg.size(), m_msgFile );
@@ -320,9 +317,12 @@ throw ( IOException )
   if ( fseek( m_msgFile, offset.first, SEEK_SET ) ) 
     throw IOException( "Unable to seek in file " + m_msgFileName );
   char* buffer = new char[ offset.second + 1 ];
-  fread( buffer, sizeof( char ), offset.second, m_msgFile );
-  if ( ferror( m_msgFile ) ) 
+  size_t result = fread( buffer, sizeof( char ), offset.second, m_msgFile );
+  if ( ferror( m_msgFile ) || result != (size_t)offset.second ) 
+  {
+    delete [] buffer;
     throw IOException( "Unable to read from file " + m_msgFileName );
+  }
   buffer[ offset.second ] = 0;
   msg = buffer;
   delete [] buffer;

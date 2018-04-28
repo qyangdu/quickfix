@@ -1,5 +1,5 @@
 /****************************************************************************
-** Copyright (c) quickfixengine.org  All rights reserved.
+** Copyright (c) 2001-2014
 **
 ** This file is part of the QuickFIX FIX Engine
 **
@@ -55,7 +55,7 @@ bool isKeyValue( const std::string& line )
 
 std::pair<std::string, std::string> splitKeyValue( const std::string& line )
 {
-  int equals = line.find( '=' );
+  size_t equals = line.find( '=' );
   std::string key = std::string( line, 0, equals );
   std::string value = std::string( line, equals + 1, std::string::npos );
   return std::pair<std::string, std::string>( key, value );
@@ -89,7 +89,7 @@ std::istream& operator>>( std::istream& stream, Settings& s )
   return stream;
 }
 
-Settings::Sections Settings::get( std::string name ) const
+Settings::Sections Settings::get( const std::string& name ) const
 {
   Sections sections;
   for ( Sections::size_type i = 0; i < m_sections.size(); ++i )

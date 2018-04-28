@@ -1,7 +1,7 @@
 /* -*- C++ -*- */
 
 /****************************************************************************
-** Copyright (c) quickfixengine.org  All rights reserved.
+** Copyright (c) 2001-2014
 **
 ** This file is part of the QuickFIX FIX Engine
 **
@@ -34,91 +34,104 @@
 namespace FIX
 {
 
-template<class T>
-inline int number_of_symbols_in( T value )
+typedef int signed_int;
+typedef unsigned int unsigned_int;
+
+#define UNSIGNED_VALUE_OF( x ) ( ( x < 0 ) ? -unsigned_int(x) : unsigned_int(x) )
+
+#define IS_SPACE( x ) ( x == ' ' )
+#define IS_DIGIT( x ) ( unsigned_int( x - '0' ) < 10 )
+
+inline int number_of_symbols_in( const signed_int value )
 {
-	int symbols = value > 0 ? 0 : 1;
+  unsigned_int number = UNSIGNED_VALUE_OF( value );
 
-	while ( value )
-	{
-		++symbols;
-		value /= 10;
-	}
+  int symbols = 0;
 
-	return symbols;
+  while( number > 9999 )
+  {
+    symbols += 4;
+    number /= 10000;
+  }
+
+  // small tweak to make comparison times consistent
+  // always 2 comparisons instead of [1 - 4]
+  if( number > 99 )
+  {
+    if( number > 999 )
+      symbols += 4;
+    else
+      symbols += 3;
+  }
+  else
+  {
+    if( number > 9 )
+      symbols += 2;
+    else
+      symbols += 1;
+  }
+
+  if( value < 0 )
+    symbols += 1;
+
+  return symbols;
 }
 
-template<class T>
-inline char* integer_to_string( char* buf, const size_t len, T t )
+static const char digit_pairs[201] = {
+  "00010203040506070809"
+  "10111213141516171819"
+  "20212223242526272829"
+  "30313233343536373839"
+  "40414243444546474849"
+  "50515253545556575859"
+  "60616263646566676869"
+  "70717273747576777879"
+  "80818283848586878889"
+  "90919293949596979899"
+};
+
+inline char* integer_to_string( char* buf, const size_t len, signed_int t )
 {
   const bool isNegative = t < 0;
   char* p = buf + len;
 
   *--p = '\0';
+  
+  unsigned_int number = UNSIGNED_VALUE_OF( t );
 
-  if( isNegative )
+  while( number > 99 )
   {
-    if( t == (std::numeric_limits<T>::min)() )
-    {
-      *--p = '0' + (char)((10-t%10)%10);
-      t/=10;
-    }
-    t = -t;
-    do
-    {
-      *--p = '0' + (char)(t % 10);
-      t /= 10;
-    } while (t > 0);
-    *--p = '-';
+    unsigned_int pos = number % 100;
+    number /= 100;
+    p -= 2;
+    *(short*)(p) = *(short*)(digit_pairs + 2 * pos);
+  }
+
+  if( number > 9 )
+  {
+    p -= 2;
+    *(short*)(p) = *(short*)(digit_pairs + 2 * number);
   }
   else
   {
-    do
-    {
-      *--p = '0' + (char)(t % 10);
-      t /= 10;
-    } while( t > 0 );
+    *--p = '0' + char(number);
   }
+
+  if( isNegative )
+    *--p = '-';
+
   return p;
 }
 
-template<class T>
 inline char* integer_to_string_padded
-( char* buf, const size_t len, T t,
+( char* buf, const size_t len, signed_int t,
   const size_t width = 0,
   const char paddingChar = '0')
 {
-  if( !width ) return integer_to_string( buf, len, t );
+  char* p = integer_to_string( buf, len, t );
+  if( !width ) 
+    return p;
 
-  const bool isNegative = t < 0;
-  char* p = buf + len;
-
-  *--p = '\0';
-
-  if( isNegative )
-  {
-    if( t == (std::numeric_limits<T>::min)() )
-    {
-      *--p = '0' + (char)(( 10 -t % 10 ) % 10);
-      t/=10;
-    }
-    t=-t;
-    do
-    {
-      *--p = '0' + (char)(t % 10);
-      t /= 10;
-    } while (t > 0);
-    if( p > buf )
-      *--p = '-';
-  }
-  else
-  {
-    do
-    {
-      *--p = '0' + (char)(t % 10);
-      t /= 10;
-    } while( t > 0 );
-  }
   const char* stop_p = buf + len - width - 1;
   if( stop_p < buf ) stop_p = buf;
   while( p > stop_p )
@@ -126,7 +139,7 @@ inline char* integer_to_string_padded
   return p;
 }
 
-/// Empty convertor is a no-op.
+/// Empty converter is a no-op.
 struct EmptyConvertor
 {
   static const std::string& convert( const std::string& value )
@@ -138,47 +151,122 @@ typedef EmptyConvertor StringConvertor;
 /// Converts integer to/from a string
 struct IntConvertor
 {
-  static std::string convert( long value )
+  static std::string convert( signed_int value )
   {
     // buffer is big enough for significant digits and extra digit,
     // minus and null
-    char buffer[std::numeric_limits<long>::digits10 + 3];
+    char buffer[std::numeric_limits<signed_int>::digits10 + 3];
     const char* const start
       = integer_to_string( buffer, sizeof (buffer), value );
     return std::string( start, buffer + sizeof (buffer) - start - 1 );
   }
 
-  static bool convert( const std::string& value, long& result )
+  static bool convert(     
+    std::string::const_iterator str, 
+    std::string::const_iterator end, 
+    signed_int& result )
   {
-    const char* str = value.c_str();
     bool isNegative = false;
-    long x = 0;
+    signed_int x = 0;
+
+    if( str == end )
+      return false;
 
     if( *str == '-' )
     {
       isNegative = true;
-      ++str;
+      if( ++str == end )
+        return false;
     }
 
     do
     {
-      const int c = *str - '0';
-      if( c < 0 || 9 < c ) return false;
+      const unsigned_int c = *str - '0';
+      if( c > 9 ) return false;
       x = 10 * x + c;
-    } while (*++str);
+    } while ( ++str != end );
 
     if( isNegative )
-      x = -x;
+      x = -unsigned_int(x);
 
     result = x;
     return true;
   }
 
-  static long convert( const std::string& value )
+  static bool convert( const std::string& value, signed_int& result )
+  {
+    return convert( value.begin(), value.end(), result );
+  }
+
+  static signed_int convert( const std::string& value )
   throw( FieldConvertError )
   {
-    long result = 0;
-    if( !convert( value, result ) )
+    signed_int result = 0;
+    if( !convert( value.begin(), value.end(), result ) )
+      throw FieldConvertError(value);
+    else
+      return result;
+  }
+
+  /// Converts only positive number e.g. FIX field ID: [1 ... 2147483647]
+  /// No leading whitespace/zero/plus/sign symbols allowed
+  /// Value is fixed to not make difference between 32bit and 64bit code
+  static bool convertPositive( 
+    std::string::const_iterator str, 
+    std::string::const_iterator end, 
+    signed_int& result )
+  {
+    const int MAX_VALUE = 2147483647; // max value for 32-bit signed integer
+    const int HIGH_MARK = MAX_VALUE / 10;
+    const unsigned_int STOP_SYMBOL = MAX_VALUE % 10;
+    const std::size_t MAX_DIGITS = 10;     // integer can hold up to 10 digits
+
+    const std::size_t length = std::distance( str, end );
+    if( length < 1 || length > MAX_DIGITS)
+      return false;
+
+    if( length == MAX_DIGITS )
+    {
+      end = str;
+      std::advance( end, length - 1 );
+    }
+
+    const unsigned_int ch = *str - '1';
+    if( ch > 8 )
+      return false;
+
+    unsigned_int x = 0;
+
+    do
+    {
+      const unsigned_int c = *str - '0';
+      if( c > 9 ) return false;
+      x = 10 * x + c;
+    } while( ++str < end );
+
+    // complete overflow condition check and value calculation
+    // this saves about 25% of speed when executed out of the main loop
+    if( length == MAX_DIGITS )
+    {
+      if( x > (unsigned int)HIGH_MARK )
+        return false;
+
+      const unsigned_int c = *str - '0';
+      if( x == (unsigned int)HIGH_MARK && c > STOP_SYMBOL )
+        return false;
+
+      x = 10 * x + c;
+    }
+
+    result = x;
+    return true;
+  }
+
+  static signed_int convertPositive( const std::string& value )
+  throw( FieldConvertError )
+  {
+    signed_int result = 0;
+    if( !convertPositive( value.begin(), value.end(), result ) )
       throw FieldConvertError(value);
     else
       return result;
@@ -188,24 +276,24 @@ struct IntConvertor
 /// Converts checksum to/from a string
 struct CheckSumConvertor
 {
-  static std::string convert( long value )
+  static std::string convert( int value )
   throw( FieldConvertError )
   {
     if ( value > 255 || value < 0 ) throw FieldConvertError();
     char result[4];
-    if( integer_to_string_padded(result, sizeof(result), value, 3, '0') != result )
+    if( integer_to_string_padded(result, sizeof(result), value, 3) != result )
     {
       throw FieldConvertError();
     }
     return std::string( result, 3 );
   }
 
-  static bool convert( const std::string& value, long& result )
+  static bool convert( const std::string& value, int& result )
   {
     return IntConvertor::convert( value, result );
   }
 
-  static long convert( const std::string& value )
+  static int convert( const std::string& value )
   throw( FieldConvertError )
   {
     return IntConvertor::convert( value );
@@ -215,6 +303,101 @@ struct CheckSumConvertor
 /// Converts double to/from a string
 struct DoubleConvertor
 {
+
+private:
+
+  /*Simple and fast atof (ascii to float) function.
+  Executes about 5x faster than standard MSCRT library atof().
+  An attractive alternative if the number of calls is in the millions.
+  Assumes input is a proper integer, fraction, or scientific format.
+  Matches library atof() to 15 digits (except at extreme exponents).
+  Follows atof() precedent of essentially no error checking.
+  09-May-2009 Tom Van Baak (tvb) www.LeapSecond.com */
+  static double fast_atof (const char *p)
+  {
+    bool frac(false);
+    double sign(1.), value(0.), scale(1.);
+
+    while (IS_SPACE(*p))
+      ++p;
+
+    // Get sign, if any.
+    if (*p == '-')
+    {
+      sign = -1.;
+      ++p;
+    }
+    else if (*p == '+')
+      ++p;
+
+    // Get digits before decimal point or exponent, if any.
+    while (IS_DIGIT(*p))
+    {
+      value = value * 10. + (*p - '0');
+      ++p;
+    }
+
+    // Get digits after decimal point, if any.
+    if (*p == '.')
+    {
+      ++p;
+      double pow10(10.);
+      while (IS_DIGIT(*p))
+      {
+        value += (*p - '0') / pow10;
+        pow10 *= 10.;
+        ++p;
+      }
+    }
+
+    // Handle exponent, if any.
+    if (toupper(*p) == 'E')
+    {
+      unsigned int expon(0);
+      ++p;
+
+      // Get sign of exponent, if any.
+      if (*p == '-')
+      {
+        frac = true;
+        ++p;
+      }
+      else if (*p == '+')
+        ++p;
+
+      // Get digits of exponent, if any.
+      while (IS_DIGIT(*p))
+      {
+        expon = expon * 10 + (*p - '0');
+        ++p;
+      }
+      if (expon > 308)
+        expon = 308;
+
+      // Calculate scaling factor.
+      while (expon >= 50)
+      {
+        scale *= 1E50;
+        expon -= 50;
+      }
+      while (expon >= 8)
+      {
+        scale *= 1E8;
+        expon -=  8;
+      }
+      while (expon > 0)
+      {
+        scale *= 10.0;
+        expon -=  1;
+      }
+    }
+
+    // Return signed and scaled floating point result.
+    return sign * (frac ? (value / scale) : (value * scale));
+  }
+
+public:
+
   static std::string convert( double value, int padding = 0 )
   {
     char result[32];
@@ -288,21 +471,22 @@ static bool convert( const std::string& value, double& result )
 
   bool haveDigit = false;
 
-  if( isdigit(*i) )
+  if( IS_DIGIT(*i) )
   {
     haveDigit = true;
-    while( isdigit (*++i) );
+    while( IS_DIGIT (*++i) );
   }
 
-  if( *i == '.' && isdigit(*++i) )
+  if( *i == '.' && IS_DIGIT(*++i) )
   {
     haveDigit = true;
-    while( isdigit (*++i) );
+    while( IS_DIGIT (*++i) );
   }
 
   if( *i || !haveDigit ) return false;
-    result = strtod( value.c_str(), 0 );
-    return true;
+    
+  result = fast_atof( value.c_str() );
+  return true;
   }
 
   static double convert( const std::string& value )
@@ -389,20 +573,20 @@ struct UtcTimeStampConvertor
     value.getYMD( year, month, day );
     value.getHMS( hour, minute, second, millis );
 
-    integer_to_string_padded( result, 5, year, 4, '0' );
-    integer_to_string_padded( result + 4, 3, month, 2, '0' );
-    integer_to_string_padded( result + 6, 3, day, 2, '0' );
+    integer_to_string_padded( result, 5, year, 4 );
+    integer_to_string_padded( result + 4, 3, month, 2 );
+    integer_to_string_padded( result + 6, 3, day, 2 );
     result[8]  = '-';
-    integer_to_string_padded( result + 9, 3, hour, 2, '0' );
+    integer_to_string_padded( result + 9, 3, hour, 2 );
     result[11] = ':';
-    integer_to_string_padded( result + 12, 3, minute, 2, '0' );
+    integer_to_string_padded( result + 12, 3, minute, 2 );
     result[14] = ':';
-    integer_to_string_padded( result + 15, 3, second, 2, '0' );
+    integer_to_string_padded( result + 15, 3, second, 2 );
 
     if( showMilliseconds )
     {
       result[17] = '.';
-      if( integer_to_string_padded ( result + 18, 4, millis, 3, '0' )
+      if( integer_to_string_padded ( result + 18, 4, millis, 3 )
           != result + 18 )
       {
         throw FieldConvertError();
@@ -428,22 +612,22 @@ struct UtcTimeStampConvertor
     int i = 0;
     int c = 0;
     for( c = 0; c < 8; ++c )
-      if( !isdigit(value[i++]) ) throw FieldConvertError(value);
+      if( !IS_DIGIT(value[i++]) ) throw FieldConvertError(value);
     if (value[i++] != '-') throw FieldConvertError(value);
     for( c = 0; c < 2; ++c )
-      if( !isdigit(value[i++]) ) throw FieldConvertError(value);
+      if( !IS_DIGIT(value[i++]) ) throw FieldConvertError(value);
     if( value[i++] != ':' ) throw FieldConvertError(value);
     for( c = 0; c < 2; ++c )
-      if( !isdigit(value[i++]) ) throw FieldConvertError(value);
+      if( !IS_DIGIT(value[i++]) ) throw FieldConvertError(value);
     if( value[i++] != ':' ) throw FieldConvertError(value);
     for( c = 0; c < 2; ++c )
-      if( !isdigit(value[i++]) ) throw FieldConvertError(value);
+      if( !IS_DIGIT(value[i++]) ) throw FieldConvertError(value);
 
     if( haveMilliseconds )
     {
       if( value[i++] != '.' ) throw FieldConvertError(value);
       for( c = 0; c < 3; ++c )
-	      if( !isdigit(value[i++]) ) throw FieldConvertError(value);
+        if( !IS_DIGIT(value[i++]) ) throw FieldConvertError(value);
     }
 
     int year, mon, mday, hour, min, sec, millis;
@@ -511,16 +695,16 @@ struct UtcTimeOnlyConvertor
 
     value.getHMS( hour, minute, second, millis );
 
-    integer_to_string_padded ( result, 3, hour, 2, '0' );
+    integer_to_string_padded ( result, 3, hour, 2 );
     result[2] = ':';
-    integer_to_string_padded ( result + 3, 3, minute,  2, '0' );
+    integer_to_string_padded ( result + 3, 3, minute,  2 );
     result[5] = ':';
-    integer_to_string_padded ( result + 6, 3, second,  2, '0' );
+    integer_to_string_padded ( result + 6, 3, second,  2 );
 
     if( showMilliseconds )
     {
       result[8] = '.';
-      if( integer_to_string_padded ( result + 9, 4, millis, 3, '0' )
+      if( integer_to_string_padded ( result + 9, 4, millis, 3 )
           != result + 9 )
           throw FieldConvertError();
     }
@@ -543,19 +727,19 @@ struct UtcTimeOnlyConvertor
     int i = 0;
     int c = 0;
     for( c = 0; c < 2; ++c )
-      if( !isdigit(value[i++]) ) throw FieldConvertError(value);
+      if( !IS_DIGIT(value[i++]) ) throw FieldConvertError(value);
     if( value[i++] != ':' ) throw FieldConvertError(value);
     for( c = 0; c < 2; ++c )
-      if( !isdigit(value[i++]) ) throw FieldConvertError(value);
+      if( !IS_DIGIT(value[i++]) ) throw FieldConvertError(value);
     if( value[i++] != ':' ) throw FieldConvertError(value);
     for( c = 0; c < 2; ++c )
-      if( !isdigit(value[i++]) ) throw FieldConvertError(value);
+      if( !IS_DIGIT(value[i++]) ) throw FieldConvertError(value);
 
     if( haveMilliseconds )
     {
       // ++i instead of i++ skips the '.' separator
       for( c = 0; c < 3; ++c )
-	      if( !isdigit(value[++i]) ) throw FieldConvertError(value);
+        if( !IS_DIGIT(value[++i]) ) throw FieldConvertError(value);
     }
 
     int hour, min, sec, millis;
@@ -603,9 +787,9 @@ struct UtcDateConvertor
 
     value.getYMD( year, month, day );
 
-    integer_to_string_padded( result, 5, year, 4, '0' );
-    integer_to_string_padded( result + 4, 3, month, 2, '0' );
-    integer_to_string_padded( result + 6, 3, day, 2, '0' );
+    integer_to_string_padded( result, 5, year, 4 );
+    integer_to_string_padded( result + 4, 3, month, 2 );
+    integer_to_string_padded( result + 6, 3, day, 2 );
     return result;
   }
 
@@ -616,7 +800,7 @@ struct UtcDateConvertor
 
     int i = 0;
     for( int c=0; c<8; ++c )
-      if( !isdigit(value[i++]) ) throw FieldConvertError(value);
+      if( !IS_DIGIT(value[i++]) ) throw FieldConvertError(value);
 
     int year, mon, mday;
 

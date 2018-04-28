@@ -1,5 +1,5 @@
 /****************************************************************************
-** Copyright (c) quickfixengine.org  All rights reserved.
+** Copyright (c) 2001-2014
 **
 ** This file is part of the QuickFIX FIX Engine
 **
@@ -108,7 +108,7 @@ Log* OdbcLogFactory::create( const SessionID& s )
 
   Dictionary settings;
   if( m_settings.has(s) ) 
-	  settings = m_settings.get( s );
+    settings = m_settings.get( s );
 
   init( settings, database, user, connectionString );
   OdbcLog* result = new OdbcLog( s, database, user, connectionString );

@@ -1,7 +1,7 @@
 /* -*- C++ -*- */
 
 /****************************************************************************
-** Copyright (c) quickfixengine.org  All rights reserved.
+** Copyright (c) 2001-2014
 **
 ** This file is part of the QuickFIX FIX Engine
 **
@@ -84,14 +84,10 @@ public:
       else
       {
         ApplVerID applVerID;
-        if(!message.getHeader().isSetField(applVerID))
+        if(!message.getHeader().getFieldIfSet(applVerID))
         {
           Session* pSession = Session::lookupSession( sessionID );
           applVerID = pSession->getSenderDefaultApplVerID();
-        }
-        else
-        {
-          message.getHeader().getField( applVerID );
         }
 
         crack( message, sessionID, applVerID );
@@ -153,14 +149,10 @@ public:
       else
       {
         ApplVerID applVerID;
-        if(!message.getHeader().isSetField(applVerID))
+        if(!message.getHeader().getFieldIfSet(applVerID))
         {
           Session* pSession = Session::lookupSession( sessionID );
           applVerID = pSession->getSenderDefaultApplVerID();
-        }
-        else
-        {
-          message.getHeader().getField( applVerID );
         }
 
         crack( message, sessionID, applVerID );

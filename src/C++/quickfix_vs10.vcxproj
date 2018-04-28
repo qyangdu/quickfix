@@ -16,7 +16,6 @@
     <ClInclude Include="Acceptor.h" />
     <ClInclude Include="Application.h" />
     <ClInclude Include="AtomicCount.h" />
-    <ClInclude Include="CallStack.h" />
     <ClInclude Include="DatabaseConnectionID.h" />
     <ClInclude Include="DatabaseConnectionPool.h" />
     <ClInclude Include="DataDictionary.h" />
@@ -636,13 +635,11 @@
     <ClInclude Include="HttpParser.h" />
     <ClInclude Include="HttpServer.h" />
     <ClInclude Include="Initiator.h" />
-    <ClInclude Include="LIBXML_DOMDocument.h" />
     <ClInclude Include="Log.h" />
     <ClInclude Include="Message.h" />
     <ClInclude Include="MessageCracker.h" />
     <ClInclude Include="MessageSorters.h" />
     <ClInclude Include="MessageStore.h" />
-    <ClInclude Include="MSXML_DOMDocument.h" />
     <ClInclude Include="Mutex.h" />
     <ClInclude Include="MySQLConnection.h" />
     <ClInclude Include="MySQLLog.h" />
@@ -655,6 +652,9 @@
     <ClInclude Include="PostgreSQLConnection.h" />
     <ClInclude Include="PostgreSQLLog.h" />
     <ClInclude Include="PostgreSQLStore.h" />
+    <ClInclude Include="pugiconfig.hpp" />
+    <ClInclude Include="pugixml.hpp" />
+    <ClInclude Include="PUGIXML_DOMDocument.h" />
     <ClInclude Include="Queue.h" />
     <ClInclude Include="Responder.h" />
     <ClInclude Include="Session.h" />
@@ -693,12 +693,10 @@
     <ClCompile Include="HttpParser.cpp" />
     <ClCompile Include="HttpServer.cpp" />
     <ClCompile Include="Initiator.cpp" />
-    <ClCompile Include="LIBXML_DOMDocument.cpp" />
     <ClCompile Include="Log.cpp" />
     <ClCompile Include="Message.cpp" />
     <ClCompile Include="MessageSorters.cpp" />
     <ClCompile Include="MessageStore.cpp" />
-    <ClCompile Include="MSXML_DOMDocument.cpp" />
     <ClCompile Include="MySQLLog.cpp" />
     <ClCompile Include="MySQLStore.cpp" />
     <ClCompile Include="NullStore.cpp" />
@@ -707,6 +705,8 @@
     <ClCompile Include="Parser.cpp" />
     <ClCompile Include="PostgreSQLLog.cpp" />
     <ClCompile Include="PostgreSQLStore.cpp" />
+    <ClCompile Include="pugixml.cpp" />
+    <ClCompile Include="PUGIXML_DOMDocument.cpp" />
     <ClCompile Include="Session.cpp" />
     <ClCompile Include="SessionFactory.cpp" />
     <ClCompile Include="SessionSettings.cpp" />
@@ -725,7 +725,7 @@
     <ClCompile Include="Utility.cpp" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
-    <ProjectName>quickfix_vs10</ProjectName>
+    <ProjectName>quickfix</ProjectName>
     <ProjectGuid>{D5D558EA-BBAC-4862-A946-D3881BACE3B7}</ProjectGuid>
     <RootNamespace>quickfix_vc10</RootNamespace>
   </PropertyGroup>

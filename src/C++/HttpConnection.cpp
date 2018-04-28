@@ -1,5 +1,5 @@
 /****************************************************************************
-** Copyright (c) quickfixengine.org  All rights reserved.
+** Copyright (c) 2001-2014
 **
 ** This file is part of the QuickFIX FIX Engine
 **
@@ -66,7 +66,7 @@ bool HttpConnection::read()
     if( result > 0 ) // Something to read
     {
       // We can read without blocking
-      int size = recv( m_socket, m_buffer, sizeof(m_buffer), 0 );
+      ssize_t size = recv( m_socket, m_buffer, sizeof(m_buffer), 0 );
       if ( size <= 0 ) { throw SocketRecvFailed( size ); }
       m_parser.addToStream( m_buffer, size );
     }
@@ -244,7 +244,7 @@ void HttpConnection::processResetSessions
       std::set<SessionID> sessions = Session::getSessions();
       std::set<SessionID>::iterator session;
       for( session = sessions.begin(); session != sessions.end(); ++session )
-	Session::lookupSession( *session )->reset();
+      Session::lookupSession( *session )->reset();
       copy.removeParameter("confirm");
     }
 
@@ -291,7 +291,7 @@ void HttpConnection::processRefreshSessions
       std::set<SessionID> sessions = Session::getSessions();
       std::set<SessionID>::iterator session;
       for( session = sessions.begin(); session != sessions.end(); ++session )
-	Session::lookupSession( *session )->refresh();
+      Session::lookupSession( *session )->refresh();
       copy.removeParameter("confirm");
     }
 
@@ -338,7 +338,7 @@ void HttpConnection::processEnableSessions
       std::set<SessionID> sessions = Session::getSessions();
       std::set<SessionID>::iterator session;
       for( session = sessions.begin(); session != sessions.end(); ++session )
-	Session::lookupSession( *session )->logon();
+      Session::lookupSession( *session )->logon();
       copy.removeParameter("confirm");
     }
 
@@ -385,7 +385,7 @@ void HttpConnection::processDisableSessions
       std::set<SessionID> sessions = Session::getSessions();
       std::set<SessionID>::iterator session;
       for( session = sessions.begin(); session != sessions.end(); ++session )
-	Session::lookupSession( *session )->logout();
+      Session::lookupSession( *session )->logout();
       copy.removeParameter("confirm");
     }
 
@@ -680,7 +680,7 @@ void HttpConnection::showRow
       { TD td(s); td.text();
         CENTER center(s); center.text();
         if( url.size() )
-	{
+        {
           std::stringstream href;
           href << url << "&" << name << "=" << !value;
           A a(s); a.href(href.str()).text("toggle");

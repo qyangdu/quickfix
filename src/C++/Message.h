@@ -1,7 +1,7 @@
 /* -*- C++ -*- */
 
 /****************************************************************************
-** Copyright (c) quickfixengine.org  All rights reserved.
+** Copyright (c) 2001-2014
 **
 ** This file is part of the QuickFIX FIX Engine
 **
@@ -94,16 +94,16 @@ public:
     m_header = copy.m_header;
     m_trailer = copy.m_trailer;
     m_validStructure = copy.m_validStructure;
-    m_field = copy.m_field;
+    m_tag = copy.m_tag;
   }
 
   /// Set global data dictionary for encoding messages into XML
   static bool InitializeXML( const std::string& string );
 
-  void addGroup( FIX::Group& group )
+  void addGroup( const FIX::Group& group )
   { FieldMap::addGroup( group.field(), group ); }
 
-  void replaceGroup( unsigned num, FIX::Group& group )
+  void replaceGroup( unsigned num, const FIX::Group& group )
   { FieldMap::replaceGroup( num, group.field(), group ); }
 
   Group& getGroup( unsigned num, FIX::Group& group ) const throw( FieldNotFound )
@@ -112,14 +112,14 @@ public:
       ( FieldMap::getGroup( num, group.field(), group ) );
   }
 
-  void removeGroup( unsigned num, FIX::Group& group )
+  void removeGroup( unsigned num, const FIX::Group& group )
   { FieldMap::removeGroup( num, group.field() ); }
-  void removeGroup( FIX::Group& group )
+  void removeGroup( const FIX::Group& group )
   { FieldMap::removeGroup( group.field() ); }
 
   bool hasGroup( const FIX::Group& group ) const
   { return FieldMap::hasGroup( group.field() ); }
-  bool hasGroup( unsigned num, FIX::Group& group ) const
+  bool hasGroup( unsigned num, const FIX::Group& group ) const
   { return FieldMap::hasGroup( num, group.field() ); }
 
 protected:
@@ -197,8 +197,8 @@ public:
   /// Mutable getter for the message trailer
   Trailer& getTrailer() { return m_trailer; }
 
-  bool hasValidStructure(int& field) const
-  { field = m_field;
+  bool hasValidStructure(int& tag) const
+  { tag = m_tag;
     return m_validStructure;
   }
 
@@ -241,7 +241,7 @@ public:
 
   void clear()
   { 
-    m_field = 0;
+    m_tag = 0;
     m_header.clear();
     FieldMap::clear();
     m_trailer.clear();
@@ -312,48 +312,23 @@ public:
   void setSessionID( const SessionID& sessionID );
 
 private:
-  FieldBase extractField
-  ( const std::string& string, std::string::size_type& pos,
+  FieldBase extractField( 
+    const std::string& string, std::string::size_type& pos,
     const DataDictionary* pSessionDD = 0, const DataDictionary* pAppDD = 0,
-    const Group* pGroup = 0)
+    const Group* pGroup = 0);
+
+  static bool IsDataField( 
+    int field, 
+    const DataDictionary* pSessionDD, 
+    const DataDictionary* pAppDD )
   {
-    std::string::size_type equalSign
-      = string.find_first_of( '=', pos );
-    if( equalSign == std::string::npos )
-      throw InvalidMessage("Equal sign not found in field");
-
-    char* pEnd = 0;
-    int field = strtol( string.c_str() + pos, &pEnd, 0 );
-
-    std::string::size_type soh =
-      string.find_first_of( '\001', equalSign + 1 );
-    if ( soh == std::string::npos )
-      throw InvalidMessage("SOH not found at end of field");
-
-    if ( (pSessionDD && pSessionDD->isDataField(field)) || 
-		 (pAppDD && pAppDD != pSessionDD && pAppDD->isDataField(field)) )
+    if( (pSessionDD && pSessionDD->isDataField( field )) ||
+        (pAppDD && pAppDD != pSessionDD && pAppDD->isDataField( field )) )
     {
-      // Assume length field is 1 less.
-      int lenField = field - 1;
-      // Special case for Signature which violates above assumption.
-      if ( field == 89 ) lenField = 93;
-
-      if ( pGroup && pGroup->isSetField( lenField ) )
-      {
-        const std::string& fieldLength = pGroup->getField( lenField );
-        soh = equalSign + 1 + atol( fieldLength.c_str() );
-      }
-      else if ( isSetField( lenField ) )
-      {
-        const std::string& fieldLength = getField( lenField );
-        soh = equalSign + 1 + atol( fieldLength.c_str() );
-      }
+      return true;
     }
 
-    pos = soh + 1;
-    return FieldBase (
-      field,
-      string.substr( equalSign + 1, soh - ( equalSign + 1 ) ) );
+    return false;
   }
 
   void validate();
@@ -363,7 +338,7 @@ protected:
   mutable Header m_header;
   mutable Trailer m_trailer;
   bool m_validStructure;
-  int m_field;
+  int m_tag;
   static std::auto_ptr<DataDictionary> s_dataDictionary;
 };
 /*! @} */
@@ -380,7 +355,7 @@ inline std::ostream& operator <<
 inline MsgType identifyType( const std::string& message )
 throw( MessageParseError )
 {
-  std::string::size_type pos = message.find( "\00135=" );
+  std::string::size_type pos = message.find( "\001" "35=" );
   if ( pos == std::string::npos ) throw MessageParseError();
 
   std::string::size_type startValue = pos + 4;

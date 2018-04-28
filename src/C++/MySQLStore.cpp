@@ -1,5 +1,5 @@
 /****************************************************************************
-** Copyright (c) quickfixengine.org  All rights reserved.
+** Copyright (c) 2001-2014
 **
 ** This file is part of the QuickFIX FIX Engine
 **
@@ -154,7 +154,7 @@ MessageStore* MySQLStoreFactory::create( const SessionID& s, const Dictionary& s
   try { host = settings.getString( MYSQL_STORE_HOST ); }
   catch( ConfigError& ) {}
 
-  try { port = ( short ) settings.getLong( MYSQL_STORE_PORT ); }
+  try { port = ( short ) settings.getInt( MYSQL_STORE_PORT ); }
   catch( ConfigError& ) {}
 
   DatabaseConnectionID id( database, user, password, host, port );

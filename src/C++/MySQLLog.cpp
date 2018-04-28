@@ -1,5 +1,5 @@
 /****************************************************************************
-** Copyright (c) quickfixengine.org  All rights reserved.
+** Copyright (c) 2001-2014
 **
 ** This file is part of the QuickFIX FIX Engine
 **
@@ -117,7 +117,7 @@ Log* MySQLLogFactory::create( const SessionID& s )
 
   Dictionary settings;
   if( m_settings.has(s) ) 
-	  settings = m_settings.get( s );
+    settings = m_settings.get( s );
 
   init( settings, database, user, password, host, port );
   DatabaseConnectionID id( database, user, password, host, port );
@@ -153,7 +153,7 @@ void MySQLLogFactory::init( const Dictionary& settings,
     try { host = settings.getString( MYSQL_LOG_HOST ); }
     catch( ConfigError& ) {}
 
-    try { port = ( short ) settings.getLong( MYSQL_LOG_PORT ); }
+    try { port = ( short ) settings.getInt( MYSQL_LOG_PORT ); }
     catch( ConfigError& ) {}
   }
   else

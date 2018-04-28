@@ -53,7 +53,7 @@ class MessageTestCase(unittest.TestCase):
 		try:
 			self.object.setString( strGood )
 			self.object.setString( strNull )
-			self.object.setString( strNoLengthAndChk, 0 )
+			self.object.setString( strNoLengthAndChk, False )
 		except fix.InvalidMessage, e:
 			self.failUnless( 0 )
 
@@ -106,15 +106,15 @@ class MessageTestCase(unittest.TestCase):
 			self.failUnless(1)
 
 		dataDictionary = fix.DataDictionary()
-		dataDictionary.addHeaderField( 11, 0 )
-		dataDictionary.addTrailerField( 60, 0 )
+		dataDictionary.addHeaderField( 11, False )
+		dataDictionary.addTrailerField( 60, False )
 
 		clOrdID = fix.ClOrdID()
 		transactTime = fix.TransactTime()
 		symbol = fix.Symbol()
 
 		try:
-			self.object.setString( strBodyFields, 1, dataDictionary )
+			self.object.setString( strBodyFields, True, dataDictionary )
 		except fix.InvalidMessage, e:
 			self.failUnless( 0 )
 
@@ -123,21 +123,21 @@ class MessageTestCase(unittest.TestCase):
 		assert( self.object.isSetField( symbol ) )
 
 	def test_setStringWithGroup(self):
-		dataDictionary = fix.DataDictionary( "../../spec/FIX43.xml" )
+		dataDictionary = fix.DataDictionary( "spec/FIX43.xml" )
 		str = "8=FIX.4.3\0019=199\00135=E\00134=126\00149=BUYSIDE\00150=00303\00152=20040916-16:19:18.328\00156=SELLSIDE\00166=1095350459\00168=2\00173=2\00111=1095350459\00167=1\0011=00303\00155=fred\00154=1\00140=1\00159=3\00111=1095350460\00167=2\0011=00303\00155=fred\00154=1\00140=1\00159=3\001394=3\00110=138\001"
 
 		try:
-			self.object.setString( str, 1, dataDictionary )
+			self.object.setString( str, True, dataDictionary )
 			self.assertEquals( str, self.object.toString() )
 		except fix.InvalidMessage, e:
 			assert( 0 )
 
 	def test_setStringWithHeaderGroup(self):
-		dataDictionary = fix.DataDictionary( "../../spec/FIX43.xml" )
+		dataDictionary = fix.DataDictionary( "spec/FIX43.xml" )
 		str = "8=FIX.4.3\0019=152\00135=A\00134=125\00149=BUYSIDE\00152=20040916-16:19:18.328\00156=SELLSIDE\001627=2\001628=HOP1\001629=20040916-16:19:18.328\001630=ID1\001628=HOP2\001629=20040916-16:19:18.328\001630=ID2\00110=079\001"
 
 		try:
-			self.object.setString( str, 1, dataDictionary )
+			self.object.setString( str, True, dataDictionary )
 			self.assertEquals( str, self.object.toString() )
 		except fix.InvalidMessage, e:
 			assert( 0 )
@@ -148,10 +148,28 @@ class MessageTestCase(unittest.TestCase):
 		expected = "8=FIX.4.2\0019=171\00135=8\00134=2\00149=MEK\00156=KEM\0011=acct1\0016=109.03125\00111=ID1\00114=3000\00115=USD\00117=2\00120=0\00122=1\00131=109.03125\00137=1\00138=3000\00139=2\00148=123ABC789\00154=1\00155=ABCD\00160=00000000-00:00:00\001150=2\001151=0\00110=225\001"
 
 		try:
-			self.object.setString( str, 0 )
+			self.object.setString( str, False )
 			self.assertEquals( expected, self.object.toString() )
 		except fix.InvalidMessage, e:
 			self.failUnless(0)
+
+        def test_embeddedXml(self):
+		dataDictionary = fix.DataDictionary( "spec/FIX42.xml" )
+                encodedFIXmessage = "8=FIX.4.2\0019=390\00135=8\00134=136\001369=131\00152=20150220-14:40:24.991\00149=CME\00150=G\00156=GGGGGGN\00157=GGG\001143=IL\0011=TEST\0016=0\00111=00000000000000000003\00114=1\00117=64485:M:412850TN0031303\00120=0\00131=208700\00132=1\00137=64227619161\00138=1\00139=2\00140=2\00141=0\00144=208700\00148=147403\00154=1\00155=ES\00159=0\00160=20150220-14:40:24.970\00175=20150220\001107=ESH5\001150=2\001151=0\001167=FUT\001337=TRADE\001375=CME000A\001432=20150220\001442=1\001527=642276191612015022031303\0011028=N\0011057=N\00110=000\001"
+
+                str = "8=FIX.4.2\0019=501\00135=n\00134=158\001369=130\00152=20150220-14:40:24.991\00149=CME\00150=G\00156=QQQQQQN\00157=QQQ\001212=413\001213=" + encodedFIXmessage + "\00110=129\001"
+
+                xmlDataLen = fix.XmlDataLen()
+                xmlData = fix.XmlData()
+		try:
+			self.object.setString( str, True, dataDictionary )
+                        self.object.getHeader().getField(xmlDataLen)
+                        self.object.getHeader().getField(xmlData)
+			self.assertEquals( 413, xmlDataLen.getValue() )
+			self.assertEquals( encodedFIXmessage, xmlData.getValue() )
+		except fix.InvalidMessage, e:
+                        print e
+			assert( 0 )
 
 	def test_reverseRoute(self):
 		header = fix.Header()
@@ -197,22 +215,22 @@ class MessageTestCase(unittest.TestCase):
 		header.setField( beginString )
 		reversedMessage.reverseRoute( header )
 
-		header.removeField( fix.OnBehalfOfCompID().getField() )
+		header.removeField( fix.OnBehalfOfCompID().getTag() )
 		reversedMessage.reverseRoute( header )
 		self.failUnless( reversedHeader.isSetField(deliverToCompID) == 0 )
-		header.removeField( fix.DeliverToCompID().getField() )
+		header.removeField( fix.DeliverToCompID().getTag() )
 		reversedMessage.reverseRoute( header )
 		self.failUnless( reversedHeader.isSetField(onBehalfOfCompID) == 0 )
-		header.removeField( fix.OnBehalfOfSubID().getField() )
+		header.removeField( fix.OnBehalfOfSubID().getTag() )
 		reversedMessage.reverseRoute( header )
 		self.failUnless( reversedHeader.isSetField(deliverToSubID) == 0 )
-		header.removeField( fix.DeliverToSubID().getField() )
+		header.removeField( fix.DeliverToSubID().getTag() )
 		reversedMessage.reverseRoute( header )
 		self.failUnless( reversedHeader.isSetField(onBehalfOfSubID) == 0 )
-		header.removeField( fix.OnBehalfOfLocationID().getField() )
+		header.removeField( fix.OnBehalfOfLocationID().getTag() )
 		reversedMessage.reverseRoute( header )
 		self.failUnless( reversedHeader.isSetField(deliverToLocationID) == 0 )
-		header.removeField( fix.DeliverToLocationID().getField() )
+		header.removeField( fix.DeliverToLocationID().getTag() )
 		reversedMessage.reverseRoute( header )
 		self.failUnless( reversedHeader.isSetField(onBehalfOfLocationID) == 0 )
 
@@ -251,7 +269,7 @@ class MessageTestCase(unittest.TestCase):
 		assert( self.object.hasGroup(1, group) )
 		assert( self.object.hasGroup(2, group) )
 		assert( self.object.hasGroup(3, group) )
-		self.assertEquals( 3, self.object.groupCount(fix.NoOrders().getField()) )
+		self.assertEquals( 3, self.object.groupCount(fix.NoOrders().getTag()) )
 		self.object.getField( noOrders )
 		self.assertEquals( 3, noOrders.getValue() )
 
