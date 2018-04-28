@@ -1,7 +1,7 @@
 /* -*- C++ -*- */
 
 /****************************************************************************
-** Copyright (c) quickfixengine.org  All rights reserved.
+** Copyright (c) 2001-2014
 **
 ** This file is part of the QuickFIX FIX Engine
 **
@@ -50,7 +50,7 @@ public:
            const DataDictionaryProvider&,
            const TimeRange&,
            int heartBtInt, LogFactory* pLogFactory );
-  ~Session();
+  virtual ~Session();
 
   void logon() 
   { m_state.enabled( true ); m_state.logoutReason( "" ); }
@@ -75,7 +75,10 @@ public:
   const SessionID& getSessionID() const
   { return m_sessionID; }
   void setDataDictionaryProvider( const DataDictionaryProvider& dataDictionaryProvider )
-  { m_dataDictionaryProvider = dataDictionaryProvider; }
+  {
+    m_dataDictionaryProvider = dataDictionaryProvider;
+    m_sessionDD = dataDictionaryProvider.getSessionDataDictionary(m_sessionID.getBeginString());
+  }
   const DataDictionaryProvider& getDataDictionaryProvider() const
   { return m_dataDictionaryProvider; }
 
@@ -105,7 +108,7 @@ public:
   static Session* registerSession( const SessionID& );
   static void unregisterSession( const SessionID& );
 
-  static int numSessions();
+  static size_t numSessions();
 
   bool isSessionTime(const UtcTimeStamp& time)
     { return m_sessionTime.isInRange(time); }
@@ -124,12 +127,20 @@ public:
   const std::string& getSenderDefaultApplVerID()
     { return m_senderDefaultApplVerID; }
   void setSenderDefaultApplVerID( const std::string& senderDefaultApplVerID )
-    { m_senderDefaultApplVerID = senderDefaultApplVerID; }
+  {
+    DataDictionaryProvider::key_type key( senderDefaultApplVerID.c_str(), senderDefaultApplVerID.size() );
+    m_senderDefaultApplVerID = senderDefaultApplVerID;
+    m_defaultApplicationDD = m_dataDictionaryProvider.getApplicationDataDictionary( key );
+  }
 
   const std::string& getTargetDefaultApplVerID()
     { return m_targetDefaultApplVerID; }
   void setTargetDefaultApplVerID( const std::string& targetDefaultApplVerID )
-    { m_targetDefaultApplVerID = targetDefaultApplVerID; }
+  {
+    DataDictionaryProvider::key_type key( targetDefaultApplVerID.c_str(), targetDefaultApplVerID.size() );
+    m_targetDefaultApplVerID = targetDefaultApplVerID;
+    m_defaultApplicationDD = m_dataDictionaryProvider.getApplicationDataDictionary( key );
+  }
 
   bool getSendRedundantResendRequests()
     { return m_sendRedundantResendRequests; }
@@ -210,10 +221,12 @@ public:
     return m_pResponder->send( b, n );
   }
 
-  void next( const Message&, const DataDictionary& sessionDD, const UtcTimeStamp& timeStamp, bool queued );
+  void next( const Message&, DataDictionary::MsgInfo&, const DataDictionary* sessionDD, const UtcTimeStamp& timeStamp, bool queued );
   void next( const Message& msg, const UtcTimeStamp& timeStamp, bool queued = false )
-  { next( msg, m_dataDictionaryProvider.getSessionDataDictionary(m_sessionID.getBeginString()), timeStamp, queued ); }
-
+  {
+    DataDictionary::MsgInfo msgInfo( m_defaultApplicationDD, m_sessionDD );
+    next( msg, msgInfo, m_sessionDD, timeStamp, queued );
+  }
   void next( Sg::sg_buf_t buf, const UtcTimeStamp& timeStamp, bool queued = false );
   void next( const std::string& message, const UtcTimeStamp& timeStamp, bool queued = false )
   {
@@ -228,8 +241,8 @@ public:
 
   void disconnect();
 
-  long getExpectedSenderNum() { return m_state.getNextSenderMsgSeqNum(); }
-  long getExpectedTargetNum() { return m_state.getNextTargetMsgSeqNum(); }
+  int getExpectedSenderNum() { return m_state.getNextSenderMsgSeqNum(); }
+  int getExpectedTargetNum() { return m_state.getNextTargetMsgSeqNum(); }
 
   Log* getLog() { return &m_state; }
   const MessageStore* getStore() { return m_state.store(); }
@@ -260,14 +273,14 @@ private:
   void insertSendingTime( Header& header,
                           const UtcTimeStamp& now = UtcTimeStamp () )
   {
-    header.setField( SendingTime::Pack(now,
+    Message::Sequence::set_in_ordered(header, SendingTime::Pack(now,
                      m_millisecondsAllowed && m_millisecondsInTimeStamp) );
   }
 
   void insertOrigSendingTime( Header& header,
                               const UtcTimeStamp& when = UtcTimeStamp () )
   {
-    header.setField( OrigSendingTime::Pack(when,
+    Message::Sequence::set_in_ordered(header, OrigSendingTime::Pack(when,
                      m_millisecondsAllowed && m_millisecondsInTimeStamp) );
   }
 
@@ -301,8 +314,8 @@ private:
   bool shouldSendReset();
 
   bool validLogonState( const MsgType& msgType );
-  bool validLogonState( const char* msgTypeValue );
-  void fromCallback( const char* msgTypeValue, const Message& msg,
+  bool validLogonState( Message::Admin::AdminType adminType );
+  void fromCallback( Message::Admin::AdminType adminType, const Message& msg,
                      const SessionID& sessionID );
 
   void doBadTime( const Message& msg );
@@ -346,17 +359,22 @@ private:
   void populateRejectReason( Message&, int field, const std::string& );
   void populateRejectReason( Message&, const std::string& );
 
-  bool verify( const Message& msg, const UtcTimeStamp& now,
+  bool verify( const Message& msg, Message::Admin::AdminType adminType,
+				   const UtcTimeStamp& now,
                                    const Header& header,
-                                   const char* pMsgTypeValue,
                                    bool  checkTooHigh, bool checkTooLow );
-
   bool verify( const Message& msg,
-               bool checkTooHigh = true, bool checkTooLow = true ) {
+               bool checkTooHigh = true, bool checkTooLow = true )
+  {
     const Header&  header = msg.getHeader();
     const MsgType* pType = FIELD_GET_PTR( header, MsgType );
-    return verify( msg, UtcTimeStamp(), header,
-                   pType ? pType->forString(String::CstrFunc()) : NULL,
+    return verify( msg, pType ? Message::msgAdminType(*pType) : Message::Admin::None,
+                   UtcTimeStamp(), header, checkTooHigh, checkTooLow );
+  }
+  bool verify( const Message& msg, Message::Admin::AdminType adminType,
+               bool checkTooHigh = true, bool checkTooLow = true )
+  {
+    return verify( msg, adminType, UtcTimeStamp(), msg.getHeader(),
                    checkTooHigh, checkTooLow );
   }
 
@@ -385,6 +403,7 @@ private:
 
   SessionState m_state;
   DataDictionaryProvider m_dataDictionaryProvider;
+  const DataDictionary* m_sessionDD, *m_defaultApplicationDD;
   MessageStoreFactory& m_messageStoreFactory;
   LogFactory* m_pLogFactory;
   Responder* m_pResponder;
@@ -438,31 +457,51 @@ private:
 
 			SgBuffer& append(const char* s, std::size_t l) {
 				Sg::sg_buf_ptr e = sg_ + n_;
-				if (l < 32 || n_ >= (UIO_SIZE - 1)) {
-					char* p = (char*)IOV_BUF(*e);
-					p += IOV_LEN(*e);
-					IOV_LEN(*e) += l;
-					std::size_t len = (l >> 3) + ((l & 7) != 0);
-					uint64_t* dst = (uint64_t*)p;
-					const uint64_t* src = (const uint64_t*)s;
-					while (len-- > 0)  {
-						*dst++ = *src++;
-					}
-				} else {
-					char* p = (char*)IOV_BUF(*e);
-					IOV_BUF(sg_[++n_]) = (Sg::sg_ptr_t)s;
-					IOV_LEN(sg_[n_++]) = l;
-					p += IOV_LEN(*e);
-					IOV_BUF(sg_[n_]) = p;
-					IOV_LEN(sg_[n_]) = 0;
+#if defined(_MSC_VER) || (defined(__GNUC__) && (defined(__x86_64__) || defined(__i386__)))
+				union {
+					char* p;
+					uint64_t* q;
+				} dst = { (char*)IOV_BUF(*e) + IOV_LEN(*e) };
+				union {
+					const char* p;
+					const uint64_t* q;
+				} src = { s };
+				dst.q[0] = src.q[0];
+				if (l > sizeof(uint64_t)) {
+					if (LIKELY(l <= sizeof(uint64_t[3]))) {
+						dst.q[1] = src.q[1];
+						dst.p += l - sizeof(uint64_t);
+						src.p += l - sizeof(uint64_t);
+						dst.q[0] = src.q[0];
+					} else 
+					/* if (LIKELY(l < 512) || n_ >= (UIO_SIZE - 2) */ { 
+#ifdef __INTEL_COMPILER
+						std::size_t i = ((l + 7) >> 3) - 1;
+#pragma unroll(0)
+						do { dst.q[i] = src.q[i]; } while(LIKELY(--i));
+#else
+						for (std::size_t i = 8; i < l; i += 8)
+							*(uint64_t*)(dst.p + i)= *(const uint64_t*)(src.p + i);
+#endif
+					} /* else {
+						IOV_BUF(sg_[++n_]) = (Sg::sg_ptr_t)src;
+						IOV_LEN(sg_[n_++]) = l;
+						IOV_BUF(sg_[n_]) = (char*)dst;
+						IOV_LEN(sg_[n_]) = 0;
+						return *this;
+					} */
 				}
+#else
+				::memcpy((char*)IOV_BUF(*e) + IOV_LEN(*e), src, l);
+#endif
+				IOV_LEN(*e) += l;	
 				return *this;
 			}
 			SgBuffer& HEAVYUSE append(int field, int sz, const char* s, std::size_t l) {
 				Sg::sg_buf_ptr e = sg_ + n_;
 				char* p = (char*)IOV_BUF(*e);
 				p += IOV_LEN(*e);
-				Util::Tag::generate(p, field, sz);
+				Util::Tag::write(p, field, sz);
 				p[sz] = '=';
 				IOV_LEN(*e) += sz + 1;
 				append(s, l);

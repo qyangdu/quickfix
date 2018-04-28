@@ -1,7 +1,7 @@
 /* -*- C++ -*- */
 
 /****************************************************************************
-** Copyright (c) quickfixengine.org  All rights reserved.
+** Copyright (c) 2001-2014
 **
 ** This file is part of the QuickFIX FIX Engine
 **
@@ -63,6 +63,13 @@ public:
   void removeGroup( const Group& group );
   bool hasGroup( const Group& group );
   bool hasGroup( unsigned num, const Group& group );
+
+  using FieldMap::isSetField;
+  bool isSetField( int field ) const
+  {
+    if (isEmpty() || Sequence::group_compare( *this, crbegin()->first, field)) return false;
+    return FieldMap::isSetField( field );
+  }
 
 private:
   int m_field;

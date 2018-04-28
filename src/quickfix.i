@@ -15,35 +15,40 @@
 %array_class(int, IntArray);
 
 %ignore _REENTRANT;
-%ignore ALIGN_DECL_DEFAULT;
 %ignore FIX::SynchronizedApplication::m_mutex;
+%ignore FIX::FieldMap::Options;
+%ignore FIX::FieldMap::FieldMap;
+%rename("%s") FIX::FieldMap::FieldMap();
+%rename("%s") FIX::FieldMap::FieldMap(message_order const&);
+%rename("%s") FIX::FieldMap::FieldMap(int const []);
+%rename("%s") FIX::FieldMap::FieldMap(FieldMap const&);
 %rename(SocketInitiatorBase) FIX::SocketInitiator;
 %rename(SocketAcceptorBase) FIX::SocketAcceptor;
 
 %{
 #include <config.h>
-#include "../C++/Utility.h"
-#include "../C++/Exceptions.h"
-#include "../C++/Field.h"
-#include "../C++/Message.h"
-#include "../C++/Group.h"
-#include "../C++/Fields.h"
-#include "../C++/Values.h"
-#include "../C++/SessionID.h"
-#include "../C++/Dictionary.h"
-#include "../C++/SessionSettings.h"
-#include "../C++/Session.h"
-#include "../C++/SessionID.h"
-#include "../C++/Log.h"
-#include "../C++/FileLog.h"
-#include "../C++/MessageStore.h"
-#include "../C++/FileStore.h"
-#include "../C++/Application.h"
-#include "../C++/Initiator.h"
-#include "../C++/SocketInitiator.h"
-#include "../C++/Acceptor.h"
-#include "../C++/SocketAcceptor.h"
-#include "../C++/DataDictionary.h"
+#include <Utility.h>
+#include <Exceptions.h>
+#include <Field.h>
+#include <Message.h>
+#include <Group.h>
+#include <Fields.h>
+#include <Values.h>
+#include <SessionID.h>
+#include <Dictionary.h>
+#include <SessionSettings.h>
+#include <Session.h>
+#include <SessionID.h>
+#include <Log.h>
+#include <FileLog.h>
+#include <MessageStore.h>
+#include <FileStore.h>
+#include <Application.h>
+#include <Initiator.h>
+#include <SocketInitiator.h>
+#include <Acceptor.h>
+#include <SocketAcceptor.h>
+#include <DataDictionary.h>
 typedef FIX::TYPE::Type Type;
 typedef FIX::String String;
 typedef FIX::UtcTimeStamp UtcTimeStamp;

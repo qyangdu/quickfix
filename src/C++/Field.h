@@ -1,7 +1,7 @@
 /* -*- C++ -*- */
 
 /****************************************************************************
-** Copyright (c) quickfixengine.org  All rights reserved.
+** Copyright (c) 2001-2014
 **
 ** This file is part of the QuickFIX FIX Engine
 **
@@ -83,13 +83,6 @@ class FieldBase
 {
   friend class Message;
 
-  enum Status {
-	C_NONE 		= 0,
-	C_METRICS	= 1,
-	C_DATA		= 2,
-	C_ALL		= 3	/* C_DATA | C_METRICS */
-  };
-
 public:
 
   typedef int                      tag_type;
@@ -101,21 +94,21 @@ public:
     : m_tag(tag)
     , m_tagChecksum(Util::Tag::checkSum(tag))
     , m_tagLength(Util::Tag::length(tag))
-    , m_calculated(C_NONE)
+    , m_calculated(false)
     {}
 
   template <typename Pack>
   explicit FieldBase( const Pack& p,
                       typename Pack::result_type* = NULL )
     : m_tag(p.getField()), m_tagChecksum(p.getTagChecksum())
-    , m_tagLength(p.getTagLength()), m_calculated(C_NONE), m_string(p)
+    , m_tagLength(p.getTagLength()), m_calculated(false), m_string(p)
     {}
 
   FieldBase( int tag, const std::string& string )
     : m_tag( tag )
     , m_tagChecksum(Util::Tag::checkSum(tag))
     , m_tagLength(Util::Tag::length(tag))
-    , m_calculated( C_NONE )
+    , m_calculated(false)
     , m_string(string)
     {}
 
@@ -127,7 +120,7 @@ public:
     m_tag = tag;
     m_tagChecksum = Util::Tag::checkSum(tag);
     m_tagLength = Util::Tag::length(tag);
-    m_calculated = C_NONE;
+    m_calculated = false;
   }
 
   /// @deprecated Use setTag
@@ -139,7 +132,7 @@ public:
   void setString( const std::string& string )
   {
     m_string = string;
-    m_calculated = C_NONE;
+    m_calculated = false;
   }
 
   template <typename Pack>
@@ -147,7 +140,7 @@ public:
                   typename Pack::result_type* = NULL )
   {
     p.assign_to(m_string);
-    m_calculated = C_NONE;
+    m_calculated = false;
   }
 
   /// Get the fields integer tag.
@@ -168,11 +161,11 @@ public:
 
   /// Get the string representation of the fields value.
   const std::string& getString() const
-    { return m_string; }
+  { return m_string; }
 
   /// Get a copy of the string representation of the fields value.
   std::string dupString() const
-    { return String::CopyFunc()(m_string); }
+    { return String::Copy()(m_string); }
 
   /// Get the string representation of the Field (i.e.) 55=MSFT[SOH]
   const std::string& getFixString() const
@@ -188,7 +181,7 @@ public:
   }
 
   /// Get the length of the fields string representation
-  int getLength() const
+  size_t getLength() const
   {
     calculate_metrics();
     return m_length;
@@ -206,26 +199,19 @@ public:
     { return m_tag < field.m_tag; }
 
   /// Push the string representation of the Field into an abstract buffer
-  template <typename S> S& pushValue(S& sink) const
+  template <typename S> S& HEAVYUSE pushValue(S& sink) const
   {
-    return ( m_calculated & C_DATA)
-           ? sink.append(String::c_str(m_data), String::length(m_data))
-           : sink.append(m_tag, m_tagLength - 1,
+    return sink.append(m_tag, m_tagLength - 1,
                          String::c_str(m_string), String::length(m_string));
   }
 
   /// Push the string representation of the Field into a string buffer
-  std::string& pushValue(std::string& sink) const
+  std::string& HEAVYUSE pushValue(std::string& sink) const
   {
-    if( m_calculated & C_DATA)
-      sink.append(m_data);
-    else
-    {
-      Util::Tag::generate(sink, m_tag, m_tagLength - 1);
-      sink.push_back('=');
-      String::append(sink, m_string);
-      sink.push_back('\001');
-    }
+    Util::Tag::append(sink, m_tag, m_tagLength - 1);
+    sink.push_back('=');
+    String::append(sink, m_string);
+    sink.push_back('\001');
     return sink;
   }
 
@@ -241,7 +227,7 @@ protected:
     : m_tag(Field)
     , m_tagChecksum(FieldTag::Traits<Field>::checksum)
     , m_tagLength(FieldTag::Traits<Field>::length)
-    , m_calculated(C_NONE)
+    , m_calculated(false)
     {}
 
   template <int Field>
@@ -249,7 +235,7 @@ protected:
     : m_tag(Field)
     , m_tagChecksum(FieldTag::Traits<Field>::checksum)
     , m_tagLength(FieldTag::Traits<Field>::length)
-    , m_calculated(C_NONE)
+    , m_calculated(false)
     , m_string(p, n)
     {}
 
@@ -258,7 +244,7 @@ protected:
     : m_tag(Field)
     , m_tagChecksum(FieldTag::Traits<Field>::checksum)
     , m_tagLength(FieldTag::Traits<Field>::length)
-    , m_calculated(C_NONE)
+    , m_calculated(false)
     , m_string(p)
     {}
 
@@ -267,7 +253,7 @@ protected:
     : m_tag(Field)
     , m_tagChecksum(FieldTag::Traits<Field>::checksum)
     , m_tagLength(FieldTag::Traits<Field>::length)
-    , m_calculated(C_NONE)
+    , m_calculated(false)
     , m_string(string)
     {}
 
@@ -278,37 +264,31 @@ private:
 
   void calculate_metrics() const
   {
-    if (!(m_calculated & C_METRICS))
+    if (!m_calculated)
     {
       m_length = String::length(m_string) ;
       m_total = m_tagChecksum +
         Util::CharBuffer::checkSum(String::data(m_string), m_length) +
         (int)'\001';
       m_length += m_tagLength + 1;
-      m_calculated |= C_METRICS;
+      m_calculated = true;
     }
   }
   void populate_data() const
   {
-    if (!(m_calculated & C_DATA))
-    {
-      calculate_metrics();
+    calculate_metrics();
   
-      m_data.clear();
-      m_data.reserve(m_length);
-      Util::Tag::generate(m_data, m_tag, m_tagLength - 1);
-      m_data.push_back('=');
-      String::append(m_data, m_string);
-      m_data.push_back('\001');
-  
-      m_calculated = C_ALL;
-    }
+    m_data.reserve(m_length);
+    Util::Tag::set(m_data, m_tag, m_tagLength - 1);
+    m_data.push_back('=');
+    String::append(m_data, m_string);
+    m_data.push_back('\001');
   }
 
   int           m_tag;
   mutable short m_tagChecksum;
   mutable char  m_tagLength;
-  mutable char  m_calculated;
+  mutable bool  m_calculated;
   mutable int   m_length;
   mutable int   m_total;
   string_type   m_string;
@@ -618,10 +598,7 @@ class CharField : public FieldBase
     explicit Data(char data) : m_data(data) {}
 
     template <typename S> void assign_to(S& s) const
-    {
-      s.clear();
-      Convertor::generate(s, m_data);
-    }
+    { Convertor::set(s, m_data); }
 
     operator string_type() const
     { return Convertor::convert<string_type>(m_data); }
@@ -700,10 +677,7 @@ class DoubleField : public FieldBase
     {}
 
     template <typename S> void assign_to(S& s) const
-    {
-      s.clear();
-      Convertor::generate(s, m_data, m_padded, m_round);
-    }
+    { Convertor::set(s, m_data, m_padded, m_round); }
 
     operator string_type () const
     { return Convertor::convert<string_type>(m_data, m_padded, m_round); }
@@ -783,10 +757,7 @@ class IntField : public FieldBase
     Data(int data) : m_data(data) {}
 
     template <typename S> void assign_to(S& s) const
-    {
-      s.clear();
-      Convertor::generate(s, m_data);
-    }
+    { Convertor::set(s, m_data); }
 
     operator string_type () const
     { return Convertor::convert<string_type>(m_data); }
@@ -850,6 +821,65 @@ public:
 
 };
 
+/// Non-standard field that contains a positive integer value
+class PositiveIntField : public FieldBase
+{
+  struct Data
+  {
+    typedef PositiveIntConvertor Convertor;
+    
+    int m_data;
+
+    Data(int data) : m_data(data) {}
+
+    template <typename S> void assign_to(S& s) const
+    { Convertor::set(s, m_data); }
+
+    operator string_type () const
+    { return Convertor::convert<string_type>(m_data); }
+  };
+
+protected:
+
+  template <int Tag> struct Packed : public Data
+  {
+    typedef PositiveIntField result_type;
+
+    explicit Packed( int data )
+    : Data( data ) {}
+
+    static inline int getField() { return Tag; }
+    static inline char getTagLength()
+    { return FieldTag::Traits<Tag>::length; }
+    static inline short getTagChecksum()
+    { return FieldTag::Traits<Tag>::checksum; }
+
+    private:
+      Packed() : Data(0) {}
+  };
+/*
+  template <int Field>
+  explicit PositiveIntField( FieldTag::Traits<Field> t )
+  : FieldBase( t ) {}
+
+  template <int Field>
+  explicit PositiveIntField( FieldTag::Traits<Field>, int value)
+  : FieldBase( Packed<Field>(value) ) {}
+*/
+public:
+
+  struct Pack : public FieldTag, public Data
+  {
+    typedef PositiveIntField result_type;
+
+    explicit Pack( int field, int data )
+    : FieldTag(field), Data( data ) {}
+
+    private:
+      Pack() : FieldTag(0), Data(0) {}
+  };
+};
+
 /// Field that contains a boolean value
 class BoolField : public FieldBase
 {
@@ -862,10 +892,7 @@ class BoolField : public FieldBase
     Data(bool data) : m_data(data) {}
 
     template <typename S> void assign_to(S& s) const
-    {
-      s.clear();
-      Convertor::generate(s, m_data);
-    }
+    { Convertor::set(s, m_data); }
 
     operator string_type () const
     { return Convertor::convert<string_type>(m_data); }
@@ -942,10 +969,7 @@ class UtcTimeStampField : public FieldBase
     : m_data(data), m_msec(showMilliseconds) {}
 
     template <typename S> void assign_to(S& s) const
-    {
-      s.clear();
-      Convertor::generate(s, m_data, m_msec);
-    }
+    { Convertor::set(s, m_data, m_msec); }
 
     operator string_type () const
     { return Convertor::convert<string_type>(m_data, m_msec); }
@@ -1031,10 +1055,7 @@ class UtcDateField : public FieldBase
     : m_data(data) {}
 
     template <typename S> void assign_to(S& s) const
-    {
-      s.clear();
-      Convertor::generate(s, m_data);
-    }
+    { Convertor::set(s, m_data); }
 
     operator string_type () const
     { return Convertor::convert<string_type>(m_data); }
@@ -1118,10 +1139,7 @@ class UtcTimeOnlyField : public FieldBase
     : m_data(data), m_msec(showMilliseconds) {}
 
     template <typename S> void assign_to(S& s) const
-    {
-      s.clear();
-      Convertor::generate(s, m_data, m_msec);
-    }
+    { Convertor::set(s, m_data, m_msec); }
 
     operator string_type () const
     { return Convertor::convert<string_type>(m_data, m_msec); }
@@ -1207,10 +1225,7 @@ class CheckSumField : public FieldBase
     : m_data(data) {}
 
     template <typename S> void assign_to(S& s) const
-    {
-      s.clear();
-      Convertor::generate(s, m_data);
-    }
+    { Convertor::set(s, m_data); }
 
     operator string_type () const
     { return Convertor::convert<string_type>(m_data); }

@@ -1,5 +1,5 @@
 /****************************************************************************
-** Copyright (c) quickfixengine.org  All rights reserved.
+** Copyright (c) 2001-2014
 **
 ** This file is part of the QuickFIX FIX Engine
 **
@@ -45,16 +45,10 @@ ALIGN_DECL_DEFAULT const int detail::bitop_base::Mod67Position[] = {
   7, 48, 35, 6, 34, 33, 0
 };
 
-#if defined(__GNUC__) && defined(__x86_64__)
+#if (defined(__GNUC__) && (defined(__x86_64__) || defined(__i386__))) || defined(_MSC_VER)
 // cacheline aligned block of magic constants
-ALIGN_DECL(64) Util::Tag::ConvBits Util::Tag::s_Bits =
+ALIGN_DECL(64) Util::x86Data::ConvBits Util::x86Data::cbits =
 {
-  { // div_10000
-    0xd1b71759, 0xd1b71759
-  },
-  { // mul_10000
-    55536, 55536
-  },
   { // mul_10
    10, 10, 10, 10, 10, 10, 10, 10
   },
@@ -76,10 +70,58 @@ ALIGN_DECL(64) Util::Tag::ConvBits Util::Tag::s_Bits =
     '0', '0', '0', '0', '0', '0', '0', '0'
   }
 };
-#endif
 
-#if defined(__GNUC__) && (defined(__x86_64__) || defined(__i386__))
-ALIGN_DECL_DEFAULT Util::IntBase::Log2 Util::IntBase::m_digits[32] = 
+ALIGN_DECL_DEFAULT Util::x86Data::Log2 Util::x86Data::m_digits[32] = 
+{
+  { { 1, 9 } },
+  { { 1, 9 } },
+  { { 1, 9 } },
+  { { 1, 9 } },
+  { { 2, 99 } },
+  { { 2, 99 } },
+  { { 2, 99 } },
+  { { 3, 999 } },
+  { { 3, 999 } },
+  { { 3, 999 } },
+  { { 4, 9999 } },
+  { { 4, 9999 } },
+  { { 4, 9999 } },
+  { { 4, 9999 } },
+  { { 5, 99999 } },
+  { { 5, 99999 } },
+  { { 5, 99999 } },
+  { { 6, 999999 } },
+  { { 6, 999999 } },
+  { { 6, 999999 } },
+  { { 7, 9999999 } },
+  { { 7, 9999999 } },
+  { { 7, 9999999 } },
+  { { 7, 9999999 } },
+  { { 8, 99999999 } },
+  { { 8, 99999999 } },
+  { { 8, 99999999 } },
+  { { 9, 999999999 } },
+  { { 9, 999999999 } },
+  { { 9, 999999999 } },
+  { { 10, (std::numeric_limits<uint32_t>::max)() } },
+  { { 10, (std::numeric_limits<uint32_t>::max)() } }
+};
+
+ALIGN_DECL_DEFAULT Util::NumData::DigitPair Util::NumData::m_pairs[100] =
+{
+{ {'0','0'} }, { {'0','1'} }, { {'0','2'} }, { {'0','3'} }, { {'0','4'} }, { {'0','5'} }, { {'0','6'} }, { {'0','7'} }, { {'0','8'} }, { {'0','9'} },
+{ {'1','0'} }, { {'1','1'} }, { {'1','2'} }, { {'1','3'} }, { {'1','4'} }, { {'1','5'} }, { {'1','6'} }, { {'1','7'} }, { {'1','8'} }, { {'1','9'} },
+{ {'2','0'} }, { {'2','1'} }, { {'2','2'} }, { {'2','3'} }, { {'2','4'} }, { {'2','5'} }, { {'2','6'} }, { {'2','7'} }, { {'2','8'} }, { {'2','9'} },
+{ {'3','0'} }, { {'3','1'} }, { {'3','2'} }, { {'3','3'} }, { {'3','4'} }, { {'3','5'} }, { {'3','6'} }, { {'3','7'} }, { {'3','8'} }, { {'3','9'} },
+{ {'4','0'} }, { {'4','1'} }, { {'4','2'} }, { {'4','3'} }, { {'4','4'} }, { {'4','5'} }, { {'4','6'} }, { {'4','7'} }, { {'4','8'} }, { {'4','9'} },
+{ {'5','0'} }, { {'5','1'} }, { {'5','2'} }, { {'5','3'} }, { {'5','4'} }, { {'5','5'} }, { {'5','6'} }, { {'5','7'} }, { {'5','8'} }, { {'5','9'} },
+{ {'6','0'} }, { {'6','1'} }, { {'6','2'} }, { {'6','3'} }, { {'6','4'} }, { {'6','5'} }, { {'6','6'} }, { {'6','7'} }, { {'6','8'} }, { {'6','9'} },
+{ {'7','0'} }, { {'7','1'} }, { {'7','2'} }, { {'7','3'} }, { {'7','4'} }, { {'7','5'} }, { {'7','6'} }, { {'7','7'} }, { {'7','8'} }, { {'7','9'} },
+{ {'8','0'} }, { {'8','1'} }, { {'8','2'} }, { {'8','3'} }, { {'8','4'} }, { {'8','5'} }, { {'8','6'} }, { {'8','7'} }, { {'8','8'} }, { {'8','9'} },
+{ {'9','0'} }, { {'9','1'} }, { {'9','2'} }, { {'9','3'} }, { {'9','4'} }, { {'9','5'} }, { {'9','6'} }, { {'9','7'} }, { {'9','8'} }, { {'9','9'} }
+};
+
+ALIGN_DECL_DEFAULT Util::ULong::Log2 Util::ULong::m_digits[64] =
 {
   { 9, 1 },
   { 9, 1 },
@@ -111,84 +153,46 @@ ALIGN_DECL_DEFAULT Util::IntBase::Log2 Util::IntBase::m_digits[32] =
   { 999999999, 9 },
   { 999999999, 9 },
   { 999999999, 9 },
-  { std::numeric_limits<int32_t>::max(), 10 },
-  { std::numeric_limits<int32_t>::max(), 10 }
+  { 9999999999LL, 10 },
+  { 9999999999LL, 10 },
+  { 9999999999LL, 10 },
+  { 9999999999LL, 10 },
+  { 99999999999LL, 11 },
+  { 99999999999LL, 11 },
+  { 99999999999LL, 11 },
+  { 999999999999LL, 12 },
+  { 999999999999LL, 12 },
+  { 999999999999LL, 12 },
+  { 9999999999999LL, 13 },
+  { 9999999999999LL, 13 },
+  { 9999999999999LL, 13 },
+  { 9999999999999LL, 13 },
+  { 99999999999999LL, 14 },
+  { 99999999999999LL, 14 },
+  { 99999999999999LL, 14 },
+  { 999999999999999LL, 15 },
+  { 999999999999999LL, 15 },
+  { 999999999999999LL, 15 },
+  { 9999999999999999LL, 16 },
+  { 9999999999999999LL, 16 },
+  { 9999999999999999LL, 16 },
+  { 9999999999999999LL, 16 },
+  { 99999999999999999LL, 17 },
+  { 99999999999999999LL, 17 },
+  { 99999999999999999LL, 17 },
+  { 999999999999999999LL, 18 },
+  { 999999999999999999LL, 18 },
+  { 999999999999999999LL, 18 },
+  { 9999999999999999999ULL, 19 },
+  { 9999999999999999999ULL, 19 },
+  { 9999999999999999999ULL, 19 },
+  { 9999999999999999999ULL, 19 }
 };
-
-ALIGN_DECL_DEFAULT Util::Long::Log2 Util::Long::m_digits[64] =
-{
-  { 9, 1 },
-  { 9, 1 },
-  { 9, 1 },
-  { 9, 1 },
-  { 99, 2 },
-  { 99, 2 },
-  { 99, 2 },
-  { 999, 3 },
-  { 999, 3 },
-  { 999, 3 },
-  { 9999, 4 },
-  { 9999, 4 },
-  { 9999, 4 },
-  { 9999, 4 },
-  { 99999, 5 },
-  { 99999, 5 },
-  { 99999, 5 },
-  { 999999, 6 },
-  { 999999, 6 },
-  { 999999, 6 },
-  { 9999999, 7 },
-  { 9999999, 7 },
-  { 9999999, 7 },
-  { 9999999, 7 },
-  { 99999999, 8 },
-  { 99999999, 8 },
-  { 99999999, 8 },
-  { 999999999, 9 },
-  { 999999999, 9 },
-  { 999999999, 9 },
-  { 9999999999LL, 10 },
-  { 9999999999LL, 10 },
-  { 9999999999LL, 10 },
-  { 9999999999LL, 10 },
-  { 99999999999LL, 11 },
-  { 99999999999LL, 11 },
-  { 99999999999LL, 11 },
-  { 999999999999LL, 12 },
-  { 999999999999LL, 12 },
-  { 999999999999LL, 12 },
-  { 9999999999999LL, 13 },
-  { 9999999999999LL, 13 },
-  { 9999999999999LL, 13 },
-  { 9999999999999LL, 13 },
-  { 99999999999999LL, 14 },
-  { 99999999999999LL, 14 },
-  { 99999999999999LL, 14 },
-  { 999999999999999LL, 15 },
-  { 999999999999999LL, 15 },
-  { 999999999999999LL, 15 },
-  { 9999999999999999LL, 16 },
-  { 9999999999999999LL, 16 },
-  { 9999999999999999LL, 16 },
-  { 9999999999999999LL, 16 },
-  { 99999999999999999LL, 17 },
-  { 99999999999999999LL, 17 },
-  { 99999999999999999LL, 17 },
-  { 999999999999999999LL, 18 },
-  { 999999999999999999LL, 18 },
-  { 999999999999999999LL, 18 },
-  { std::numeric_limits<int64_t>::max(), 19 },
-  { std::numeric_limits<int64_t>::max(), 19 },
-  { std::numeric_limits<int64_t>::max(), 19 },
-  { std::numeric_limits<int64_t>::max(), 19 },
-};
-
-
 #endif
 
 void string_replace( const std::string& oldValue,
-		             const std::string& newValue,
-		             std::string& value )
+                     const std::string& newValue,
+                     std::string& value )
 {
   for( std::string::size_type pos = value.find(oldValue);
        pos != std::string::npos;
@@ -218,13 +222,13 @@ std::string string_strip( const std::string& value )
   if( !value.size() )
     return value;
 
-  int startPos = value.find_first_not_of(" \t\r\n");
-  int endPos = value.find_last_not_of(" \t\r\n");
+  size_t startPos = value.find_first_not_of(" \t\r\n");
+  size_t endPos = value.find_last_not_of(" \t\r\n");
 
-  if( startPos == -1 )
+  if( startPos == std::string::npos )
    return value;
 
-   return std::string( value, startPos, endPos - startPos + 1 );
+  return std::string( value, startPos, endPos - startPos + 1 );
 }
 
 void socket_init()
@@ -304,7 +308,7 @@ int socket_accept( int s )
   return accept( s, 0, 0 );
 }
 
-int socket_send( int s, const char* msg, int length )
+ssize_t socket_send( int s, const char* msg, size_t length )
 {
   return send( s, msg, length, 0 );
 }
@@ -531,6 +535,7 @@ std::pair<int, int> socket_createpair()
   int client = socket_createConnector();
   socket_connect( client, "localhost", port );
   int server = socket_accept( acceptor );
+  socket_close(acceptor);
   return std::pair<int, int>( client, server );
 #else
   int pair[2];
@@ -646,13 +651,13 @@ std::string file_separator()
 
 void file_mkdir( const char* path )
 {
-  int length = strlen( path );
+  int length = (int)strlen( path );
   std::string createPath = "";
 
-  for( const char* pos = path; pos - path <= length; ++pos )
+  for( const char* pos = path; (pos - path) <= length; ++pos )
   {
     createPath += *pos;
-    if( *pos == '/' || *pos == '\\' || pos - path == length )
+    if( *pos == '/' || *pos == '\\' || (pos - path) == length )
     {
     #ifdef _MSC_VER
       _mkdir( createPath.c_str() );

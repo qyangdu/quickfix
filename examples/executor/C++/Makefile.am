@@ -8,6 +8,7 @@ executor_SOURCES = \
 executor_LDADD = $(top_builddir)/src/C++/libquickfix.la
 
 INCLUDES = -I$(top_builddir)/include
+LDFLAGS = $(RT_LIBS)
 
 all-local:
 	rm -f ../../../bin/executor

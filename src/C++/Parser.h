@@ -1,7 +1,7 @@
 /* -*- C++ -*- */
 
 /****************************************************************************
-** Copyright (c) quickfixengine.org  All rights reserved.
+** Copyright (c) 2001-2014
 **
 ** This file is part of the QuickFIX FIX Engine
 **
@@ -30,6 +30,10 @@
 #include "FixString.h"
 #include <iostream>
 #include <string>
+
+#ifdef _MSC_VER
+#pragma warning( disable : 4125 ) // DISABLE warning C4125: decimal digit terminates octal escape sequence
+#endif
 
 namespace FIX
 {
@@ -167,7 +171,7 @@ public:
           do
           {
             int v = m_buffer[cursor++];
-	    unsigned a = v - '0';
+            unsigned a = v - '0';
             if( a < 10 )
             {
               m_bodyLength = m_bodyLength * 10 + a;
@@ -334,4 +338,9 @@ private:
   int m_bodyLength;
 };
 }
+
+#ifdef _MSC_VER
+#pragma warning( default: 4125 ) // RE-ENABLE warning C4125: decimal digit terminates octal escape sequence
+#endif
+
 #endif //FIX_PARSER_H

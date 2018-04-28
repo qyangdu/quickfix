@@ -1,5 +1,5 @@
 /****************************************************************************
-** Copyright (c) quickfixengine.org  All rights reserved.
+** Copyright (c) 2001-2014
 **
 ** This file is part of the QuickFIX FIX Engine
 **
@@ -30,13 +30,12 @@
 #include "SessionSettings.h"
 #include "Session.h"
 
+#include <memory>
+
 namespace FIX
 {
 SessionFactory::~SessionFactory()
 {
-  Dictionaries::iterator i = m_dictionaries.begin();
-  for ( ; i != m_dictionaries.end(); ++i )
-    delete i->second;
 }
 
 Session* SessionFactory::create( const SessionID& sessionID,
@@ -121,10 +120,10 @@ Session* SessionFactory::create( const SessionID& sessionID,
     if ( heartBtInt <= 0 ) throw ConfigError( "Heartbeat must be greater than zero" );
   }
 
-  Session* pSession = 0;
-  pSession = new Session( m_application, m_messageStoreFactory,
-                          sessionID, dataDictionaryProvider, sessionTimeRange,
-                          heartBtInt, m_pLogFactory );
+  std::auto_ptr<Session> pSession;
+  pSession.reset( new Session( m_application, m_messageStoreFactory,
+    sessionID, dataDictionaryProvider, sessionTimeRange,
+    heartBtInt, m_pLogFactory ) );
 
   pSession->setSenderDefaultApplVerID(defaultApplVerID);
 
@@ -195,15 +194,20 @@ Session* SessionFactory::create( const SessionID& sessionID,
     pSession->setPersistMessages( settings.getBool( PERSIST_MESSAGES ) );
   if ( settings.has( VALIDATE_LENGTH_AND_CHECKSUM ) )
     pSession->setValidateLengthAndChecksum( settings.getBool( VALIDATE_LENGTH_AND_CHECKSUM ) );
-
-  return pSession;
+   
+  return pSession.release();
 }
 
-const DataDictionary * SessionFactory::createDataDictionary(const SessionID& sessionID, 
-                                                    const Dictionary& settings, 
-                                                    const std::string& settingsKey) throw(ConfigError)
+void SessionFactory::destroy( Session* pSession )
 {
-  DataDictionary * pDD = NULL;
+  delete pSession;
+}
+
+ptr::shared_ptr<DataDictionary> SessionFactory::createDataDictionary(const SessionID& sessionID, 
+                                                                     const Dictionary& settings, 
+                                                                     const std::string& settingsKey) throw(ConfigError)
+{
+  ptr::shared_ptr<DataDictionary> pDD;
   std::string path = settings.getString( settingsKey );
   Dictionaries::iterator i = m_dictionaries.find( path );
   if ( i != m_dictionaries.end() )
@@ -212,50 +216,51 @@ const DataDictionary * SessionFactory::createDataDictionary(const SessionID& ses
   }
   else
   {
-    pDD = new DataDictionary( path );
+    pDD = ptr::shared_ptr<DataDictionary>(new DataDictionary( path ));
     m_dictionaries[ path ] = pDD;
   }
 
-  DataDictionary * pDataDictionary = new DataDictionary(*pDD);
+  ptr::shared_ptr<DataDictionary> pCopyOfDD = ptr::shared_ptr<DataDictionary>(new DataDictionary(*pDD));
+
   if( settings.has( VALIDATE_FIELDS_OUT_OF_ORDER ) )
   {
-    pDataDictionary->checkFieldsOutOfOrder
+    pCopyOfDD->checkFieldsOutOfOrder
     ( settings.getBool( VALIDATE_FIELDS_OUT_OF_ORDER ) );
   }
   if( settings.has( VALIDATE_FIELDS_HAVE_VALUES ) )
   {
-    pDataDictionary->checkFieldsHaveValues
+    pCopyOfDD->checkFieldsHaveValues
     ( settings.getBool( VALIDATE_FIELDS_HAVE_VALUES ) );
   }
   if( settings.has( VALIDATE_USER_DEFINED_FIELDS ) )
   {
-    pDataDictionary->checkUserDefinedFields
+    pCopyOfDD->checkUserDefinedFields
     ( settings.getBool( VALIDATE_USER_DEFINED_FIELDS ) );
   }
   if( settings.has( VALIDATE_REQUIRED_FIELDS ) )
   {
-    pDataDictionary->checkRequiredFields
+    pCopyOfDD->checkRequiredFields
     ( settings.getBool( VALIDATE_REQUIRED_FIELDS ) );
   }
   if( settings.has( VALIDATE_UNKNOWN_FIELDS ) )
   {
-    pDataDictionary->checkUnknownFields
+    pCopyOfDD->checkUnknownFields
     ( settings.getBool( VALIDATE_UNKNOWN_FIELDS ) );
   }
   if( settings.has( VALIDATE_UNKNOWN_MSGTYPE ) )
   {
-    pDataDictionary->checkUnknownMsgType
+    pCopyOfDD->checkUnknownMsgType
     ( settings.getBool( VALIDATE_UNKNOWN_MSGTYPE ) );
   }
 
-  return pDataDictionary;    
+  return pCopyOfDD;    
 }
 
 void SessionFactory::processFixtDataDictionaries(const SessionID& sessionID, 
                                                  const Dictionary& settings, 
                                                  DataDictionaryProvider& provider) throw(ConfigError)
 {
-  const DataDictionary * pDataDictionary = createDataDictionary(sessionID, settings, TRANSPORT_DATA_DICTIONARY);
+  ptr::shared_ptr<DataDictionary> pDataDictionary = createDataDictionary(sessionID, settings, TRANSPORT_DATA_DICTIONARY);
   provider.addTransportDataDictionary(sessionID.getBeginString(), pDataDictionary);
   
   for(Dictionary::const_iterator data = settings.begin(); data != settings.end(); ++data)
@@ -286,7 +291,7 @@ void SessionFactory::processFixDataDictionary(const SessionID& sessionID,
                                               const Dictionary& settings, 
                                               DataDictionaryProvider& provider) throw(ConfigError)
 {
-  const DataDictionary * pDataDictionary = createDataDictionary(sessionID, settings, DATA_DICTIONARY);
+  ptr::shared_ptr<DataDictionary> pDataDictionary = createDataDictionary(sessionID, settings, DATA_DICTIONARY);
   provider.addTransportDataDictionary(sessionID.getBeginString(), pDataDictionary);
   provider.addApplicationDataDictionary(Message::toApplVerID(sessionID.getBeginString()), pDataDictionary);
 }

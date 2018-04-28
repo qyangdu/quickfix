@@ -23,7 +23,7 @@
       <AdditionalLibraryDirectories>$(TBB_LIB);$(BOOST_LIB)</AdditionalLibraryDirectories>
     </Lib>
     <Link>
-      <AdditionalLibraryDirectories>$(BOOST_LIB);$(TBB_LIB);C:\Program Files (x86)\Microsoft Visual Studio 9.0\VC\atlmfc\lib</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(BOOST_LIB);$(TBB_LIB)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>

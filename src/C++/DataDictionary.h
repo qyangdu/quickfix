@@ -1,7 +1,7 @@
 /* -*- C++ -*- */
 
 /****************************************************************************
-** Copyright (c) quickfixengine.org  All rights reserved.
+** Copyright (c) 2001-2014
 **
 ** This file is part of the QuickFIX FIX Engine
 **
@@ -43,7 +43,12 @@ class Message;
 
 class DataDictionaryBase {
   protected:
+
 #if defined(HAVE_BOOST)
+  template <typename T> struct vector_pool_allocator {
+    typedef boost::pool_allocator<T> type;
+  };
+
   template <typename T> struct pool_allocator {
     typedef boost::pool_allocator<T> type;
   };
@@ -53,6 +58,10 @@ class DataDictionaryBase {
     return typename T::allocator_type();
   }
 #else
+  template <typename T> struct vector_pool_allocator {
+    typedef std::allocator<T> type;
+  };
+
   template <typename T> struct pool_allocator {
     typedef std::allocator<T> type;
   };
@@ -73,10 +82,7 @@ class DataDictionaryBase {
 
 class DataDictionary : public DataDictionaryBase
 {
-  static const int HeaderTypeBits = 8192;
-  static const int TrailerTypeBits = 8192;
-  static const int DataTypeBits = 8192;
-  static const int GroupTypeBits = 8192;
+  static const int NumFastFields = 8192;
 
   enum Check { 
     FieldsOutOfOrder,
@@ -110,9 +116,184 @@ class DataDictionary : public DataDictionaryBase
     return (checks & mask) != 0;
   }
 
+  template <class SetIterator, class SubsetIterator, class Compare>
+  SubsetIterator includes(SetIterator first1, SetIterator last1,
+                          SubsetIterator first2, SubsetIterator last2, Compare comp) const
+  {
+    for ( ; first2 != last2 && first1 != last1 && !comp(*first2, *first1) ; ++first1 )
+    { if (!comp(*first1, *first2)) ++first2; }
+    return first2;
+  }
+
 public:
 
+  typedef String::value_type string_type;
   typedef message_order OrderedFieldsArray;
+
+  union FieldProperties
+  {
+#if 0
+  public:
+    enum LocationCode {
+      Body = 0,
+      Header = 1,
+      Trailer = 2,
+      MaxLocation = 2
+    };
+    typedef std::size_t location_type;
+  private:
+    typedef unsigned char stored_type;
+    stored_type value;
+
+    struct Prop {
+      typedef unsigned offset_type;
+      struct Location {
+        struct User {
+          static const offset_type Offset = 0;
+          static const stored_type Mask = 3;
+        };
+        struct Spec {
+          static const offset_type Offset = 2;
+          static const stored_type Mask = 3 << Offset;
+        };
+        static const offset_type Offset = 0;
+        static const stored_type Mask = User::Mask | Spec::Mask;
+
+        static const stored_type BodyCode = Body;
+        static const stored_type HeaderCode = Header | (Header << Spec::Offset);
+        static const stored_type TrailerCode = Trailer | (Trailer << Spec::Offset);
+      };
+      struct Data {
+        static const offset_type Offset = 4;
+        static const stored_type Mask = 1 << Offset;
+      };
+      struct Group {
+        static const offset_type Offset = 5;
+        static const stored_type Mask = 1 << Offset;
+      };
+      struct Defined {
+        static const offset_type Offset = 6;
+        static const stored_type Mask = 1 << Offset;
+      };
+      struct Invalid {
+        static const offset_type Offset = 7;
+        static const stored_type Mask = 1 << Offset;
+      };
+    };
+    template <typename P> static void set(stored_type& f, stored_type v)
+    { f &= ~P::Mask; f |= (v << P::Offset); }
+    template <typename P> static stored_type get(const stored_type& f)
+    { return (f & P::Mask) >> P::Offset; }
+    template <typename P> static bool test(const stored_type& f, stored_type v = 1)
+    { return f & (v << P::Offset); }
+
+  public:
+    FieldProperties() { value = 0; }
+    FieldProperties( bool valid ) { value = valid << Prop::Invalid::Offset; }
+
+    void userLocation(LocationCode l) { if ((l | specLocation()) <= MaxLocation) set<Prop::Location::User>(value, l); }
+    LocationCode userLocation() const { return (LocationCode)get<Prop::Location::User>(value); }
+
+    void specLocation(LocationCode l) { set<Prop::Location::Spec>(value, l); }
+    LocationCode specLocation() const { return (LocationCode)get<Prop::Location::Spec>(value); }
+
+    location_type location() const { return (((value >> Prop::Location::User::Offset) |
+                                              (value >> Prop::Location::Spec::Offset)) & Prop::Location::User::Mask); }
+    static location_type locationOrder( location_type l ) { return l ^ 1; }
+    static location_type locationOrder( LocationCode c ) { return c ^ 1; }
+
+    static bool isHeader(location_type l) { return l & Header; }
+    bool isHeader() const { return test<Prop::Location>( value, Prop::Location::HeaderCode ); }
+    bool isUserHeader() const { return test<Prop::Location::User>( value, Header); }
+
+    static bool isTrailer(location_type l) { return l & Trailer; }
+    bool isTrailer() const { return test<Prop::Location>( value, Prop::Location::TrailerCode ); }
+    bool isUserTrailer() const { return test<Prop::Location::User>( value, Trailer); }
+
+    static bool isBody(location_type l) { return l == Body; }
+    bool isBody() const { return get<Prop::Location>(value) == Prop::Location::BodyCode; }
+
+    void hasData(bool v) { set<Prop::Data>(value, v); }
+    bool hasData() const { return test<Prop::Data>(value); }
+    void hasGroup(bool v) { set<Prop::Group>(value, v); }
+    bool hasGroup() const { return test<Prop::Group>(value); }
+
+    void defined(bool v) { set<Prop::Defined>(value, v); }
+    bool defined() const { return test<Prop::Defined>(value); }
+    void invalid(bool v) { set<Prop::Invalid>(value, v); }
+    bool invalid() const { return test<Prop::Invalid>(value); }
+#else
+    enum LocationCode {
+      Body = 0,
+      Header = 1,
+      Trailer = 2,
+      MaxLocation = 2
+    };
+    typedef unsigned location_type;
+
+    unsigned char value;
+    struct {
+	unsigned char UserLocation	: 2;
+        unsigned char SpecLocation	: 2;
+	unsigned char isData 		: 1;
+	unsigned char isGroup 		: 1;
+        unsigned char isDefined         : 1;
+	unsigned char isInvalid		: 1;
+    };
+    FieldProperties() { value = 0; }
+    FieldProperties( bool valid ) { value = 0; isInvalid = !valid; }
+
+    void userLocation(LocationCode l) { if ((SpecLocation | UserLocation) <= MaxLocation) UserLocation = l; }
+    LocationCode userLocation() const { return (LocationCode)UserLocation; }
+
+    void specLocation(LocationCode l) { SpecLocation = l; }
+    LocationCode specLocation() const { return (LocationCode)SpecLocation; }
+
+    location_type location() const { return (location_type)UserLocation | (location_type)SpecLocation; }
+
+    static location_type locationOrder( location_type l ) { return l ^ 1; }
+    static location_type locationOrder( LocationCode c ) { return c ^ 1; }
+
+    static bool isHeader(location_type l) { return l & Header; }
+    bool isHeader() const { return location() & Header; }
+    bool isUserHeader() const { return UserLocation & Header; }
+    static bool isTrailer(location_type l) { return l & Trailer; }
+    bool isTrailer() const { return location() & Trailer; }
+    bool isUserTrailer() const { return UserLocation & Trailer; }
+    static bool isBody(location_type l) { return l == Body; }
+    bool isBody() const { return location() == Body; }
+
+    void hasData(bool v) { isData = v; }
+    bool hasData() const { return isData; }
+    void hasGroup(bool v) { isGroup = v; }
+    bool hasGroup() const { return isGroup; }
+
+    void defined(bool v) { isDefined = v; }
+    bool defined() const { return isDefined; }
+    void invalid(bool v) { isInvalid = v; }
+    bool invalid() const { return isInvalid; }
+#endif
+  };
+
+  struct HeaderCompare
+  {
+    bool operator()(int a, int b) const { return header_order::compare(a, b); };
+    bool operator()(const FieldMap::Fields::value_type& f, int v) const { return header_order::compare(f.first, v); }
+    bool operator()(int v, const FieldMap::Fields::value_type& f) const { return header_order::compare(v, f.first); }
+  };
+
+  struct TrailerCompare
+  {
+    bool operator()(int a, int b) const { return trailer_order::compare(a, b); };
+    bool operator()(const FieldMap::Fields::value_type& f, int v) const { return trailer_order::compare(f.first, v); }
+    bool operator()(int v, const FieldMap::Fields::value_type& f) const { return trailer_order::compare(v, f.first); }
+  };
+
+  struct FieldCompare
+  {
+    bool operator()(const FieldMap::Fields::value_type& f, int v) const { return f.first < v; }
+    bool operator()(int v, const FieldMap::Fields::value_type& f) const { return v < f.first; }
+  };
 
 #if defined(HAVE_BOOST)
   typedef boost::container::flat_set <
@@ -120,61 +301,134 @@ public:
     std::less<int>,
     pool_allocator<int>::type
   > MsgFields;
-
-  typedef boost::container::flat_map <
+  typedef boost::container::flat_set <
     int,
-    bool,
-    std::less<int>,
-    pool_allocator< std::pair<int, bool> >::type
-  > NonBodyFields;
+    HeaderCompare,
+    pool_allocator<int>::type
+  > HeaderFields;
+  typedef boost::container::flat_set <
+    int,
+    TrailerCompare,
+    pool_allocator<int>::type
+  > TrailerFields;
 #else
   typedef std::set <
     int,
     std::less<int>,
     pool_allocator<int>::type
   > MsgFields;
-
-  typedef std::map <
+  typedef std::set <
     int,
-    bool,
-    std::less<int>,
+    HeaderCompare,
     pool_allocator<int>::type
-  > NonBodyFields;
+  > HeaderFields;
+  typedef std::set <
+    int,
+    TrailerCompare,
+    pool_allocator<int>::type
+  > TrailerFields;
 #endif
 
-typedef Container::DictionaryMap <
-  String::value_type,
-  std::pair < int, DataDictionary* >,
-  ItemHash,
-  String::equal_to,
-  pool_allocator<
-    std::pair< String::value_type,
-      std::pair<int, DataDictionary*>
-    >
-  >::type
-> FieldPresenceMap;
-
 typedef Container::DictionarySet <
-  String::value_type, ItemHash, String::equal_to, pool_allocator<String::value_type>::type
+  string_type, ItemHash, String::equal_to, pool_allocator<string_type>::type
 > Values;
-
-typedef Container::DictionaryMap <
-  String::value_type,
-  MsgFields,
-  ItemHash,
-  String::equal_to,
-  pool_allocator<
-    std::pair<String::value_type, MsgFields>
-  >::type
-> MsgTypeToField;
-
-typedef Container::DictionarySet <
-  String::value_type, ItemHash, String::equal_to, pool_allocator<String::value_type>::type
-> MsgTypes;
 
 typedef Container::DictionarySet <
   int, Util::Tag::Identity, std::equal_to<int>, pool_allocator<int>::type
 > Fields;
+
+typedef Container::DictionaryMap <
+  int,
+  FieldProperties,
+  Util::Tag::Identity,
+  std::equal_to<int>,
+  pool_allocator<
+    std::pair< int, FieldProperties >
+  >::type
+> FieldToProps;
+
+template <unsigned N> class TFieldProperty
+{
+  FieldProperties m_props[N];
+  FieldToProps m_map;
+
+  public:
+
+  TFieldProperty() { ::memset(m_props, 0, sizeof(m_props) ); }
+  TFieldProperty& operator=(const TFieldProperty& other)
+  {
+    ::memcpy(m_props, other.m_props, sizeof(m_props));
+    m_map = other.m_map;
+    return *this;
+  }
+  int cached() const { return N; }
+  FieldProperties& operator[]( int n ) { return LIKELY((unsigned)n < N) ? m_props[n] : m_map[n]; }
+  FieldProperties at( int n ) const
+  {
+    if ( LIKELY((unsigned)n < N) ) return m_props[n];
+    FieldToProps::const_iterator it = m_map.find(n);
+    return (it != m_map.end()) ? it->second : FieldProperties( n <= 0 );
+  }
+};
+
+typedef TFieldProperty<NumFastFields> FieldProps;
+
+typedef Container::DictionaryMap <
+  int,
+  std::pair < int, DataDictionary* >,
+  Util::Tag::Identity,
+  std::equal_to<int>,
+  pool_allocator<
+    std::pair< int,
+      std::pair<int, DataDictionary*>
+    >
+  >::type
+> FieldToGroup;
+
+typedef std::map <
+  string_type,
+  FieldToGroup,
+  std::less<string_type>,
+  pool_allocator<string_type>::type
+> MsgTypeGroups;
+
+typedef std::map <
+  string_type,
+  FieldToProps,
+  std::less<string_type>,
+  pool_allocator<string_type>::type
+> MsgTypeFieldProps;
+
+typedef std::map <
+  string_type,
+  MsgFields,
+  std::less<string_type>,
+  pool_allocator<string_type>::type
+> MsgTypeRequiredFields;
+
+struct MsgTypeData
+{
+  MsgFields& m_required; 
+  FieldToGroup* m_groups;
+  FieldToProps& m_defined; // is in message
+
+  MsgTypeData(MsgFields& required, FieldToGroup& groups, FieldToProps& props)
+  : m_required(required), m_groups(&groups), m_defined(props) {}
+  MsgTypeData(MsgFields& required, FieldToProps& props)
+  : m_required(required), m_groups(NULL), m_defined(props) {}
+  void groups(FieldToGroup& groups) { m_groups = &groups; }
+  const FieldToGroup* groups() const { return m_groups; }
+};
+
+typedef Container::DictionaryMap <
+  string_type,
+  MsgTypeData,
+  ItemHash,
+  String::equal_to,
+  vector_pool_allocator<
+    std::pair<string_type, MsgTypeData>
+  >::type
+> MsgTypeToData;
 
 typedef Container::DictionaryMap <
   int,
@@ -196,16 +450,6 @@ typedef Container::DictionaryMap <
   >::type
 > FieldToValue;
 
-typedef Container::DictionaryMap <
-  int,
-  FieldPresenceMap,
-  Util::Tag::Identity,
-  std::equal_to<int>,
-  pool_allocator<
-    std::pair<int, FieldPresenceMap>
-  >::type
-> FieldToGroup;
-
 typedef std::vector <
   int,
   pool_allocator<int>::type
@@ -216,10 +460,9 @@ typedef std::map < std::string, int > NameToField;
 typedef std::map < std::pair < int, std::string > ,
                    std::string  > ValueToName;
 
-typedef Util::BitSet<DataTypeBits> FieldTypeDataBits;
-typedef Util::BitSet<HeaderTypeBits> FieldTypeHeaderBits;
-typedef Util::BitSet<TrailerTypeBits> FieldTypeTrailerBits;
-typedef Util::BitSet<GroupTypeBits> FieldTypeGroupBits;
+  static struct group_key_holder {
+	string_type Header, Trailer;
+  } ALIGN_DECL_DEFAULT const GroupKey;
 
   DataDictionary();
   DataDictionary( const DataDictionary& copy );
@@ -227,26 +470,40 @@ typedef Util::BitSet<GroupTypeBits> FieldTypeGroupBits;
   DataDictionary( const std::string& url ) throw( ConfigError );
   virtual ~DataDictionary();
 
-  void readFromURL( const std::string& url ) throw( ConfigError );
-  void readFromDocument( DOMDocumentPtr pDoc ) throw( ConfigError );
-  void readFromStream( std::istream& stream ) throw( ConfigError );
+  void LIGHTUSE readFromURL( const std::string& url ) throw( ConfigError );
+  void LIGHTUSE readFromDocument( DOMDocumentPtr pDoc ) throw( ConfigError );
+  void LIGHTUSE readFromStream( std::istream& stream ) throw( ConfigError );
 
   message_order const& getOrderedFields() const;
 
-  // storage functions
-  void setVersion( const std::string& beginString )
-  {
-    m_beginString = beginString;
-    m_hasVersion = true;
+  FieldProperties getProps( int field ) const
+  { return m_fieldProps.at( field ); }
+
+  const MsgTypeData* getMessageData( const string_type& msgType ) const
+  { 
+    MsgTypeToData::const_iterator i = m_messageData.find( msgType );
+    return ( LIKELY(i != m_messageData.end()) ) ? &i->second : NULL;
   }
+
+  const MsgTypeData* getMessageData( const MsgType& msgType ) const
+  { return getMessageData( msgType.forString( String::Rval() ) ); }
+
+  const MsgTypeData* getEmptyMessageData() const
+  { return &m_noData; }
+
+  const FieldToGroup& headerGroups() const { return m_headerGroups; }
+  const FieldToGroup& trailerGroups() const { return m_trailerGroups; }
+
+  // storage functions
+  void setVersion( const std::string& beginString );
   const std::string& getVersion() const
   {
     return m_beginString;
   }
 
-  void addField( int field );
+  void LIGHTUSE addField( int field );
 
-  void addFieldName( int field, const std::string& name );
+  void LIGHTUSE addFieldName( int field, const std::string& name );
   bool getFieldName( int field, std::string& name ) const
   {
     FieldToName::const_iterator i = m_fieldNames.find( field );
@@ -255,7 +512,7 @@ typedef Util::BitSet<GroupTypeBits> FieldTypeGroupBits;
     return true;
   }
 
-  bool getFieldTag( std::string name, int& field ) const
+  bool getFieldTag( const std::string& name, int& field ) const
   {
     NameToField::const_iterator i = m_names.find( name );
     if(i == m_names.end()) return false;
@@ -263,7 +520,7 @@ typedef Util::BitSet<GroupTypeBits> FieldTypeGroupBits;
     return true;
   }
 
-  void addValueName( int field, const std::string& value, const std::string& name );
+  void LIGHTUSE addValueName( int field, const std::string& value, const std::string& name );
   bool getValueName( int field, const std::string& value, std::string& name ) const
   {
     ValueToName::const_iterator i = m_valueNames.find( std::make_pair(field, value) );
@@ -273,40 +530,39 @@ typedef Util::BitSet<GroupTypeBits> FieldTypeGroupBits;
   }
 
   bool HEAVYUSE PURE_DECL isField( int field ) const
+  { return getProps( field ).defined(); }
+
+  MsgTypeToData::iterator LIGHTUSE addMsgType( const std::string& msgType );
+  bool isMsgType( const string_type& msgType ) const
   {
-    return m_fields.find( field ) != m_fields.end();
+    return m_messageData.find( msgType ) != m_messageData.end();
   }
 
-  void addMsgType( const std::string& msgType );
-  bool isMsgType( const String::value_type& msgType ) const
+  void LIGHTUSE addMsgField( const std::string& msgType, int field );
+  bool isMsgField( const string_type& msgType, int field ) const
   {
-    return m_messages.find( msgType ) != m_messages.end();
+    MsgTypeToData::const_iterator i = m_messageData.find( msgType );
+    return ( LIKELY(i != m_messageData.end()) ) 
+      ? i->second.m_defined.find( field ) != i->second.m_defined.end()
+      : false;
   }
 
-  void addMsgField( const std::string& msgType, int field );
-  bool isMsgField( const String::value_type& msgType, int field ) const
+  void LIGHTUSE addSpecHeaderField( int field )
   {
-    MsgTypeToField::const_iterator i = m_messageFields.find( msgType );
-    if ( LIKELY(i != m_messageFields.end()) )
-      return i->second.find( field ) != i->second.end();
-    return false;
+    m_fieldProps[ field ].specLocation( FieldProperties::Header );
+    if ( isDataField( field ) ) m_headerData = true;
   }
-
-  void addHeaderField( int field, bool required );
+  void LIGHTUSE addHeaderField( int field, bool required );
   bool HEAVYUSE PURE_DECL isHeaderField( int field ) const
-  {
-    return ( LIKELY(field < HeaderTypeBits) )
-      ? m_fieldTypeHeader[ field ] : (m_headerFields.find( field ) != m_headerFields.end());
-  }
+  { return getProps(field).isUserHeader(); }
 
-  void addTrailerField( int field, bool required );
+  void LIGHTUSE addSpecTrailerField( int field )
+  { m_fieldProps[ field ].specLocation( FieldProperties::Trailer ); }
+  void LIGHTUSE addTrailerField( int field, bool required );
   bool HEAVYUSE PURE_DECL isTrailerField( int field ) const
-  {
-    return ( LIKELY(field < TrailerTypeBits) )
-      ? m_fieldTypeTrailer[ field ] : (m_trailerFields.find( field ) != m_trailerFields.end());
-  }
+  { return getProps(field).isUserTrailer(); }
 
-  void addFieldType( int field, FIX::TYPE::Type type );
+  void LIGHTUSE addFieldType( int field, FIX::TYPE::Type type );
   bool getFieldType( int field, FIX::TYPE::Type& type ) const
   {
     FieldTypes::const_iterator i = m_fieldTypes.find( field );
@@ -315,66 +571,61 @@ typedef Util::BitSet<GroupTypeBits> FieldTypeGroupBits;
     return true;
   }
 
-  void addRequiredField( const std::string& msgType, int field );
-  bool isRequiredField( const String::value_type& msgType, int field ) const
+  void LIGHTUSE addRequiredField( const std::string& msgType, int field );
+  bool isRequiredField( const string_type& msgType, int field ) const
   {
-    MsgTypeToField::const_iterator i = m_requiredFields.find( msgType );
-    if ( i == m_requiredFields.end() ) return false;
-    return i->second.find( field ) != i->second.end();
+    MsgTypeToData::const_iterator i = m_messageData.find( msgType );
+    return ( LIKELY(i != m_messageData.end()) )
+      ? i->second.m_required.find( field ) != i->second.m_required.end()
+      : false;
   }
 
-  void addFieldValue( int field, const String::value_type& value );
+  void LIGHTUSE addFieldValue( int field, const string_type& value );
   bool hasFieldValue( int field ) const
   {
     FieldToValue::const_iterator i = m_fieldValues.find( field );
     return i != m_fieldValues.end();
   }
 
-  bool isFieldValue( int field, const String::value_type& value) const 
+  bool isFieldValue( int field, const string_type& value) const 
   {
     FieldToValue::const_iterator i = m_fieldValues.find( field );
     return ( LIKELY(i != m_fieldValues.end()) ) ? isFieldValue( i, value ) : false;
   }
 
-  void addGroup( const FieldPresenceMap::key_type& msg, int field, int delim,
-                 const DataDictionary& dataDictionary );
-  bool isGroup( const FieldPresenceMap::key_type& msg, int field ) const
+  void LIGHTUSE addGroup( const std::string& msg, int field, int delim, const DataDictionary& dataDictionary );
+  bool isGroup( const string_type& msg, int field ) const
   {
-    if ( LIKELY(field < GroupTypeBits && !m_fieldTypeGroup[field]) ) return false;
-    FieldToGroup::const_iterator i = m_groups.find( field );
-    if ( i == m_groups.end() ) return false;
-
-    const FieldPresenceMap& presenceMap = i->second;
-
-    FieldPresenceMap::const_iterator iter = presenceMap.find( msg );
-    return ( iter != presenceMap.end() );
+    if ( LIKELY(!getProps( field ).hasGroup()) ) return false;
+    MsgTypeToData::const_iterator i = m_messageData.find( msg );
+    return ( i != m_messageData.end() && i->second.m_groups) ? (i->second.m_groups->find(field) != i->second.m_groups->end()) : false ;
   }
 
-  bool HEAVYUSE getGroup( const FieldPresenceMap::key_type& msg,
-    int field, int& delim, const DataDictionary*& pDataDictionary ) const
+  const DataDictionary* HEAVYUSE getGroup( const FieldToGroup& messageGroups, int field, int& delim ) const
   {
-    if ( LIKELY(field < GroupTypeBits && !m_fieldTypeGroup[field]) ) return false;
-    FieldToGroup::const_iterator i = m_groups.find( field );
-    if ( i == m_groups.end() ) return false;
+    FieldToGroup::const_iterator it = messageGroups.find( field );
+    return (it != messageGroups.end()) ? delim = it->second.first, it->second.second : NULL;
+  }
 
-    const FieldPresenceMap& presenceMap = i->second;
+  // compatibility with the test suite
+  bool getGroup( const string_type& msgType, int field, int& delim, const DataDictionary*& pDD ) const
+  { 
+    const MsgTypeData* data = getMessageData( msgType );
+    return data && data->groups() && (pDD = getGroup( *data->groups(), field, delim)) != NULL;
+  }
 
-    FieldPresenceMap::const_iterator iter = presenceMap.find( msg );
-    if( iter == presenceMap.end() ) return false;
-
-    std::pair < int, DataDictionary* > pair = iter->second;
-    delim = pair.first;
-    pDataDictionary = pair.second;
-    return true;
+  const DataDictionary* getNestedGroup( int field, int& delim ) const
+  {
+    FieldToGroup::const_iterator it;
+    const FieldToGroup* pG = m_messageGroups.empty() ? NULL : &m_messageGroups.begin()->second;
+    return (pG && (it = pG->find( field )) != pG->end()) ? delim = it->second.first, it->second.second : NULL;
   }
 
   bool isDataField( int field ) const
-  {
-    if ( LIKELY(field < DataTypeBits) )
-      return m_fieldTypeData[ field ];
-    FieldTypes::const_iterator i = m_fieldTypes.find( field );
-    return i != m_fieldTypes.end() && i->second == TYPE::Data;
-  }
+  { return getProps( field ).hasData(); }
+
+  bool hasHeaderData() const { return m_headerData; }
+  bool hasTrailerData() const { return m_trailerData; }
 
   bool isMultipleValueField( int field ) const
   {
@@ -398,12 +649,50 @@ typedef Util::BitSet<GroupTypeBits> FieldTypeGroupBits;
   void checkUnknownMsgType( bool value )
   { checkFor(UnknownMsgType, value); }
 
+  class MsgInfo
+  {
+    const DataDictionary* m_default_application_dictionary;
+    mutable const DataDictionary* m_application_dictionary;
+    const MsgType* m_type;
+    mutable const MsgTypeData* m_data;
+
+  public:
+
+    MsgInfo( const DataDictionary& dictionary )
+    : m_default_application_dictionary(&dictionary), m_application_dictionary(&dictionary),
+      m_type(NULL), m_data(NULL) {}
+    MsgInfo( const DataDictionary* defaultDD, 
+             const DataDictionary* p = NULL, const MsgType* t = NULL, const MsgTypeData* d = NULL )
+    : m_default_application_dictionary(defaultDD), m_application_dictionary(p), m_type(t), m_data(d) {}
+
+    const MsgTypeData* messageData() const
+    {
+      return LIKELY(m_data != NULL) ? m_data :
+            (LIKELY(m_application_dictionary && m_type) ? (m_data =
+               m_application_dictionary->getMessageData(*m_type)) : NULL);
+    }
+    const MsgType& messageType() const
+    {
+      if ( LIKELY(m_type != NULL) ) return *m_type;
+      throw FieldNotFound( FIELD::MsgType );
+    }
+    const MsgType& messageType( const FieldMap& header )
+    {
+      return ( LIKELY(m_type != NULL) ) ? *m_type : *(m_type = FIELD_GET_PTR(header, MsgType));
+    }
+
+    void messageType( const MsgType* msgType ) { m_type = msgType; }
+
+    const DataDictionary* defaultApplicationDictionary() const { return m_default_application_dictionary; }
+    const DataDictionary* applicationDictionary() const { return m_application_dictionary; }
+    void applicationDictionary(const DataDictionary* p) { m_application_dictionary = p; }
+  };
+
   /// Validate a message.
-  static void validate( const Message& message,
+  static void HEAVYUSE  validate( const Message& message,
                         const BeginString& beginString,
-                        const MsgType& msgType,
-                        const DataDictionary* const pSessionDD,
-                        const DataDictionary* const pAppID )
+                        const MsgInfo& msgInfo,
+                        const DataDictionary* const pSessionDD)
   throw( FIX::Exception );
 
   void validate( const Message& message, bool bodyOnly ) const
@@ -417,13 +706,26 @@ typedef Util::BitSet<GroupTypeBits> FieldTypeGroupBits;
 
 private:
 
-  /// Iterate through fields while applying checks.
-  void iterate( const FieldMap& map, const MsgType& msgType ) const;
+  /// Retrieve body fields from the group dictionary nested within FieldToGroup
+  const MsgFields& getNestedBodyFields() const
+  { return m_requiredFields.begin()->second; }
+
+  /// Iterate through field map doing basic checks.
+  void iterate( const FieldMap& map ) const;
+
+  /// Iterate through non-body fields while applying checks.
+  void iterate( const FieldMap& map, bool hasVersion, bool hasBegin ) const;
+  void iterate( const FieldMap& first, const FieldMap& second, bool hasVersion, bool hasBegin ) const
+  { iterate( first, hasVersion, hasBegin ); iterate( second, hasVersion, hasBegin ); }
+
+  /// Iterate through body fields while applying checks.
+  void iterate( const FieldMap& map, const MsgTypeData& msgData, bool hasVersion, bool hasBegin ) const;
+
 
   /// Check if message type is defined in spec.
   void checkMsgType( const MsgType& msgType ) const
   {
-    if ( LIKELY(isMsgType( msgType.forString( String::RvalFunc() ) )) )
+    if ( LIKELY(isMsgType( msgType.forString( String::Rval() ) )) )
       return;
     throw InvalidMessageType();
   }
@@ -439,8 +741,7 @@ private:
   void checkValidTagNumber( const FieldBase& field ) const
   throw( InvalidTagNumber )
   {
-    if( LIKELY(m_fields.find( field.getTag() ) != m_fields.end()) )
-      return;
+    if( LIKELY(isField( field.getTag()) ) ) return;
     throw InvalidTagNumber( field.getTag() );
   }
 
@@ -455,7 +756,7 @@ private:
   }
 
   bool isFieldValue( const FieldToValue::const_iterator& i,
-                     const String::value_type& v ) const
+                     const string_type& v ) const
   {
     if( !isMultipleValueField( i->first ) )
       return i->second.find( v ) != i->second.end();
@@ -466,7 +767,7 @@ private:
     do
     {
       endPos = v.find_first_of(' ', startPos);
-      String::value_type singleValue =
+      string_type singleValue =
         v.substr( startPos, endPos - startPos );
       if( i->second.find( singleValue ) == i->second.end() )
         return false;
@@ -482,7 +783,7 @@ private:
     FieldToValue::const_iterator i = m_fieldValues.find( f );
     if ( LIKELY(i != m_fieldValues.end()) )
     {
-      if ( LIKELY(isFieldValue( i, field.forString( String::RvalFunc() ) )) )
+      if ( LIKELY(isFieldValue( i, field.forString( String::Rval() ) )) )
         return;
       throw IncorrectTagValue( f );
     }
@@ -493,7 +794,7 @@ private:
   throw( NoTagValue )
   {
     if ( LIKELY(!isChecked(FieldsHaveValues) ||
-		         field.forString( String::SizeFunc() )) )
+		         field.forString( String::Size() )) )
       return;
     throw NoTagValue( field.getTag() );
   }
@@ -503,7 +804,16 @@ private:
   ( const FieldBase& field, const MsgType& msgType ) const
   throw( TagNotDefinedForMessage )
   {
-    if ( LIKELY(isMsgField( msgType.forString( String::RvalFunc() ), field.getTag() )) )
+    if ( LIKELY(isMsgField( msgType.forString( String::Rval() ), field.getTag() )) )
+      return;
+    throw TagNotDefinedForMessage( field.getTag() );
+  }
+
+  void checkIsInMessage
+  ( const FieldBase& field, const MsgTypeData& msgData ) const
+  throw( TagNotDefinedForMessage )
+  {
+    if ( LIKELY(msgData.m_defined.find( field.getTag() ) != msgData.m_defined.end()) )
       return;
     throw TagNotDefinedForMessage( field.getTag() );
   }
@@ -514,14 +824,29 @@ private:
   throw( RepeatingGroupCountMismatch )
   {
     int fieldNum = field.getTag();
-    if( isGroup(msgType.forString( String::RvalFunc() ), fieldNum) )
+    if( isGroup(msgType.forString( String::Rval() ), fieldNum) )
     {
-      if( LIKELY(fieldMap.groupCount(fieldNum)
-                 == IntConvertor::convert( field.forString( String::RvalFunc() ) )) )
+      if( LIKELY((int)fieldMap.groupCount(fieldNum)
+                 == IntConvertor::convert( field.forString( String::Rval() ) )) )
         return;
       throw RepeatingGroupCountMismatch(fieldNum);
     }
   }
+  void checkGroupCount
+  ( const FieldBase& field, const FieldMap& fieldMap, const MsgTypeData& msgData ) const
+  throw( RepeatingGroupCountMismatch )
+  {
+    int fieldNum = field.getTag();
+    const FieldToGroup* groups = msgData.groups();
+    if( UNLIKELY(groups != NULL) && groups->find( fieldNum ) != groups->end() )
+    {
+      if( LIKELY((int)fieldMap.groupCount(fieldNum)
+                 == IntConvertor::convert( field.forString( String::Rval() ) )) )
+        return;
+      throw RepeatingGroupCountMismatch(fieldNum);
+    }
+  }
+
 
   /// Check if a message has all required fields.
   void checkHasRequired
@@ -529,83 +854,92 @@ private:
     const MsgType& msgType ) const
   throw( RequiredTagMissing )
   {
-    NonBodyFields::const_iterator iNBF, iNBFend = m_headerFields.end();
-    for( iNBF = m_headerFields.begin(); iNBF != iNBFend; ++iNBF )
-    {
-      if( LIKELY(iNBF->second != true || header.isSetField(iNBF->first)) )
-        continue;
-      throw RequiredTagMissing( iNBF->first );
-    }
+    MsgTypeToData::const_iterator iM
+      = m_messageData.find( msgType.forString( String::Rval() ) );
+    return checkHasRequired( ( iM != m_messageData.end() ) ? &iM->second : NULL,
+                             header, body, trailer );
+  }
+  void checkHasRequired
+  ( const MsgTypeData* messageData,
+    const FieldMap& header, const FieldMap& body, const FieldMap& trailer ) const
+  throw( RequiredTagMissing )
+  {
+    HeaderFields::const_iterator h = includes(header.begin(), header.end(),
+                 m_requiredHeaderFields.begin(), m_requiredHeaderFields.end(), HeaderCompare() );
+    if ( h != m_requiredHeaderFields.end() ) throw RequiredTagMissing( *h );
+    TrailerFields::const_iterator r = includes(trailer.begin(), trailer.end(),
+                 m_requiredTrailerFields.begin(), m_requiredTrailerFields.end(), TrailerCompare() );
+    if ( r != m_requiredTrailerFields.end() ) throw RequiredTagMissing( *r );
+    if ( messageData )
+#if defined(ENABLE_RELAXED_ORDERING)
+      checkHasRequiredUnordered( messageData->m_required, messageData->m_groups, body );
+#else
+      checkHasRequired( messageData->m_required, messageData->m_groups, body );
+#endif
+  } 
 
-    iNBFend = m_trailerFields.end();
-    for( iNBF = m_trailerFields.begin(); iNBF != iNBFend; ++iNBF )
-    {
-      if( LIKELY(iNBF->second != true || trailer.isSetField(iNBF->first)) )
-        continue;
-      throw RequiredTagMissing( iNBF->first );
-    }
+  void checkHasRequiredInGroups( const FieldToGroup& groupFields, const FieldMap& body ) const
+  throw( RequiredTagMissing );
 
-    MsgTypeToField::const_iterator iM
-      = m_requiredFields.find( msgType.forString( String::RvalFunc() ) );
-    if ( iM == m_requiredFields.end() ) return ;
-
-    const MsgFields& fields = iM->second;
-    MsgFields::const_iterator iF, iFend = fields.end();
-    for( iF = fields.begin(); iF != iFend; ++iF )
+  void checkHasRequiredUnordered
+  ( const MsgFields& fields, const FieldToGroup* groupFields, const FieldMap& body ) const
+  throw( RequiredTagMissing )
+  {
+    for ( MsgFields::const_iterator r = fields.begin(); r != fields.end(); ++r )
     {
-      if( LIKELY(body.isSetField(*iF)) )
-        continue;
-      throw RequiredTagMissing( *iF );
+      if ( LIKELY(body.isSetField( *r )) ) continue;
+      throw RequiredTagMissing( *r );
     }
-
-    int delim;
-    const DataDictionary* DD = 0;
-    FieldMap::g_iterator groups, groups_end = body.g_end();
-    for( groups = body.g_begin(); groups != groups_end; ++groups )
-    {
-      if( getGroup( msgType.forString( String::RvalFunc() ), groups->first, delim, DD ) )
-      {
-        FieldMap::g_item_const_iterator group, group_end = groups->second.end();
-        for( group = groups->second.begin(); group != group_end; ++group )
-          DD->checkHasRequired( **group, **group, **group, msgType );
-      }
-    }
+    if ( groupFields ) checkHasRequiredInGroups( *groupFields, body );
   }
 
-  /// Read XML file using MSXML.
-  void readMSXMLDOM( const std::string& );
-  void readMSXML( const std::string& );
-  /// Read XML file using libXML.
-  void readLibXml( const std::string& );
+  void checkHasRequired
+  ( const MsgFields& fields, const FieldToGroup* groupFields, const FieldMap& body ) const
+  throw( RequiredTagMissing )
+  {
+    MsgFields::const_iterator r = includes(body.begin(), body.end(),
+                 fields.begin(), fields.end(), FieldCompare() );
+    if ( r != fields.end() ) throw RequiredTagMissing( *r );
+    
+    if ( groupFields ) checkHasRequiredInGroups( *groupFields, body );
+  }
 
   int lookupXMLFieldNumber( DOMDocument*, DOMNode* ) const;
   int lookupXMLFieldNumber( DOMDocument*, const std::string& name ) const;
-  int addXMLComponentFields( DOMDocument*, DOMNode*, const std::string& msgtype, DataDictionary&, bool );
-  void addXMLGroup( DOMDocument*, DOMNode*, const std::string& msgtype, DataDictionary&, bool );
+  int LIGHTUSE addXMLComponentFields( DOMDocument*, DOMNode*, const std::string& msgtype, DataDictionary&, bool );
+  void LIGHTUSE addXMLGroup( DOMDocument*, DOMNode*, const std::string& msgtype, DataDictionary&, bool );
   TYPE::Type XMLTypeToType( const std::string& xmlType ) const;
 
   bool m_hasVersion;
   unsigned m_checks;
   std::string m_beginString;
-  MsgTypeToField m_messageFields;
-  MsgTypeToField m_requiredFields;
-  MsgTypes m_messages;
-  Fields m_fields;
+  string_type m_applVerID;
+  bool m_headerData, m_trailerData;
+
+  FieldProps m_fieldProps;
+  FieldToGroup m_headerGroups, m_trailerGroups;
+
+  MsgTypeGroups m_messageGroups;
+  MsgTypeFieldProps m_messageFields;
+  MsgTypeRequiredFields m_requiredFields;
+  MsgTypeToData m_messageData;
+
   OrderedFields m_orderedFields;
   mutable OrderedFieldsArray m_orderedFieldsArray;
-  NonBodyFields m_headerFields;
-  FieldTypeHeaderBits m_fieldTypeHeader;
-  FieldTypeTrailerBits m_fieldTypeTrailer;
-  NonBodyFields m_trailerFields;
-  FieldTypeDataBits m_fieldTypeData;
+  HeaderFields m_requiredHeaderFields;
+  TrailerFields m_requiredTrailerFields;
   FieldTypes m_fieldTypes;
   FieldToValue m_fieldValues;
-  FieldTypeGroupBits m_fieldTypeGroup;
-  FieldToGroup m_groups;
   FieldToName m_fieldNames;
   NameToField m_names;
   ValueToName m_valueNames;
+
+  static FieldToProps m_noProps;
+  static FieldToGroup m_noGroups;
+  static MsgFields m_noFields;
+  static MsgTypeData m_noData;
 };
 }
+
 
 #endif //FIX_DATADICTIONARY_H

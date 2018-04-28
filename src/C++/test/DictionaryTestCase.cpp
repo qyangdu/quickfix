@@ -1,5 +1,5 @@
 /****************************************************************************
-** Copyright (c) quickfixengine.org  All rights reserved.
+** Copyright (c) 2001-2014
 **
 ** This file is part of the QuickFIX FIX Engine
 **
@@ -44,17 +44,17 @@ TEST(setGetString)
   CHECK_THROW( object.getString( "STRINGKEY3" ), ConfigError );
 }
 
-TEST(setGetLong)
+TEST(setGetInt)
 {
   Dictionary object;
-  object.setInt( "LONGKEY1", 12 );
-  object.setInt( "LONGKEY2", 9827362 );
-  object.setString( "BADLONGKEY", "AB12" );
+  object.setInt( "INTKEY1", 12 );
+  object.setInt( "INTKEY2", 9827362 );
+  object.setString( "BADINTKEY", "AB12" );
 
-  CHECK_EQUAL( 12, object.getInt( "LONGKEY1" ) );
-  CHECK_EQUAL( 9827362, object.getInt( "LONGKEY2" ) );
-  CHECK_THROW( object.getInt( "LONGKEY3" ), ConfigError );
-  CHECK_THROW( object.getInt( "BADLONGKEY" ), ConfigError );
+  CHECK_EQUAL( 12, object.getInt( "INTKEY1" ) );
+  CHECK_EQUAL( 9827362, object.getInt( "INTKEY2" ) );
+  CHECK_THROW( object.getInt( "INTKEY3" ), ConfigError );
+  CHECK_THROW( object.getInt( "BADINTKEY" ), ConfigError );
 }
 
 TEST(setGetDouble)
@@ -80,6 +80,8 @@ TEST(setGetDay)
   object.setString( "DAY5", "TH" );
   object.setString( "DAY6", "FR" );
   object.setString( "DAY7", "SA" );
+  object.setString( "DAYUNKNOWN", "un" );
+  object.setString( "DAYBAD", "f" );
 
   CHECK_EQUAL( 1, object.getDay( "DAY1" ) );
   CHECK_EQUAL( 2, object.getDay( "DAY2" ) );
@@ -88,6 +90,8 @@ TEST(setGetDay)
   CHECK_EQUAL( 5, object.getDay( "DAY5" ) );
   CHECK_EQUAL( 6, object.getDay( "DAY6" ) );
   CHECK_EQUAL( 7, object.getDay( "DAY7" ) );
+  CHECK_EQUAL( -1, object.getDay( "DAYUNKNOWN" ) );
+  CHECK_THROW( object.getDay( "DAYBAD" ), ConfigError );
 
   object.setDay( "NEXTDAY1", 1 );
   object.setDay( "NEXTDAY2", 2 );
@@ -96,6 +100,7 @@ TEST(setGetDay)
   object.setDay( "NEXTDAY5", 5 );
   object.setDay( "NEXTDAY6", 6 );
   object.setDay( "NEXTDAY7", 7 );
+  object.setDay( "NEXTDAYBAD", 8 );
 
   CHECK_EQUAL( 1, object.getDay( "NEXTDAY1" ) );
   CHECK_EQUAL( 2, object.getDay( "NEXTDAY2" ) );

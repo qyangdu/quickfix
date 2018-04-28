@@ -1,7 +1,7 @@
 /* -*- C++ -*- */
 
 /****************************************************************************
-** Copyright (c) quickfixengine.org  All rights reserved.
+** Copyright (c) 2001-2014
 **
 ** This file is part of the QuickFIX FIX Engine
 **
@@ -29,6 +29,10 @@
 #include "Utility.h"
 #include <string>
 #include <time.h>
+
+#ifdef _MSC_VER
+#pragma warning( disable : 4201 ) // DISABLE warning C4201: nonstandard extension used : nameless struct/union
+#endif
 
 namespace FIX
 {
@@ -76,6 +80,9 @@ struct DateTime
 
   /// Default constructor - initializes to zero
   DateTime () : m_date (0), m_time (0) {}
+
+  DateTime( const DateTime& src )
+  : m_value(src.m_value) {}
 
   /// Construct from a Julian day number and time in millis
   DateTime (int date, int time) : m_date (date), m_time (time) {}
@@ -406,6 +413,12 @@ public:
   UtcTimeStamp()
   : DateTime( DateTime::nowUtc() ) {}
 
+  UtcTimeStamp( const UtcTimeStamp& src )
+  : DateTime( src ) {}
+
+  UtcTimeStamp( const DateTime& src )
+  : DateTime( src ) {}
+
   /// Defaults to the current date
   UtcTimeStamp( int hour, int minute, int second, int millisecond = 0 )
   : DateTime( DateTime::nowUtc() )
@@ -569,7 +582,7 @@ public:
   UtcDate( int date, int month, int year )
   : DateTime(year, month, date, 0, 0, 0, 0) {}
 
-  UtcDate( long sec )
+  UtcDate( int sec )
   : DateTime( sec / DateTime::SECONDS_PER_DAY, 0 ) {}
 
   UtcDate( const tm* time )
@@ -605,7 +618,7 @@ public:
   LocalDate( int date, int month, int year )
   : DateTime(year, month, date, 0, 0, 0, 0) {}
 
-  LocalDate( long sec )
+  LocalDate( int sec )
   : DateTime( sec / DateTime::SECONDS_PER_DAY, 0 ) {}
 
   LocalDate( const tm* time )
@@ -697,5 +710,9 @@ enum Type
 };
 }
 }
+
+#ifdef _MSC_VER
+#pragma warning( default : 4201 ) // RE-ENABLE warning C4201: nonstandard extension used : nameless struct/union
+#endif
 
 #endif //FIX_FIELDTYPES_H

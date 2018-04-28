@@ -1,5 +1,5 @@
 /****************************************************************************
-** Copyright (c) quickfixengine.org  All rights reserved.
+** Copyright (c) 2001-2014
 **
 ** This file is part of the QuickFIX FIX Engine
 **
@@ -81,19 +81,19 @@ void FieldMap::removeGroup( int num, int field )
   }
   else
   {
-    IntField groupCount( field, vector.size() );
+    IntField groupCount( field, (int)vector.size() );
     setField( groupCount, true );
   }
 }
 
 void FieldMap::removeGroup( int field )
 {
-  removeGroup( groupCount(field), field );
+  removeGroup( (int)groupCount(field), field );
 }
 
 bool FieldMap::hasGroup( int num, int field ) const
 {
-  return groupCount(field) >= num;
+  return (int)groupCount(field) >= num;
 }
 
 bool FieldMap::hasGroup( int field ) const
@@ -102,7 +102,7 @@ bool FieldMap::hasGroup( int field ) const
   return i != m_groups.end();
 }
 
-int FieldMap::groupCount( int field ) const
+size_t FieldMap::groupCount( int field ) const
 {
   Groups::const_iterator i = m_groups.find( field );
   if( i == m_groups.end() )
@@ -110,9 +110,9 @@ int FieldMap::groupCount( int field ) const
   return i->second.size();
 }
 
-int FieldMap::totalFields() const
+size_t FieldMap::totalFields() const
 {
-  int result = m_fields.size();
+  size_t result = m_fields.size();
     
   Groups::const_iterator i;
   for ( i = m_groups.begin(); i != m_groups.end(); ++i )
@@ -144,8 +144,8 @@ int FieldMap::calculateLength( int beginStringField,
                                int checkSumField ) const
 {
   int result = 0;
-  Fields::const_iterator i, fe = m_fields.end();
-  for ( i = m_fields.begin(); i != fe; ++i )
+  Fields::const_iterator i, fe = f_end();
+  for ( i = f_begin(); i != fe; ++i )
   {
     int tag = i->first;
     if ( tag != beginStringField
@@ -167,8 +167,8 @@ int FieldMap::calculateLength( int beginStringField,
 int HEAVYUSE FieldMap::calculateTotal( int checkSumField ) const
 {
   int result = 0;
-  Fields::const_iterator i, fe = m_fields.end();
-  for ( i = m_fields.begin(); i != fe; ++i )
+  Fields::const_iterator i, fe = f_end();
+  for ( i = f_begin(); i != fe; ++i )
   {
     if ( i->first != checkSumField )
       result += i->second.getTotal();

@@ -1,5 +1,5 @@
 /****************************************************************************
-** Copyright (c) quickfixengine.org  All rights reserved.
+** Copyright (c) 2001-2014
 **
 ** This file is part of the QuickFIX FIX Engine
 **
@@ -113,7 +113,7 @@ bool SocketConnection::processQueue()
     
   const std::string& msg = m_sendQueue.front();
 
-  int result = socket_send
+  size_t result = socket_send
     ( m_socket, String::c_str(msg) + m_sendLength, String::length(msg) - m_sendLength );
 
   if( result > 0 )
@@ -217,7 +217,7 @@ void SocketConnection::readFromSocket()
 throw( SocketRecvFailed )
 {
   Sg::sg_buf_t buf = m_parser.buffer();
-  int size = recv( m_socket, IOV_BUF(buf), IOV_LEN(buf), 0 );
+  ssize_t size = recv( m_socket, IOV_BUF(buf), IOV_LEN(buf), 0 );
   if( size <= 0 ) throw SocketRecvFailed( size );
   m_parser.advance( size );
 }

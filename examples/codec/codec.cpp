@@ -85,12 +85,32 @@ int main(int argc, char *argv[])
         }
         FIX::Util::Sys::TickCount end = FIX::Util::Sys::TickCount::now();
 
-        std::cout << "from string - " << (end-start).seconds() << std::endl;
+        std::cout << "new/delete dictionary message from string - " << (end-start).seconds() << std::endl;
       }
       else
         std::cout << "Unable to open dictionary file " << argv[1] << std::endl;
     }
-  return 0;
+
+    tt = 0;
+    for(int i = 0; i < 1000000; ++i)
+    {
+      FIX::Util::Sys::TickCount start = FIX::Util::Sys::TickCount::now();
+      msg.setString(output);
+      FIX::Util::Sys::TickCount end = FIX::Util::Sys::TickCount::now();
+      tt += (end-start).seconds();
+    }
+    std::cout << "reload non-dictionary message from string with validation - " << tt << std::endl;
+
+    tt = 0;
+    for(int i = 0; i < 1000000; ++i)
+    {
+      FIX::Util::Sys::TickCount start = FIX::Util::Sys::TickCount::now();
+      msg.setString(output, false);
+      FIX::Util::Sys::TickCount end = FIX::Util::Sys::TickCount::now();
+      tt += (end-start).seconds();
+    }
+    std::cout << "reload non-dictionary message from string without validation - " << tt << std::endl;
+    return 0;
 }
 
 #elif defined(QUICKFIX)

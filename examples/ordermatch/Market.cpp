@@ -1,7 +1,7 @@
 /* -*- C++ -*- */
 
 /****************************************************************************
-** Copyright (c) quickfixengine.org  All rights reserved.
+** Copyright (c) 2001-2014
 **
 ** This file is part of the QuickFIX FIX Engine
 **
@@ -107,7 +107,7 @@ Order& Market::find( Order::Side side, std::string id )
 void Market::match( Order& bid, Order& ask )
 {
   double price = ask.getPrice();
-  int quantity = 0;
+  long quantity = 0;
 
   if ( bid.getOpenQuantity() > ask.getOpenQuantity() )
     quantity = ask.getOpenQuantity();

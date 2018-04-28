@@ -1,5 +1,5 @@
 /****************************************************************************
-** Copyright (c) quickfixengine.org  All rights reserved.
+** Copyright (c) 2001-2014
 **
 ** This file is part of the QuickFIX FIX Engine
 **
@@ -189,6 +189,7 @@ void Application::onMessage( const FIX42::NewOrderSingle& message,
   if( message.isSet(account) )
     executionReport.setField( message.get(account) );
 
+  executionReport.addField( FIX::DoubleField::Pack( 76767, (FIX::Util::Sys::TickCount::now() - FIX::Util::Sys::TickCount()).seconds() ) );
   try
   {
     FIX::Session::sendToTarget( executionReport, sessionID );

@@ -1,7 +1,7 @@
 /* -*- C++ -*- */
 
 /****************************************************************************
-** Copyright (c) quickfixengine.org  All rights reserved.
+** Copyright (c) 2001-2014
 **
 ** This file is part of the QuickFIX FIX Engine
 **
@@ -85,9 +85,9 @@ public:
   virtual void incrNextTargetMsgSeqNum() throw ( IOException ) = 0;
 
   inline UtcTimeStamp NOTHROW getCreationTime() const
-  { UtcTimeStamp u; u.m_value = m_creationTime.m_value; return u; } // XXX: atomic
+  { return m_creationTime; }
   inline UtcTimeStamp NOTHROW setCreationTime( const UtcTimeStamp& creationTime )
-  { m_creationTime.m_value = creationTime.m_value; return m_creationTime; } // XXX: atomic
+  { m_creationTime.m_value = creationTime.m_value; return m_creationTime; }
 
   virtual void reset() throw ( IOException ) = 0;
   virtual void refresh() throw ( IOException ) = 0;
@@ -105,6 +105,7 @@ class MemoryStore : public MessageStore
 public:
   MemoryStore() : m_nextSenderMsgSeqNum( 1 ), m_nextTargetMsgSeqNum( 1 ) {}
 
+  using MessageStore::set;
   bool set( int, const std::string& ) throw ( IOException );
 
   void get( int, int, std::vector < std::string > & ) const throw ( IOException );

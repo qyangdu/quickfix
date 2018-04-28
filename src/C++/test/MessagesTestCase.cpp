@@ -1,5 +1,5 @@
 /****************************************************************************
-** Copyright (c) quickfixengine.org  All rights reserved.
+** Copyright (c) 2001-2014
 **
 ** This file is part of the QuickFIX FIX Engine
 **
@@ -110,6 +110,19 @@ TEST(isEmpty)
   CHECK( !message.isEmpty() );
   message.clear();
   CHECK( message.isEmpty() );
+}
+
+TEST(getFieldIfPresent)
+{
+  FIX::Message message;
+  FIX::MsgType initial("A");
+  CHECK( !message.getFieldIfSet( initial ) );
+  CHECK( initial == FIX::MsgType("A") );
+
+  message.setField( initial );
+  FIX::MsgType stored;
+  CHECK( message.getFieldIfSet( stored ) );
+  CHECK( stored == initial );
 }
 
 TEST(setString)
@@ -367,27 +380,27 @@ TEST(getXML)
           << "  <header>" << std::endl
           << "    <field name=\"BeginString\" number=\"8\"><![CDATA[FIX.4.2]]></field>" << std::endl
           << "    <field name=\"MsgType\" number=\"35\" enum=\"Logon\"><![CDATA[A]]></field>" << std::endl
-	  << "    <field name=\"SenderCompID\" number=\"49\"><![CDATA[SENDER]]></field>" << std::endl
-	  << "    <field name=\"TargetCompID\" number=\"56\"><![CDATA[TARGET]]></field>" << std::endl
-	  << "  </header>" << std::endl
+          << "    <field name=\"SenderCompID\" number=\"49\"><![CDATA[SENDER]]></field>" << std::endl
+          << "    <field name=\"TargetCompID\" number=\"56\"><![CDATA[TARGET]]></field>" << std::endl
+          << "  </header>" << std::endl
           << "  <body>" << std::endl
-	  << "    <field name=\"Account\" number=\"1\"><![CDATA[ACCOUNT]]></field>" << std::endl
-	  << "    <field name=\"ClOrdID\" number=\"11\"><![CDATA[CLORDID]]></field>" << std::endl
-	  << "    <field name=\"IDSource\" number=\"22\" enum=\"CUSIP\"><![CDATA[1]]></field>" << std::endl
-	  << "    <field name=\"NoMsgTypes\" number=\"384\"><![CDATA[2]]></field>" << std::endl
-	  << "    <group>" << std::endl
-	  << "      <field name=\"RefMsgType\" number=\"372\"><![CDATA[A]]></field>" << std::endl
-	  << "      <field name=\"MsgDirection\" number=\"385\"><![CDATA[0]]></field>" << std::endl
-	  << "    </group>" << std::endl
-	  << "    <group>" << std::endl
-	  << "      <field name=\"RefMsgType\" number=\"372\"><![CDATA[0]]></field>" << std::endl
-	  << "      <field name=\"MsgDirection\" number=\"385\"><![CDATA[1]]></field>" << std::endl
-	  << "    </group>" << std::endl
-	  << "  </body>" << std::endl
-	  << "  <trailer>" << std::endl
-	  << "    <field name=\"CheckSum\" number=\"10\"><![CDATA[132]]></field>" << std::endl
-	  << "  </trailer>" << std::endl
-	  << "</message>";
+          << "    <field name=\"Account\" number=\"1\"><![CDATA[ACCOUNT]]></field>" << std::endl
+          << "    <field name=\"ClOrdID\" number=\"11\"><![CDATA[CLORDID]]></field>" << std::endl
+          << "    <field name=\"IDSource\" number=\"22\" enum=\"CUSIP\"><![CDATA[1]]></field>" << std::endl
+          << "    <field name=\"NoMsgTypes\" number=\"384\"><![CDATA[2]]></field>" << std::endl
+          << "    <group>" << std::endl
+          << "      <field name=\"RefMsgType\" number=\"372\"><![CDATA[A]]></field>" << std::endl
+          << "      <field name=\"MsgDirection\" number=\"385\"><![CDATA[0]]></field>" << std::endl
+          << "    </group>" << std::endl
+          << "    <group>" << std::endl
+          << "      <field name=\"RefMsgType\" number=\"372\"><![CDATA[0]]></field>" << std::endl
+          << "      <field name=\"MsgDirection\" number=\"385\"><![CDATA[1]]></field>" << std::endl
+          << "    </group>" << std::endl
+          << "  </body>" << std::endl
+          << "  <trailer>" << std::endl
+          << "    <field name=\"CheckSum\" number=\"10\"><![CDATA[132]]></field>" << std::endl
+          << "  </trailer>" << std::endl
+          << "</message>";
 
   CHECK_EQUAL( stream.str(), message.toXML() );
 }
@@ -488,7 +501,7 @@ TEST(addRemoveGroup)
   CHECK( object.hasGroup(1, group) );
   CHECK( object.hasGroup(2, group) );
   CHECK( object.hasGroup(3, group) );
-  CHECK_EQUAL( 3, object.groupCount(FIX::FIELD::NoOrders) );
+  CHECK_EQUAL( 3lu, object.groupCount(FIX::FIELD::NoOrders) );
   object.getField( noOrders );
   CHECK_EQUAL( 3, noOrders );
 
@@ -496,7 +509,7 @@ TEST(addRemoveGroup)
   CHECK( object.hasGroup(1, group) );
   CHECK( object.hasGroup(2, group) );
   CHECK( !object.hasGroup(3, group) );
-  CHECK_EQUAL( 2, object.groupCount(FIX::FIELD::NoOrders) );
+  CHECK_EQUAL( 2lu, object.groupCount(FIX::FIELD::NoOrders) );
   object.getField( noOrders );
   CHECK_EQUAL( 2, noOrders );
 
@@ -504,7 +517,7 @@ TEST(addRemoveGroup)
   CHECK( object.hasGroup(1, group) );
   CHECK( !object.hasGroup(2, group) );
   CHECK( !object.hasGroup(3, group) );
-  CHECK_EQUAL( 1, object.groupCount(FIX::FIELD::NoOrders) );
+  CHECK_EQUAL( 1lu, object.groupCount(FIX::FIELD::NoOrders) );
   object.getField( noOrders );
   CHECK_EQUAL( 1, noOrders );
 
@@ -512,7 +525,7 @@ TEST(addRemoveGroup)
   CHECK( !object.hasGroup(1, group) );
   CHECK( !object.hasGroup(2, group) );
   CHECK( !object.hasGroup(3, group) );
-  CHECK_EQUAL( 0, object.groupCount(FIX::FIELD::NoOrders) );
+  CHECK_EQUAL( 0lu, object.groupCount(FIX::FIELD::NoOrders) );
   CHECK( !object.isSetField( noOrders ) );
 }
 
@@ -553,7 +566,7 @@ TEST(replaceGroup)
   CHECK( object.hasGroup(1, group) );
   CHECK( object.hasGroup(2, group) );
   CHECK( object.hasGroup(3, group) );
-  CHECK_EQUAL( 3, object.groupCount(FIX::FIELD::NoOrders) );
+  CHECK_EQUAL( 3lu, object.groupCount(FIX::FIELD::NoOrders) );
   object.getField( noOrders );
   CHECK_EQUAL( 3, noOrders );
 
@@ -597,7 +610,7 @@ TEST(testRequestGetString)
   object.set( TestReqID( "23" ) );
 
   CHECK_EQUAL( "8=FIX.4.2\0019=12\00135=1\001112=23\00110=007\001",
-	       object.toString() );
+               object.toString() );
 }
 
 TEST(testRequestSetString)
@@ -905,6 +918,37 @@ TEST(orderCancelRequestSetString)
   CHECK_EQUAL( "CLIENTID", object.get( clOrdID ) );
   CHECK_EQUAL( "MSFT", object.get( symbol ) );
   CHECK_EQUAL( '1', object.get( side ) );
+}
+
+TEST(XMLNonFIXSetString)
+{
+  // XMLnonFIX message
+  FIX::Message object;
+
+  DataDictionary dataDictionary( "../spec/FIX42.xml" );
+
+  std::string encodedFIXmessage = "8=FIX.4.2\0019=390\001"
+    "35=8\00134=136\001369=131\00152=20150220-14:40:24.991\00149=CME\00150=G\001"
+    "56=GGGGGGN\00157=GGG\001143=IL\0011=TEST\0016=0\00111=00000000000000000003\001"
+    "14=1\00117=64485:M:412850TN0031303\00120=0\00131=208700\00132=1\00137=64227619161\001"
+    "38=1\00139=2\00140=2\00141=0\00144=208700\00148=147403\00154=1\00155=ES\00159=0\001"
+    "60=20150220-14:40:24.970\00175=20150220\001107=ESH5\001150=2\001151=0\001167=FUT\001"
+    "337=TRADE\001375=CME000A\001432=20150220\001442=1\001527=642276191612015022031303\001"
+    "1028=N\0011057=N\00110=000\001";
+
+  std::string xmlNonFIXMessage = std::string("8=FIX.4.2\0019=501\00135=n\00134=158\001369=130\00152=20150220-14:40:24.991\001"
+    "49=CME\00150=G\00156=QQQQQQN\00157=QQQ\001212=413\001213=") + encodedFIXmessage + std::string("\00110=129\001");
+
+  object.setString( xmlNonFIXMessage, true, &dataDictionary );
+
+  XmlDataLen dataLen;
+  XmlData xmlData;
+
+  object.getHeader().getField( dataLen );
+  object.getHeader().getField( xmlData );
+
+  CHECK_EQUAL( 413, dataLen.getValue() );
+  CHECK_EQUAL( encodedFIXmessage, xmlData.getValue() );
 }
 
 TEST(orderCancelRejectGetString)

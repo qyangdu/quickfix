@@ -1,7 +1,7 @@
 /* -*- C++ -*- */
 
 /****************************************************************************
-** Copyright (c) quickfixengine.org  All rights reserved.
+** Copyright (c) 2001-2014
 **
 ** This file is part of the QuickFIX FIX Engine
 **
@@ -76,15 +76,16 @@ int gettimeofday(struct timeval *tv/*in*/, struct timezone *tz/*in*/)
 }
 #endif
 
-#define NUM_SAMPLES 1000000
+#define NUM_SAMPLES 100000
 
 timeval last_out, last_in;
-static unsigned long latency;
-static unsigned long long min_latency = 100000000000UL;
-static unsigned long long max_latency;
+static unsigned long rt_latency, ow_latency;
+static unsigned long long min_rt_latency = 100000000000UL, min_ow_latency = 100000000000UL;
+static unsigned long long max_rt_latency, max_ow_latency;
 static const unsigned long bucket_step = 2;
-static const int max_bucket = 200;
-static unsigned long latency_buckets[max_bucket + 1];
+static const int max_bucket = 100;
+static unsigned long rt_latency_buckets[max_bucket + 1];
+static unsigned long ow_latency_buckets[max_bucket + 1];
 FIX::AtomicCount rq_sent(0);
 FIX::AtomicCount rp_matched(0);
 
@@ -97,30 +98,70 @@ FIX::Side     last_Side(FIX::Side_BUY);
 std::auto_ptr<FIX::Message> last_order;
 
 std::queue<timeval> q_out;
-FIX::Spinlock       q_lock;
+FIX::Mutex	    q_lock;
+FIX::CondVar	    q_cond;
 
-void q_on_send() {
+long q_on_send() {
   gettimeofday(&last_out, NULL);
-  FIX::SpinLocker l(q_lock);
+  FIX::Locker l(q_lock);
   q_out.push(last_out);
-  ++rq_sent;
+  return ++rq_sent;
 }
 
-void q_on_receive() {
-  gettimeofday(&last_in, NULL);
-  FIX::SpinLocker l(q_lock);
-  if (!q_out.empty()) {
+void q_on_receive( const FIX::Message& message )
+{
+  ::gettimeofday(&last_in, NULL);
+
+  FIX::Locker l(q_lock);
+  if (!q_out.empty())
+  {
     timeval first_out = q_out.front();
     unsigned long l = (last_in.tv_sec - first_out.tv_sec) * 1000000 + last_in.tv_usec - first_out.tv_usec;
-    if ( l < min_latency ) min_latency = l;
-    if ( l > max_latency ) max_latency = l;
+    if ( l < min_rt_latency ) min_rt_latency = l;
+    if ( l > max_rt_latency ) max_rt_latency = l;
     int b = l / bucket_step;
-    latency_buckets[b > max_bucket ? max_bucket : b ]++;
-    latency += l;
+    rt_latency_buckets[b > max_bucket ? max_bucket : b ]++;
+    rt_latency += l;
+
+    const FIX::FieldBase* p = message.getFieldPtrIfSet( 76767 );
+    if ( p )
+    {
+      double d = 0.0;
+      FIX::DoubleConvertor::parse(p->getString(), d);
+      l = (last_in.tv_sec * 1000000 + last_in.tv_usec) % 1000000000;
+      l = l >= d ? (l - d) : (l + (1000000000 - d));
+      if ( l < min_ow_latency ) min_ow_latency = l;
+      if ( l > max_ow_latency ) max_ow_latency = l;
+      b = l / bucket_step;
+      ow_latency_buckets[b > max_bucket ? max_bucket : b ]++;
+      ow_latency += l;
+    }
+
     q_out.pop();
     ++rp_matched;
+    q_cond.notify_one();
   }
 };
+
+void show_buckets(unsigned long* buckets, std::size_t step, std::size_t sz)
+{
+  for (std::size_t i = 0; i <= sz; i++)
+  {
+    std::cout << "  [" << i * step << " - ";
+    if (i < sz)
+      std::cout << (i + 1) * step;
+    else
+      std::cout << "inf";
+    std::cout << "] = " << buckets[i] << std::endl;
+  }
+}
+
+void wait_receive(long rq)
+{
+   FIX::Locker l(q_lock);
+   while (rq > rp_matched)
+	q_cond.wait(l);
+}
 
 void Application::onLogon( const FIX::SessionID& sessionID )
 {
@@ -136,7 +177,7 @@ void Application::fromApp( const FIX::Message& message, const FIX::SessionID& se
 throw( FIX::FieldNotFound, FIX::IncorrectDataFormat, FIX::IncorrectTagValue, FIX::UnsupportedMessageType )
 {
   crack( message, sessionID );
-  q_on_receive();
+  q_on_receive( message );
 }
 
 void Application::toApp( FIX::Message& message, const FIX::SessionID& sessionID )
@@ -179,64 +220,55 @@ void Application::onMessage
 void Application::run()
 {
   FIX::TimeInForce::Pack  tIF(FIX::TimeInForce_IMMEDIATE_OR_CANCEL);
-  FIX::SenderCompID::Pack sender("CLIENT1");
-  FIX::TargetCompID::Pack target("EXECUTOR");
+  FIX::SessionID sid( "FIX.4.2", "CLIENT1", "EXECUTOR");
+  FIX::Session* ps = FIX::Session::lookupSession(sid);
   while ( true )
   {
     try
     {
       char action = queryAction();
 
-      if ( action == '0' ) {
-	FIX::AtomicCount::value_type rp_prev = rp_matched;
-	timeval st, en;
-        latency = 0;
-	max_latency = 0;
-	min_latency = 10000000000UL;
-        memset(latency_buckets, 0, sizeof(latency_buckets));
+      if ( action == '0' )
+      {
+        FIX::AtomicCount::value_type rp_prev = rp_matched;
+        timeval st, en;
+
+        rt_latency = ow_latency = 0;
+        max_rt_latency = max_ow_latency = 0;
+        min_rt_latency = min_ow_latency = 10000000000UL;
+        ::memset(rt_latency_buckets, 0, sizeof(rt_latency_buckets));
+        ::memset(ow_latency_buckets, 0, sizeof(ow_latency_buckets));
+
         gettimeofday(&st, NULL);
-	for (int i = 0; i < NUM_SAMPLES; i++) {
-	  q_on_send();
-		  FIX42::NewOrderSingle order(last_ClOrdID,
-							 FIX::HandlInst( '1' ),
-							 last_Symbol,
-							 last_Side,
-							 FIX::TransactTime(),
-							 FIX::OrdType(FIX::OrdType_LIMIT));
-		  order.set( last_Qty );
-		  order.set( tIF );
-		  order.set( last_Price );
+        for (int i = 0; i < NUM_SAMPLES; i++)
+        {
+          q_on_send();
+          FIX42::NewOrderSingle order(last_ClOrdID,
+                                      FIX::HandlInst( '1' ),
+                                      last_Symbol,
+                                      last_Side,
+                                      FIX::TransactTime(),
+                                      FIX::OrdType(FIX::OrdType_LIMIT));
+          order.set( last_Qty );
+          order.set( tIF );
+          order.set( last_Price );
+        
+          ps->send( order );
+          wait_receive(rp_prev + rq_sent);
+        }
 
-		  order.getHeader().setField( sender );
-		  order.getHeader().setField( target );
+        ::gettimeofday(&en, NULL);
+	std::cout << "Duration : " << (double)((en.tv_sec - st.tv_sec) * 1000000 + en.tv_usec - st.tv_usec)/1000000.0 << " sec " << std::endl;
 
-          FIX::Session::sendToTarget( order );
-	  for (volatile int i = 0; i < 250; i++)
-	  {
-#ifndef _MSC_VER
-		sched_yield();
-#else
-        SwitchToThread();
-#endif
-	  }
-    }
-	std::cout << "Done sending" << std::endl;
-
-    while ( rp_matched < (NUM_SAMPLES + rp_prev) )
-	{
-#ifndef _MSC_VER
-	  sleep(1);
-#else
-      SleepEx(1000, false);
-#endif
-	}
-    gettimeofday(&en, NULL);
-	std::cout << "Duration : " << ((en.tv_sec - st.tv_sec) * 1000000 + en.tv_usec - st.tv_usec) << " usec " << std::endl;
-	std::cout << "Avg Latency : " << latency / NUM_SAMPLES << " usec " << std::endl;
-	std::cout << "Max Latency : " << max_latency << " usec " << std::endl;
-	std::cout << "Min Latency : " << min_latency << " usec " << std::endl;
-        for (int i = 0; i <= max_bucket; i++)
-		std::cout << "  [" << i * bucket_step << " - " << (i + 1) * bucket_step << "] = " << latency_buckets[i] << std::endl;
+	std::cout << "Avg RTT : " << rt_latency / NUM_SAMPLES << " usec " << std::endl;
+	std::cout << "Max RTT : " << max_rt_latency << " usec " << std::endl;
+	std::cout << "Min RTT : " << min_rt_latency << " usec " << std::endl;
+        show_buckets( rt_latency_buckets, bucket_step, max_bucket );
+ 
+	std::cout << "Avg ExecutionReport latency : " << ow_latency / NUM_SAMPLES << " usec " << std::endl;
+	std::cout << "Max ExecutionReport latency : " << max_ow_latency << " usec " << std::endl;
+	std::cout << "Min ExecutionReport latency : " << min_ow_latency << " usec " << std::endl;
+        show_buckets( ow_latency_buckets, bucket_step, max_bucket );
       }
       else if ( action == '1' )
         queryEnterOrder();
@@ -931,7 +963,7 @@ FIX::Price Application::queryPrice()
   std::cout << std::endl << "Price: ";
   std::string line;
   std::getline( std::cin, line );
-  if (line.empty()) value = atof(line.c_str());
+  if (!line.empty()) value = atof(line.c_str());
   return FIX::Price( value );
 }
 

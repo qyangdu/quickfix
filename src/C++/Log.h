@@ -1,7 +1,7 @@
 /* -*- C++ -*- */
 
 /****************************************************************************
-** Copyright (c) quickfixengine.org  All rights reserved.
+** Copyright (c) 2001-2014
 **
 ** This file is part of the QuickFIX FIX Engine
 **
@@ -143,6 +143,7 @@ public:
   void clear() {}
   void backup() {}
 
+  using Log::onIncoming;
   void onIncoming( const std::string& value )
   {
     if ( !m_incoming ) return ;
@@ -154,6 +155,7 @@ public:
               << "  (" << value << ")" << std::endl;
   }
 
+  using Log::onOutgoing;
   void onOutgoing( const std::string& value )
   {
     if ( !m_outgoing ) return ;

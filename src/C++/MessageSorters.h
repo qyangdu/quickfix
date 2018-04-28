@@ -1,7 +1,7 @@
 /* -*- C++ -*- */
 
 /****************************************************************************
-** Copyright (c) quickfixengine.org  All rights reserved.
+** Copyright (c) 2001-2014
 **
 ** This file is part of the QuickFIX FIX Engine
 **
@@ -269,7 +269,7 @@ public:
       return *this;
     }
 
-    inline bool PURE_DECL NOTHROW operator() ( const int x, const int y ) const
+    inline bool PURE_DECL NOTHROW HEAVYUSE operator() ( const int x, const int y ) const
     {
       if ( LIKELY(m_mode == normal) ) return x < y;
 

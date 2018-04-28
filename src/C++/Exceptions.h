@@ -1,7 +1,7 @@
 /* -*- C++ -*- */
 
 /****************************************************************************
-** Copyright (c) quickfixengine.org  All rights reserved.
+** Copyright (c) 2001-2014
 **
 ** This file is part of the QuickFIX FIX Engine
 **
@@ -248,23 +248,30 @@ struct IOException : public Exception
 struct SocketException : public Exception
 {
   SocketException()
-    : Exception( "Socket Error", errorToWhat() ) {}
+    : Exception( "Socket Error", errorToWhat() ), error( errorValue() ) {}
 
   SocketException( const std::string& what )
-    : Exception( "Socket Error", what ) {}
+    : Exception( "Socket Error", what ), error( errorValue() ) {}
 
-  std::string errorToWhat()
+  static int errorValue()
   {
 #ifdef _MSC_VER
-    error = WSAGetLastError();
+    return WSAGetLastError();
+#else
+    return errno;
+#endif
+  }
+
+  static std::string errorToWhat()
+  {
+#ifdef _MSC_VER
     char buffer[2048];
-    FormatMessage( FORMAT_MESSAGE_FROM_SYSTEM, NULL, error,
+    FormatMessage( FORMAT_MESSAGE_FROM_SYSTEM, NULL, WSAGetLastError(),
                    MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
                    buffer, 2048, NULL );
     return buffer;
 #else
-    error = errno;
-    return strerror( error );
+    return strerror( errno );
 #endif
   }
 
@@ -282,7 +289,7 @@ struct SocketSendFailed : public SocketException
 /// Socket recv operation failed
 struct SocketRecvFailed : public SocketException
 {
-  SocketRecvFailed( int size )
+  SocketRecvFailed( ssize_t size )
     : SocketException( size == 0 ? "Connection reset by peer." : size < 0 ? errorToWhat() : "Success." ) {}
   SocketRecvFailed( const std::string& what )
     : SocketException( what ) {}

@@ -1,5 +1,5 @@
 /****************************************************************************
-** Copyright (c) quickfixengine.org  All rights reserved.
+** Copyright (c) 2001-2014
 **
 ** This file is part of the QuickFIX FIX Engine
 **
@@ -20,7 +20,9 @@
 #ifdef _MSC_VER
 #include "stdafx.h"
 #else
+#ifndef __MACH__
 #define _XOPEN_SOURCE 500
+#endif
 #define _LARGEFILE64_SOURCE
 #include "config.h"
 #endif
@@ -140,16 +142,16 @@ void FileStore::populateCache()
   headerFile = file_fopen( m_headerFileName.c_str(), "r+" );
   if ( headerFile )
   {
-    int num, size;
+    int num;
     FILE_OFFSET_TYPE offset;
-    while ( FILE_FSCANF( headerFile, "%d,%" FILE_OFFSET_TYPE_MOD "d,%d ",
+    size_t size;
+    while ( FILE_FSCANF( headerFile, "%d,%" FILE_OFFSET_TYPE_MOD "d,%" SIZE_T_TYPE_MOD "u ",
                         &num, FILE_OFFSET_TYPE_ADDR(offset), &size ) == 3 )
       m_offsets[ num ] = std::make_pair( offset, size );
     fclose( headerFile );
   }
 
-  FILE* seqNumsFile;
-  seqNumsFile = file_fopen( m_seqNumsFileName.c_str(), "r+" );
+  FILE* seqNumsFile = file_fopen( m_seqNumsFileName.c_str(), "r+" );
   if ( seqNumsFile )
   {
     int sender, target;
@@ -161,8 +163,7 @@ void FileStore::populateCache()
     fclose( seqNumsFile );
   }
 
-  FILE* sessionFile;
-  sessionFile = file_fopen( m_sessionFileName.c_str(), "r+" );
+  FILE* sessionFile = file_fopen( m_sessionFileName.c_str(), "r+" );
   if ( sessionFile )
   {
     char time[ 22 ];

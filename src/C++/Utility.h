@@ -1,7 +1,7 @@
 /* -*- C++ -*- */
 
 /****************************************************************************
-** Copyright (c) quickfixengine.org  All rights reserved.
+** Copyright (c) 2001-2014
 **
 ** This file is part of the QuickFIX FIX Engine
 **
@@ -88,6 +88,7 @@
 #include <stdint.h>
 #endif
 typedef int socklen_t;
+typedef int ssize_t;
 /////////////////////////////////////////////
 #else
 /////////////////////////////////////////////
@@ -108,8 +109,18 @@ typedef int socklen_t;
 #include <errno.h>
 #include <time.h>
 #include <stdlib.h>
+#if defined(__GNUC__) && (defined(__x86_64__) || defined(__i386__))
+#include <xmmintrin.h>
+#ifdef __AVX__
+#include <immintrin.h>
+#endif
+#endif
 #if defined(__MACH__)
+#include <sys/types.h>
+#include <sys/uio.h>
+#include <string.h>
 #include <mach/mach_time.h>
+#include <dispatch/dispatch.h>
 #endif
 /////////////////////////////////////////////
 #endif
@@ -120,17 +131,35 @@ typedef int socklen_t;
 #include <ctime>
 #include <cstdio>
 #include <cstdlib>
+#include <memory>
 
 #ifdef HAVE_BOOST
+#include <boost/date_time/posix_time/posix_time_types.hpp>
+#include <boost/thread/condition_variable.hpp>
 #include <boost/thread/recursive_mutex.hpp>
 #include <boost/scoped_array.hpp>
 #include <boost/range.hpp>
+#endif
+
+#ifdef HAVE_BOOST
+  namespace ptr = boost;
+#elif defined(HAVE_STD_SHARED_PTR)
+  namespace ptr = std;
+#elif defined(HAVE_STD_TR1_SHARED_PTR)
+  #include <tr1/memory>
+  namespace ptr = std::tr1;
+#else
+  namespace ptr = std;
 #endif
 
 #ifdef HAVE_TBB
 #include <tbb/tick_count.h>
 #include <tbb/spin_mutex.h>
 #include <tbb/atomic.h>
+#endif
+
+ #ifdef _MSC_VER
+#pragma warning( disable : 4706 ) // DISABLE warning C4706: assignment within conditional expression
 #endif
 
 #if defined(_MSC_VER)
@@ -148,35 +177,52 @@ typedef int socklen_t;
 #endif
 
 #if defined(_MSC_VER)
-#define ALIGN_DECL(x) __declspec(align(x))
-#define NOTHROW __declspec(nothrow)
-#define NOTHROW_PRE __declspec(nothrow)
-#define NOTHROW_POST
-#define HEAVYUSE
-#define PREFETCH(addr, rw, longevity) _mm_prefetch(addr, longevity)
-#define LIKELY(x) (x)
-#define MAY_ALIAS
-#define PURE_DECL
+  #define ALIGN_DECL(x) __declspec(align(x))
+  #define NOTHROW __declspec(nothrow)
+  #define NOTHROW_PRE __declspec(nothrow)
+  #define NOTHROW_POST
+  #define LIGHTUSE
+  #define HEAVYUSE
+  #define PREFETCH(addr, rw, longevity) _mm_prefetch(addr, longevity)
+  #define LIKELY(x) (x)
+  #define UNLIKELY(x) (x)
+  #define MAY_ALIAS
+  #define PURE_DECL
+  #ifndef FORCE_INLINE
+    #define FORCE_INLINE
+  #endif
 #elif defined(__GNUC__)
-#define ALIGN_DECL(x) __attribute__ ((aligned(x)))
-#define NOTHROW __attribute__ ((nothrow))
-#define NOTHROW_PRE
-#define NOTHROW_POST __attribute__ ((nothrow))
-#define HEAVYUSE __attribute__((hot))
-#define PREFETCH(addr, rw, longevity) __builtin_prefetch(addr, rw, longevity)
-#define LIKELY(x) __builtin_expect((x),1)
-#define MAY_ALIAS __attribute__ ((may_alias))
-#define PURE_DECL __attribute__ ((pure))
+  #define ALIGN_DECL(x) __attribute__ ((aligned(x)))
+  #define NOTHROW __attribute__ ((nothrow))
+  #define NOTHROW_PRE
+  #define NOTHROW_POST __attribute__ ((nothrow))
+  #define HEAVYUSE __attribute__((hot))
+  #define LIGHTUSE __attribute__((cold))
+  #define PREFETCH(addr, rw, longevity) __builtin_prefetch(addr, rw, longevity)
+  #define LIKELY(x) __builtin_expect((x),1)
+  #define UNLIKELY(x) __builtin_expect((x),0)
+  #define MAY_ALIAS __attribute__ ((may_alias))
+  #define PURE_DECL __attribute__ ((pure))
+  #if defined(__INTEL_COMPILER)
+    #define FORCE_INLINE __forceinline
+  #else
+    #ifndef FORCE_INLINE
+      #define FORCE_INLINE
+    #endif
+  #endif
 #else
-#define ALIGN_DECL(x)
-#define NOTHROW
-#define NOTHROW_PRE
-#define NOTHROW_POST
-#define HEAVYUSE
-#define PREFETCH(addr, rw, longevity) while(false)
-#define LIKELY(x) (x)
-#define MAY_ALIAS
-#define PURE_DECL
+  #define ALIGN_DECL(x)
+  #define NOTHROW
+  #define NOTHROW_PRE
+  #define NOTHROW_POST
+  #define HEAVYUSE
+  #define LIGHTUSE 
+  #define PREFETCH(addr, rw, longevity) while(false)
+  #define LIKELY(x) (x)
+  #define UNLIKELY(x) (x)
+  #define MAY_ALIAS
+  #define PURE_DECL
+  #define FORCE_INLINE
 #endif
 
 #define ALIGN_DECL_DEFAULT ALIGN_DECL(16)
@@ -197,7 +243,7 @@ namespace FIX
   int socket_createConnector();
   int socket_connect( int s, const char* address, int port );
   int socket_accept( int s );
-  int socket_send( int s, const char* msg, int length );
+  ssize_t socket_send( int s, const char* msg, size_t length );
   void socket_close( int s );
   bool socket_fionread( int s, int& bytes );
   bool socket_disconnected( int s );
@@ -224,6 +270,17 @@ namespace FIX
   tm time_gmtime( const time_t* t );
   tm time_localtime( const time_t* t );
 
+  template<typename InputIterator, typename OutputIterator>
+  OutputIterator copy_to_array(InputIterator first, InputIterator last, OutputIterator result, size_t result_size)
+  {
+#ifdef _MSC_VER
+    stdext::checked_array_iterator<OutputIterator> checked_array(result, result_size);
+    return std::copy(first, last, checked_array).base();
+#else
+    return std::copy(first, last, result);
+#endif
+  }
+
 #ifdef _MSC_VER
 
 #define ALIGNED_ALLOC(p, sz, alignment) (p = (CHAR*)_aligned_malloc(sz, alignment))
@@ -243,6 +300,11 @@ namespace FIX
 #define FILE_OFFSET_TYPE_SET(offt, value) ((offt).QuadPart = (value))
 #define FILE_OFFSET_TYPE_VALUE(offt) ((offt).QuadPart)
 #define FILE_OFFSET_TYPE_ADDR(offt) (&(offt).QuadPart)
+#if defined(_M_X64)
+#define SIZE_T_TYPE_MOD	"I64"
+#else
+#define SIZE_T_TYPE_MOD ""
+#endif
 
 #else /* !_MSC_VER */
 
@@ -259,10 +321,19 @@ namespace FIX
 #define FILE_POSITION_CUR (SEEK_CUR)
 #define FILE_POSITION_END (SEEK_END)
   typedef off_t   FILE_OFFSET_TYPE;
+#ifdef __MACH__
+#define FILE_OFFSET_TYPE_MOD            "ll"
+#else
 #define FILE_OFFSET_TYPE_MOD		"L"
+#endif
 #define FILE_OFFSET_TYPE_SET(offt, value) ((offt) = (value))
 #define FILE_OFFSET_TYPE_VALUE(offt) ((long long)offt)
 #define FILE_OFFSET_TYPE_ADDR(offt) ((long long*)&(offt))
+#if defined(__x86_64__)
+#define SIZE_T_TYPE_MOD			"l"
+#else
+#define SIZE_T_TYPE_MOD			""
+#endif
 #endif /* _MSC_VER */
 
   FILE_HANDLE_TYPE file_handle_open( const char* path );
@@ -317,7 +388,7 @@ namespace FIX
     {
       static inline std::size_t bsf(W w)
       {
-        register const W notfound = (W)(S << 3);
+        const W notfound = (W)(S << 3);
         std::size_t v = Mod67Position[((1 + ~(uint64_t)w) & (uint64_t)w) % 67];
         return (v != 64) ? v : notfound;
       }
@@ -329,8 +400,8 @@ namespace FIX
     {
       static inline std::size_t PURE_DECL HEAVYUSE bsf(W w)
       {
-        register std::size_t v;
-        register const W notfound = 64;
+        std::size_t v;
+        const W notfound = 64;
         __asm__ __volatile__ (
           "bsf %1, %0; "
           "cmovz %2, %0"
@@ -345,8 +416,8 @@ namespace FIX
     {
       static inline std::size_t PURE_DECL HEAVYUSE bsf(W w)
       {
-        register unsigned v;
-        register const W notfound = 32;
+        unsigned v;
+        const W notfound = 32;
         __asm__ __volatile__ (
           "bsf %1, %0; "
           "cmovz %2, %0"
@@ -361,7 +432,7 @@ namespace FIX
     {
       static inline std::size_t PURE_DECL HEAVYUSE bsf(W w)
       {
-        register std::size_t v = __builtin_ffsll((uint64_t)w);
+        std::size_t v = __builtin_ffsll((uint64_t)w);
         return v ? (v - 1) : 64;
       }
     };
@@ -370,7 +441,7 @@ namespace FIX
     {
       static inline std::size_t PURE_DECL HEAVYUSE bsf(W w)
       {
-        register std::size_t v = __builtin_ffs((uint32_t)w);
+        std::size_t v = __builtin_ffs((uint32_t)w);
         return v ? (v - 1) : 32;
       }
     };
@@ -405,7 +476,7 @@ namespace FIX
       {
         unsigned long v;
         return _BitScanForward( &v, (unsigned long) w ) ? v
-             : _BitScanForward( &v, (unsigned long)(w >> 32) ) ? (v + 32) : 64;
+             : _BitScanForward( &v, (unsigned long)(w >> 32) ) ? v + 32 : 64;
       }
     };
 
@@ -415,7 +486,7 @@ namespace FIX
     template <typename W>
     static inline std::size_t PURE_DECL HEAVYUSE bit_scan(W w, std::size_t from = 0)
     {
-      return bitop<W>::bsf( w & (~(W)0 << from) );
+      return bitop<W>::bsf( w & ((from < (sizeof(W) << 3)) ? (~(W)0 << from): (W)0) );
     }
 
   } // namespace detail
@@ -451,26 +522,25 @@ namespace FIX
         ALIGN_DECL(16) LARGE_INTEGER m_data;
 
         TickCount(LARGE_INTEGER data) : m_data(data) {}
-        TickCount()
-        {
-	      ::QueryPerformanceCounter(&m_data);
-        }
+
       public:
         static inline TickCount now()
-        { return TickCount(); }
+        { LARGE_INTEGER data; ::QueryPerformanceCounter(&data); return data; }
+
+	TickCount() { m_data.QuadPart = 0; }
 
         TickCount operator-(const TickCount& rhs) const
         {
           LARGE_INTEGER diff;
-	      diff.QuadPart = m_data.QuadPart - rhs.m_data.QuadPart;
-	      return diff;
+	  diff.QuadPart = m_data.QuadPart - rhs.m_data.QuadPart;
+	  return diff;
         }
 
         double seconds() const
         {
-	      LARGE_INTEGER freq;
-	      ::QueryPerformanceFrequency(&freq);
-	      return (double)m_data.QuadPart/(double)freq.QuadPart;
+	  LARGE_INTEGER freq;
+	  ::QueryPerformanceFrequency(&freq);
+	  return (double)m_data.QuadPart/(double)freq.QuadPart;
         }
       };
 #elif defined(__MACH__)
@@ -479,13 +549,12 @@ namespace FIX
         uint64_t m_data;
 
         TickCount(uint64_t data) : m_data(data) {}
-        TickCount()
-        {
-          m_data = ::mach_absolute_time();
-        }
+
       public:
         static inline TickCount now()
-        { return TickCount(); }
+        { return ::mach_absolute_time(); }
+
+        TickCount() : m_data(0) {}
 
         TickCount operator-(const TickCount& rhs) const
         {
@@ -506,13 +575,12 @@ namespace FIX
         struct timespec m_data;
 
         TickCount(struct timespec data) : m_data(data) {}
-        TickCount()
-        {
-          ::clock_gettime(CLOCK_REALTIME, &m_data);
-        }
+
       public:
         static inline TickCount now()
-        { return TickCount(); }
+        { struct timespec data; ::clock_gettime(CLOCK_REALTIME, &data); return data; }
+
+        TickCount() { m_data.tv_sec = 0; m_data.tv_nsec = 0; }
 
         TickCount operator-(const TickCount& rhs) const
         {
@@ -532,15 +600,15 @@ namespace FIX
         {
           return (double)m_data.tv_sec + (double)m_data.tv_nsec / 1.0E-9;
         }
-      };
+      }; // TickCount
 #endif
 
-#if defined(_MSC_VER)
       class Semaphore
       {
-        HANDLE m_sem;
         Semaphore( const Semaphore & );
         Semaphore & operator = ( const Semaphore & );
+#if defined(_MSC_VER)
+        HANDLE m_sem;
       public:
         Semaphore(int count = 0) 
         {
@@ -562,13 +630,33 @@ namespace FIX
         {
           return ::ReleaseSemaphore(m_sem, 1, NULL) != 0;
         }
-      };
+
+#elif defined(__MACH__)
+        dispatch_semaphore_t m_sem;
+      public:
+        Semaphore( int count = 0 )
+        {
+          m_sem = ::dispatch_semaphore_create( count );
+        }
+        ~Semaphore()
+        {
+          ::dispatch_release( m_sem );
+        }
+        bool wait()
+        {
+          return 0 == ::dispatch_semaphore_wait( m_sem, DISPATCH_TIME_FOREVER );
+        }
+        bool try_wait()
+        {
+          return 0 == ::dispatch_semaphore_wait( m_sem, DISPATCH_TIME_NOW );
+        }
+        bool post()
+        {
+          ::dispatch_semaphore_signal( m_sem );
+          return true;
+        }
 #else
-      class Semaphore
-      {
         sem_t m_sem;
-        Semaphore( const Semaphore & );
-        Semaphore & operator = ( const Semaphore & );
       public:
         Semaphore( int count = 0 ) 
         {
@@ -590,8 +678,8 @@ namespace FIX
         {
           return 0 == ::sem_post( &m_sem );
         }
-      };
 #endif
+      }; // Semaphore
 
 #if defined(_MSC_VER)
       static inline void SchedYield() { ::SwitchToThread(); }
@@ -600,170 +688,439 @@ namespace FIX
 #endif
     }; // Sys
 
-#if defined(__GNUC__) && defined(__x86_64__)
-    class IntBase {
+    struct NumData
+    {
+      union DigitPair
+      {
+        char     c[2];
+        uint16_t u;
+      };
+      static ALIGN_DECL_DEFAULT DigitPair m_pairs[100]; /* string representations of "00" to "99" */
+    };
+
+#if (defined(__GNUC__) && (defined(__x86_64__) || defined(__i386__))) || defined(_MSC_VER)
+    class x86Data : public NumData {
       protected:
-      struct Log2 {
-        int32_t m_threshold;
-        int32_t m_count;
+      union Log2 {
+        struct {
+          int32_t m_count;
+          uint32_t m_threshold;
+        };
+        uint64_t m_qword;
       };
-      static Log2 m_digits[32];
+      static ALIGN_DECL_DEFAULT Log2 m_digits[32];
+      static struct ConvBits
+      { 
+        uint16_t mul_10[8];
+        uint16_t div_const[8];
+        uint16_t shl_const[8];
+        uint8_t  to_ascii[16];
+      } ALIGN_DECL(64) cbits;
     };
 
-    class Int : public IntBase {
+    class UInt : public x86Data {
       public:
-      static inline int PURE_DECL HEAVYUSE numDigits( int32_t i )
+      static inline std::size_t PURE_DECL HEAVYUSE numDigits( uint32_t i )
       {
-        register int32_t z = 0;
-        register uint32_t log2;
-        if (i < 0) i = -i;
+        std::size_t l = i;
+#ifdef __GNUC__
+  #ifdef __x86_64__
         __asm__ __volatile__ (
-	            "bsr %1, %0;"  \
-	            "cmovz %2, %0;"\
-	            : "=r" (log2)  \
-	            : "rm" (i), "r"(z));
-        register const Log2& e = m_digits[log2];
+                "bsrl %k0, %k0          \n\t"
+                "shlq $32, %q1          \n\t"
+                "movq (%2,%0,8), %0     \n\t"
+                "cmpq %0, %q1           \n\t"
+                "seta %b1               \n\t"
+                "addl %1, %k0           \n\t"
+                : "+r" (l), "+r"(i)
+                : "r"(m_digits)
+                : "cc"
+        );
+        return l;
+  #else
+        __asm__ __volatile__ ( "bsrl %0, %0; " : "+r" (l) : : "cc" );
+        const Log2& e = m_digits[l];
         return e.m_count + ( i > e.m_threshold );
-      }
-    };
-    class PositiveInt : public IntBase {
-      public:
-      static inline int PURE_DECL HEAVYUSE numDigits( int32_t i )
-      {
-        register uint32_t log2;
-        __asm__ __volatile__ (
-                "bsr %1, %0; " \
-                : "=r" (log2)  \
-                : "rm" (i));
-        register const Log2& e = m_digits[log2];
-        return e.m_count + ( i > e.m_threshold );
-      }
-      static inline short PURE_DECL HEAVYUSE checkSum(int n)
-      {
-	short csum = 0;
-        do
-        {
-          csum += (int)'0' + n % 10;
-        } while ( (n /= 10) );
-        return csum;
-      }
-    };
-    class Long {
-      struct Log2 {
-        int64_t m_threshold;
-        int64_t m_count;
-      };
-      static Log2 m_digits[64];
-      public:
-      static inline int PURE_DECL HEAVYUSE numDigits( int64_t i )
-      {
-        register const int64_t z = 0;
-        register uint64_t log2;
-        if (i < 0) i = -i;
-        __asm__ __volatile__ (
-                "bsr %1, %0;"  \
-                "cmovz %2, %0;"\
-                : "=r" (log2)  \
-                : "rm" (i), "r"(z));
-  
-        register const Log2& e = m_digits[log2];
-        return e.m_count + ( i > e.m_threshold );
-      }
-    };
+  #endif
 #else
-    class Int {
-      public:
-      static inline int PURE_DECL HEAVYUSE numDigits( int32_t i )
-      {
-        if (i < 0)  i = -i;
-        if              (i < 100000) {
-            if          (i < 1000) {
-                if      (i < 10)         return 1;
-                else if (i < 100)        return 2;
-                else                     return 3;
-            } else {
-                if      (i < 10000)      return 4;
-                else                     return 5;
-            }
-        } else {
-            if          (i < 10000000) {
-                if      (i < 1000000)    return 6;
-                else                     return 7;
-            } else {
-                if      (i < 100000000)  return 8;
-                else if (i < 1000000000) return 9;
-                else                     return 10;
-            }
-        }
+        l = _BitScanReverse((DWORD*)&l, i) ? l : 0;
+        const Log2& e = m_digits[l];
+        return e.m_count + ( i > e.m_threshold );
+#endif
       }
-    };
-    class PositiveInt {
-      public:
-      static inline int PURE_DECL HEAVYUSE numDigits( int32_t i )
+
+      // serializer for an integer with a known length
+      static inline NOTHROW HEAVYUSE void generate(char* buf, uint32_t value, std::size_t len)
       {
-        if              (i < 100000) {
-            if          (i < 1000) {
-                if      (i < 10)         return 1;
-                else if (i < 100)        return 2;
-                else                     return 3;
-            } else {
-                if      (i < 10000)      return 4;
-                else                     return 5;
-            }
-        } else {
-            if          (i < 10000000) {
-                if      (i < 1000000)    return 6;
-                else                     return 7;
-            } else {
-                if      (i < 100000000)  return 8;
-                else if (i < 1000000000) return 9;
-                else                     return 10;
-            }
+#if defined(ENABLE_INT_SERIALIZER_BW)
+        uint32_t u = value;
+        switch(len) {
+          default: u = (value * 1374389535ULL) >> 37; *(uint16_t*)(buf + 8) = m_pairs[value -= 100 * u].u; 
+          case  8: value = (u * 1374389535ULL) >> 37; *(uint16_t*)(buf + 6) = m_pairs[u -= 100 * value].u; 
+          case  6: u = (value * 1374389535ULL) >> 37; *(uint16_t*)(buf + 4) = m_pairs[value -= 100 * u].u;
+          case  4: value = (u * 167773) >> 24; *(uint16_t*)(buf + 2) = m_pairs[u -= 100 * value].u;
+          case  2: *(uint16_t*)(buf) = m_pairs[value].u;
+          case  0: return;
+          case  9: u = (value * 1374389535ULL) >> 37; *(uint16_t*)(buf + 7) = m_pairs[value -= 100 * u].u;
+          case  7: value = (u * 1374389535ULL) >> 37; *(uint16_t*)(buf + 5) = m_pairs[u -= 100 * value].u;
+          case  5: u = (value * 1374389535ULL) >> 37; *(uint16_t*)(buf + 3) = m_pairs[value -= 100 * u].u;
+          case  3: value = (u * 167773) >> 24; *(uint16_t*)(buf + 1) = m_pairs[u -= 100 * value].u;
+          case  1: *buf = value + 0x30;
         }
+#elif defined(ENABLE_INT_SERIALIZER_BW_SHORT)
+        std::size_t odd = len & 1;
+        uint32_t u = value;
+        switch(len >> 1) { 
+          default: u = (value * 1374389535ULL) >> 37; *(uint16_t*)(buffer + 8) = m_pairs[value - 100 * u].u; 
+          case  4: value = (u * 1374389535ULL) >> 37; *(uint16_t*)(buffer + 6 + odd) = m_pairs[u - 100 * value].u; 
+          case  3: u = (value * 1374389535ULL) >> 37; *(uint16_t*)(buffer + 4 + odd) = m_pairs[value - 100 * u].u;
+          case  2: value = (u * 1374389535ULL) >> 37; *(uint16_t*)(buffer + 2 + odd) = m_pairs[u - 100 * value].u;
+          case  1: u = (value * 6554) >> 16; *(uint16_t*)buffer = m_pairs[odd ? u : value].u; value -= 10 * u; len = -1;
+          case  0: buffer[odd - len] = value + 0x30;
+        }
+#else
+  #if defined(__GNUC__) && defined(__x86_64__)
+        uint16_t w;
+        uint32_t u;
+        __asm__ __volatile__ (
+          "leaq T%=(%%rip), %q1           \n\t"
+          "addq (%q1,%3,8), %q1	  	  \n\t"
+          "jmp *%q1	                  \n\t"
+          "T%=: .quad L0%=-T%=        \n\t"
+          "     .quad L1%=-T%=        \n\t"
+          "     .quad L2%=-T%=        \n\t"
+          "     .quad L3%=-T%=        \n\t"
+          "     .quad L4%=-T%=        \n\t"
+          "     .quad L5%=-T%=        \n\t"
+          "     .quad L6%=-T%=        \n\t"
+          "     .quad L7%=-T%=        \n\t"
+          "     .quad L8%=-T%=        \n\t"
+          "     .quad L9%=-T%=        \n\t"
+          "     .quad L10%=-T%=       \n\t"
+          "L10%=:                     \n\t"
+          " imulq $1441151881, %q0, %q1   \n\t"
+          " shrq $57, %q1                 \n\t"
+          " movw (%5,%q1,2), %w2          \n\t"
+          " imull $100000000, %1, %1      \n\t"
+          " subl %1, %0                   \n\t"
+          " movw %w2, (%4)                \n\t"
+          "L8%=:                      \n\t"
+          " imulq $1125899907, %q0, %q1   \n\t"
+          " shrq $50, %q1                 \n\t"
+          " movw (%5,%q1,2), %w2          \n\t"
+          " imull $1000000, %1, %1        \n\t"
+          " subl %1, %0                   \n\t"
+          " movw %w2, -8(%4,%3)           \n\t"
+          "L6%=:                      \n\t"
+          " imulq $429497, %q0, %q1       \n\t"
+          " shrq $32, %q1                 \n\t"
+          " movw (%5,%q1,2), %w2          \n\t"
+          " imull $10000, %1, %1          \n\t"
+          " subl %1, %0                   \n\t"
+          " movw %w2, -6(%4,%3)           \n\t"
+          "L4%=:                      \n\t"
+          " imull $167773, %0, %1         \n\t"
+          " shrl $24, %1                  \n\t"
+          " movw (%5,%q1,2), %w2          \n\t"
+          " imull $100, %1, %1            \n\t"
+          " subl %1, %0                   \n\t"
+          " movw %w2, -4(%4,%3)           \n\t"
+          "L2%=:                      \n\t"
+          " movw (%5,%q0,2), %w2          \n\t"
+          " movw %w2, -2(%4,%3)           \n\t"
+          "L0%=: jmp 1f               \n\t"
+          "L9%=:                      \n\t"
+          " imulq $1801439851, %q0, %q1   \n\t"
+          " shrq $54, %q1                 \n\t"
+          " movw (%5,%q1,2), %w2          \n\t"
+          " imull $10000000, %1, %1       \n\t"
+          " subl %1, %0                   \n\t"
+          " movw %w2, (%4)                \n\t"
+          "L7%=:                      \n\t"
+          " imulq $43980466, %q0, %q1     \n\t"
+          " shrq $42, %q1                 \n\t"
+          " movw (%5,%q1,2), %w2          \n\t"
+          " imull $100000, %1, %1         \n\t"
+          " subl %1, %0                   \n\t"
+          " movw %w2, -7(%4,%3)           \n\t"
+          "L5%=:                      \n\t"
+          " imulq $268436, %q0, %q1       \n\t"
+          " shrq $28, %q1                 \n\t"
+          " movw (%5,%q1,2), %w2          \n\t"
+          " imull $1000, %1, %1           \n\t"
+          " subl %1, %0                   \n\t"
+          " movw %w2, -5(%4,%3)           \n\t"
+          "L3%=:                      \n\t"
+          " imull $6554, %0, %1           \n\t"
+          " shrl $15, %1                  \n\t"
+          " andb $254, %b1                \n\t"
+          " movw (%5,%q1), %w2            \n\t"
+          " leal (%1,%1,4), %1            \n\t"
+          " subl %1, %0                   \n\t"
+          " movw %w2, -3(%4,%3)           \n\t"
+          "L1%=:                      \n\t"
+          " addl $48, %0                  \n\t"
+          " movb %b0, -1(%4,%3)           \n\t"
+          "1:                         \n\t"
+          : "+r"(value), "=&r"(u), "=&r"(w)
+          : "r"(len), "r"(buf), "r"(m_pairs)
+          : "memory", "cc"
+        ); 
+  #elif defined(_MSC_VER) && defined(_M_X64)
+        uint32_t u;
+        switch(len) {
+          default: u = (value * 1441151881ULL) >> 57; *(uint16_t*)(buf) = m_pairs[u].u; value -= u * 100000000;
+          case  8: u = (value * 1125899907ULL) >> 50; *(uint16_t*)(buf + len - 8) = m_pairs[u].u; value -= u * 1000000;
+          case  6: u = (value * 429497ULL) >> 32; *(uint16_t*)(buf + len - 6) = m_pairs[u].u; value -= u * 10000;
+          case  4: u = (value * 167773) >> 24; *(uint16_t*)(buf + len - 4) = m_pairs[u].u; value -= u * 100;
+          case  2: *(uint16_t*)(buf + len - 2) = m_pairs[value].u;
+          case  0: return;
+          case  9: u = (value * 1801439851ULL) >> 54; *(uint16_t*)(buf) = m_pairs[u].u; value -= u * 10000000; 
+          case  7: u = (value * 43980466ULL) >> 42; *(uint16_t*)(buf + len - 7) = m_pairs[u].u; value -= u * 100000; 
+          case  5: u = (value * 268436ULL) >> 28; *(uint16_t*)(buf + len - 5) = m_pairs[u].u; value -= u * 1000;
+          case  3: u = (value * 6554) >> 16; *(uint16_t*)(buf + len - 3) = m_pairs[u].u; value -= u * 10;
+          case  1: *(buf + len - 1) = value + 0x30;
+        }
+  #else
+        uint32_t u;
+        switch(len) {
+          default: u = value / 100000000; *(uint16_t*)(buf) = m_pairs[u].u; value -= u * 100000000;
+          case  8: u = value / 1000000; *(uint16_t*)(buf + len - 8) = m_pairs[u].u; value -= u * 1000000;
+          case  6: u = value / 10000; *(uint16_t*)(buf + len - 6) = m_pairs[u].u; value -= u * 10000;
+          case  4: u = value / 100; *(uint16_t*)(buf + len - 4) = m_pairs[u].u; value -= u * 100;
+          case  2: *(uint16_t*)(buf + len - 2) = m_pairs[value].u;
+          case  0: return;
+          case  9: u = value / 10000000; *(uint16_t*)(buf) = m_pairs[u].u; value -= u * 10000000; 
+          case  7: u = value / 100000; *(uint16_t*)(buf + len - 7) = m_pairs[u].u; value -= u * 100000; 
+          case  5: u = value / 1000; *(uint16_t*)(buf + len - 5) = m_pairs[u].u; value -= u * 1000;
+          case  3: u = value / 10; *(uint16_t*)(buf + len - 3) = m_pairs[u].u; value -= u * 10;
+          case  1: *(buf + len - 1) = value + 0x30;
+        }
+  #endif
+#endif
       }
-      static inline short PURE_DECL HEAVYUSE checkSum(int n)
+
+      // serializer that calculates length, buffer must have space for any value including terminating '\0'
+      static inline unsigned NOTHROW HEAVYUSE generate(char* buf, uint32_t value)
       {
-        short csum = 0;
-        do
-        {
+        uint32_t x, y, l = 0;
+
+        x = (value * 1374389535ULL) >> 37;
+        y = value;
+        if (x) {
+          uint32_t div_10000 = 0xd1b71759, mul_10000 = 55536;
+          __m128i z, m, a, o;
+          y -= 100 * x;
+          z = _mm_cvtsi32_si128(x);
+          m = _mm_load_si128((__m128i*)cbits.mul_10);
+          o = _mm_mul_epu32( z, _mm_cvtsi32_si128(div_10000));
+          z = _mm_add_epi32( z, _mm_mul_epu32( _mm_cvtsi32_si128(mul_10000), _mm_srli_epi64( o, 45) ) );
+          z = _mm_slli_epi64( _mm_shuffle_epi32( _mm_unpacklo_epi16(z, z), 5 ), 2 );
+          a = _mm_load_si128((__m128i*)cbits.to_ascii);
+          z = _mm_mulhi_epu16( _mm_mulhi_epu16( z, *(__m128i*)cbits.div_const ), *(__m128i*)cbits.shl_const );
+          z = _mm_sub_epi16( z, _mm_slli_epi64( _mm_mullo_epi16( m, z ), 16 ) );
+          z = _mm_add_epi8( _mm_packus_epi16( z, _mm_xor_si128(o, o) ), a );
+#if defined(_MSC_VER)
+          _BitScanForward( (DWORD*)&x, ~_mm_movemask_epi8( _mm_cmpeq_epi8( a, z ) ) );
+#else
+          x = __builtin_ctz( ~_mm_movemask_epi8( _mm_cmpeq_epi8( a, z ) ) );
+#endif
+          l = 8 - x;
+#if defined(__x86_84__) || defined(_M_X64)
+          uint64_t q = (uint64_t)_mm_cvtsi128_si64(z) >> (x * 8);
+          *(uint64_t*)buf = q;
+#else
+          z = _mm_srli_epi64( z, x * 8 );
+          _mm_storel_epi64( (__m128i*)buf, z );
+#endif
+          buf += l;
+          x = 1;
+        }
+        value = (y * 6554) >> 16;
+        l += 1 + (x | (value != 0));
+        *(uint32_t*)buf = 0x30 + ((l > 1) ? ((0x30 + y - value * 10) << 8) + value : y);
+        return l;
+      }
+
+      static inline short PURE_DECL HEAVYUSE checkSum(uint32_t n)
+      {
+        short csum = (int)'0' + n % 10;
+#ifdef INTEL_COMPILER
+#pragma loop count min(0) max(9)
+#endif
+        for( n /= 10; n; n /= 10 )
           csum += (int)'0' + n % 10;
-        } while ( (n /= 10) );
         return csum;
       }
     };
-    class Long {
+
+#else // generics
+
+    class UInt : public NumData {
       public:
-      static inline int PURE_DECL HEAVYUSE numDigits( int64_t v )
+      static inline std::size_t PURE_DECL HEAVYUSE numDigits( uint32_t i )
       {
-        int r = 1;
-        if (v < 0) v = -v;
-        if (v >= 10000000000000000LL)
+        if (i >= 100)
+           if (i < 1000000)
+              if (i < 10000)
+                 return 3 + (i >= 1000);
+              else
+                 return 5 + (i >= 100000);
+           else
+              if (x < 100000000)
+                 return 7 + (i >= 10000000);
+              else
+                 return 9 + (i >= 1000000000);
+        return 1 + (i > 9);
+      }
+      // serializer for an integer of a known length
+      static inline NOTHROW HEAVYUSE void generate(char* buf, uint32_t value, std::size_t len)
+      {
+        for (int n = 1; len > n; n++)
         {
-          r += 16;
-          v /= 10000000000000000LL;
+          uint32_t u = value / 10;
+          buf[len - n] = '0' + (value - u * 10);
+          value = u;
         }
-        if (v >= 100000000)
-        {
-          r += 8;
-          v /= 100000000;
+        *buf = '0' + value;
+      }
+      // serializer that calculates length, buffer must have space for any value including terminating '\0'
+      static inline unsigned NOTHROW HEAVYUSE generate(char* buf, uint32_t value)
+      {
+        uint32_t u = value / 10;
+        uint32_t c0 = value - u * 10;
+        char* p = buf;
+        if (u) {
+           value = u / 10;
+           uint32_t c1 = u - value * 10;
+           if (value) {
+             u = value / 10;
+             uint32_t c2 = value - u * 10;
+             if (u) {
+               value = u / 10;
+               uint32_t c3 = u - value * 10;
+               if (value) {
+                 u = value / 10;
+                 uint32_t c4 = value - u * 10;
+                 if (u) {
+                   value = u / 10;
+                   uint32_t c5 = u - value * 10;
+                   if (value) {
+                     u = value / 10;
+                     uint32_t c6 = value - u * 10;
+                     if (u) {
+                       value = u / 10;
+                       uint32_t c7 = u - value * 10;
+                       if (value) {
+                         u = value / 10;
+                         uint32_t c8 = value - u * 10;
+                         if (u) {
+                           *p++ = '0' + u;
+                         }
+                         *p++ = '0' + c8;
+                       }
+                       *p++ = '0' + c7;
+                     }
+                     *p++ = '0' + c6;
+                   }
+                   *p++ = '0' + c5;
+                 }
+                 *p++ = '0' + c4;
+               }
+               *p++ = '0' + c3;
+             }
+             *p++ = '0' + c2;
+           }
+           *p++ = '0' + c1;
         }
-
-        if (v >= 10000) {
-          r += 4;
-          v /= 10000;
-        }
-
-        if (v >= 100) {
-          r += 2;
-          v /= 100;
-        }
-        return r + (v >= 10);
+        *p++ = '0' + c0;
+        *p = '\0';
+        return p - buf;
+      }
+      static inline short PURE_DECL HEAVYUSE checkSum(int n)
+      {
+        short csum = (int)'0' + n % 10;
+        for( n /= 10; n; n /= 10 )
+          csum += (int)'0' + n % 10;
+        return csum;
       }
     };
 #endif
-    class ULong {
+
+    class Int {
       public:
-      static inline int PURE_DECL HEAVYUSE numFractionDigits( uint64_t v )
+      static inline std::size_t PURE_DECL HEAVYUSE numDigits( int32_t i )
+      {
+        return UInt::numDigits( (i < 0) ? uint32_t(~i) + 1 : i ) + (i < 0);
+      }
+
+      static inline unsigned NOTHROW HEAVYUSE generate(char* buf, int32_t value)
+      {
+        *buf = '-';
+        bool neg = value < 0;
+        return UInt::generate(buf + neg, neg ? uint32_t(~value) + 1 : value ) + neg;
+      }
+    };
+
+    class ULong {
+#if (defined(__GNUC__) && (defined(__x86_64__) || defined(__i386__))) || defined(_MSC_VER)
+      struct Log2 {
+        uint64_t m_threshold;
+        int64_t m_count;
+      };
+      static ALIGN_DECL_DEFAULT Log2 m_digits[64];
+      public:
+      static inline std::size_t PURE_DECL HEAVYUSE numDigits( uint64_t i )
+      {
+        uint64_t log2 = i;
+#ifdef __x86_64__
+        __asm__ __volatile__ ( "bsrq %0, %0; " : "+r" (log2) : : "cc" );
+#elif defined __i386__
+        log2 = log2 ? __builtin_clzll(log2) : 0;
+#elif defined _M_X64
+        log2 = _BitScanReverse64(&log2, log2) ? log2 : 0;
+#else // _M_IX86
+        uint32_t v;
+        log2 = _BitScanReverse( (DWORD*)&v, (unsigned long)(log2 >> 32)) ? v + 32
+             : _BitScanReverse( (DWORD*)&v, (unsigned long)(log2) ) ? v : 0;
+#endif
+        const Log2& e = m_digits[log2];
+        return (std::size_t)(e.m_count + ( i > e.m_threshold ));
+      }
+#else
+      public:
+      static inline std::size_t PURE_DECL HEAVYUSE numDigits( uint64_t i )
+      {
+        if (i >= 100)
+           if (i < 10000000000ULL)
+             if (i < 1000000)
+                if (i < 10000)
+                   return 3 + (i >= 1000);
+                else
+                   return 5 + (i >= 100000);
+             else
+                if (x < 100000000)
+                   return 7 + (i >= 10000000);
+                else
+                   return 9 + (i >= 1000000000);
+           else
+             if (i >= 1000000000000ULL)
+               if (i < 10000000000000000ULL)
+                  if (i < 100000000000000ULL)
+                     return 13 + (i >= 10000000000000ULL);
+                  else
+                     return 15 + (i >= 1000000000000000ULL);
+               else
+                  if (x < 1000000000000000000ULL)
+                     return 17 + (i >= 100000000000000000ULL);
+                  else
+                     return 19 + (i >= 10000000000000000000ULL);
+             else
+               return 11 + (i >= 100000000000ULL);
+        return 1 + (i > 9);
+      }
+#endif
+      static inline std::size_t PURE_DECL HEAVYUSE numFractionDigits( uint64_t v )
       {
         if            ( v % 100000000 ) {
           if          ( v % 10000 ) {
@@ -798,6 +1155,20 @@ namespace FIX
       }
     };
 
+    struct Memory
+    {
+      template <typename T> static inline void shift_up_from(T* src, std::size_t count)
+      {
+        if (LIKELY(count < 8) ) while (count) { std::size_t c = count--; src[c] = src[count]; }
+        else ::memmove(src + 1, src, count * sizeof(T));
+      }
+      template <typename T> static inline void shift_down_to(T* src, std::size_t count)
+      {
+        if (LIKELY(count < 8) ) while (count--) { T* dst = src++; *dst = *src; }
+        else ::memmove(src, src + 1, count * sizeof(T));
+      }
+    };
+
     struct Char
     {
       static inline bool isspace( char x ) { return x == ' '; }
@@ -807,7 +1178,7 @@ namespace FIX
 
     struct CharBuffer
     {
-      class reverse_iterator : public std::iterator<std::input_iterator_tag, char>
+      class reverse_iterator : public std::iterator<std::random_access_iterator_tag, char>
       {
           char* m_p;
         public:
@@ -819,6 +1190,10 @@ namespace FIX
           { return m_p == it.m_p; }
           bool operator!=( reverse_iterator it) const
           { return m_p != it.m_p; }
+          bool operator <( reverse_iterator it) const
+          { return m_p > it.m_p; }
+          bool operator >( reverse_iterator it) const
+          { return m_p < it.m_p; }
           difference_type operator-( reverse_iterator it) const
           { return it.m_p - m_p; }
       };
@@ -829,15 +1204,15 @@ namespace FIX
 #if defined(__GNUC__)
 	return (const char*)::memmem(buf, bsz, str, ssz);
 #else
-        if( bsz >= ssz )
+        if (bsz >= ssz)
         {
           const char* end = buf + bsz - ssz + 1;
 		  char c = str[0];
-          while( LIKELY(NULL != (buf = (const char*)::memchr (buf, c, end - buf))) )
+          while (LIKELY(NULL != (buf = (const char*)::memchr (buf, c, end - buf))))
           {
-            if( 0 == ::memcmp (buf, str, ssz) ) 
+            if (0 == ::memcmp (buf, str, ssz)) 
               return buf; 
-            if( ++buf >= end )
+            if (++buf >= end)
               break;
           }
         }
@@ -847,11 +1222,11 @@ namespace FIX
 
       static inline int32_t PURE_DECL HEAVYUSE checkSum(const char* p, int size)
       {
-        register int32_t x = 0;
+        int32_t x = 0;
 #if defined(__GNUC__) && defined(__x86_64__)
-        register int32_t n = size;
-        register const uint8_t* pu = (const uint8_t*)p;
-        register const uint64_t mask = 0x0101010101010101ULL;
+        int32_t n = size;
+        const uint8_t* pu = (const uint8_t*)p;
+        const uint64_t mask = 0x0101010101010101ULL;
 
         if (n >= 8)
               __asm__ __volatile (
@@ -971,6 +1346,15 @@ namespace FIX
       template <std::size_t S> union Fixed
       {
         char data[S];
+
+        /// sets contents to s
+        bool set(const char* s, std::size_t size, std::size_t at = 0, std::size_t narrow = 1) {
+	  if (at + size <= (S - narrow)) {
+	    for (char* p = data + at; size; size--) *p++ = *s++;
+	    return true;
+          }
+          return false;
+        }
       };
 
       /// Scans f for character v, returns array index less than S on success
@@ -988,19 +1372,22 @@ namespace FIX
       {
         return CharBuffer::memmem( p, size, f.data, S );
       }
-
     }; // CharBuffer
 
     template <> union CharBuffer::Fixed<2>
     {
+      typedef uint16_t value_type;
+
       char data[2];
-      uint16_t value;
+      value_type value;
     };
 
     template <> union CharBuffer::Fixed<4>
     {
+      typedef uint32_t value_type;
+
       char data[4];
-      uint32_t value;
+      value_type value;
     };
 
 #if defined(__x86_64__) || defined(__i386__) || defined(_M_X64) || defined(_M_IX86)
@@ -1029,8 +1416,10 @@ namespace FIX
 
     template <> union CharBuffer::Fixed<8>
     {
+      typedef uint64_t value_type;
+
       char data[8];
-      uint64_t value;
+      value_type value;
     };
 
 #if defined(__GNUC__) && defined(__x86_64__)
@@ -1038,7 +1427,7 @@ namespace FIX
     template<>
     inline std::size_t PURE_DECL CharBuffer::find<8>(int v, const CharBuffer::Fixed<8>& f)
     {
-      register unsigned at = 0;
+      unsigned at = 0;
       __asm__ __volatile (
 #if defined(__AVX__)
         "vmovd %1, %%xmm1                  \n\t"
@@ -1070,146 +1459,128 @@ namespace FIX
       );
       return at;
     }
+#endif 
 
+#if defined(_MSC_VER) || (defined(__GNUC__) && (defined(__x86_64__) || defined(__i386__)))
+
+    // specializations for use with short strings
+    template <> union CharBuffer::Fixed<15>
+    {
+      char data[15];
+
+      inline bool set(const char* s, std::size_t len, std::size_t pos = 0, std::size_t narrow = 1) {
+        if (LIKELY(len + pos <= (15 - narrow))) {
+	  if (len == 1) {
+	    data[pos] = s[0];
+	  } else if (LIKELY(len > 0)) {
+	    char* p = data + pos;
+	    if (len <= 4) {
+		*(uint16_t*)p= *(uint16_t*)s; 
+		*(uint16_t*)(p + len - 2) = *(uint16_t*)(s + len - 2);
+	    } else if (len <= 8) {
+		*(uint32_t*)p= *(uint32_t*)s;
+		*(uint32_t*)(p + len - 4) = *(uint32_t*)(s + len - 4);
+	    } else {
+		*(uint64_t*)p= *(uint64_t*)s;
+		*(uint64_t*)(p + len - 8) = *(uint64_t*)(s + len - 8);
+	    } 
+	  }
+          return true;
+        }
+	return false;
+      }
+    };
+
+    template <> union CharBuffer::Fixed<23>
+    {
+      char data[23];
+
+      inline bool set(const char* s, std::size_t len, std::size_t pos = 0, std::size_t narrow = 1) {
+        if (LIKELY(len + pos <= (23 - narrow))) {
+	  if (len == 1) {
+	    data[pos] = s[0];
+	  } else if (LIKELY(len > 0)) {
+	    char* p = data + pos;
+	    if (len <= 4) {
+		*(uint16_t*)p= *(uint16_t*)s; 
+		*(uint16_t*)(p + len - 2) = *(uint16_t*)(s + len - 2);
+	    } else if (len <= 8) {
+		*(uint32_t*)p= *(uint32_t*)s;
+		*(uint32_t*)(p + len - 4) = *(uint32_t*)(s + len - 4);
+	    } else if (len <= 16) {
+		*(uint64_t*)p= *(uint64_t*)s;
+		*(uint64_t*)(p + len - 8) = *(uint64_t*)(s + len - 8);
+	    } else {
+		_mm_storeu_si128((__m128i*)p, _mm_loadu_si128((__m128i*)s));
+		*(uint64_t*)(p + len - 8) = *(uint64_t*)(s + len - 8);
+	    }
+	  }
+          return true;
+        }
+	return false;
+      }
+    };
 #endif
   
     class Tag
+#if defined(_MSC_VER) || (defined(__GNUC__) && (defined(__x86_64__) || defined(__i386__)))
+              : public x86Data
+#endif
     {
       /* NOTE: Allow for tag value range of 1-99999999. */
 
-#if defined(__GNUC__) && defined(__x86_64__)
-      static struct ConvBits
-      { 
-        uint32_t div_10000[2];
-        uint32_t mul_10000[2];
-        uint16_t mul_10[8];
-        uint16_t div_const[8];
-        uint16_t shl_const[8];
-        uint8_t  to_ascii[16];
-      } s_Bits;
-#endif
+      static const std::size_t MaxValueSize = 8; // tag length limit
 
-      class Convertor
+      static inline void NOTHROW HEAVYUSE generate(char* buf, uint32_t x, int digits)
       {
-        static const std::size_t MaxValueSize = 8; // tag length limit
+#if defined(_MSC_VER) || (defined(__GNUC__) && (defined(__x86_64__) || defined(__i386__)))
+        uint32_t v;
 
-        uint32_t m_value;
-
-        void NOTHROW HEAVYUSE generate(char* buf, int digits) const {
-
-          uint32_t v, x = m_value;
-
-#if defined(__GNUC__) && defined(__x86_64__)
-
-          if( x <= 999 )
+        if( LIKELY(x <= 999) )
+        {
+          if ( LIKELY(x > 9) )
           {
-	    if (x > 99) {
-	      uint32_t mul100 = 42949673;
-	      __asm__ __volatile__ (
-		"mull    %2		\n"
-		: "=d"(v), "+a"(mul100) : "r"(x) : "cc"
-	      );
-             *buf++ = '0' + v;
-              x -= v * 100U;
-	    }
-	    uint32_t mul10 = 429496730;
-	    __asm__ __volatile__ (
-		"mull    %2			\n"
-		: "=d"(v), "+a"(mul10) : "r"(x) : "cc"
-	    );
-	    if (digits > 1) {
-	      *(uint16_t*)buf = 0x3030 + ((x - v * 10) << 8) + v;
-	    } else
-	      *buf = '0' + x;
+              v = (x * 6554) >> 16;
+              *(uint16_t*)buf = m_pairs[(digits & 1) ? v : x].u;
+              x -= v * 10;
           }
+          buf[digits - 1] = x + 0x30; 
+        }
+        else
+        {
+          uint32_t div_10000 = 0xd1b71759, mul_10000 = 55536;
+
+            /* Based on utoa32_sse_2 routine by Wojciech Mula
+             * http://wm.ite.pl/articles/sse-itoa.html
+             */
+          __m128i z, m, a, o;
+          z = _mm_cvtsi32_si128(x);
+          m = _mm_load_si128((__m128i*)cbits.mul_10);
+          o = _mm_mul_epu32( z, _mm_cvtsi32_si128(div_10000));
+          z = _mm_add_epi32( z, _mm_mul_epu32( _mm_cvtsi32_si128(mul_10000), _mm_srli_epi64( o, 45) ) );
+          z = _mm_slli_epi64( _mm_shuffle_epi32( _mm_unpacklo_epi16(z, z), 5 ), 2 );
+          a = _mm_load_si128((__m128i*)cbits.to_ascii);
+          z = _mm_mulhi_epu16( _mm_mulhi_epu16( z, *(__m128i*)cbits.div_const ), *(__m128i*)cbits.shl_const );
+          z = _mm_sub_epi16( z, _mm_slli_epi64( _mm_mullo_epi16( m, z ), 16 ) );
+          z = _mm_add_epi8( _mm_packus_epi16( z, _mm_xor_si128(o, o) ), a );
+#if defined(__x86_64__) || defined(_M_X64)
+          uint64_t packed = (uint64_t)_mm_cvtsi128_si64(z) >> ((8 - digits) * 8);
+          if (LIKELY(digits <= 4))
+            *(uint32_t*)buf = (uint32_t)packed;
           else
-          {
-	    uint64_t packed;
-              /* Based on utoa32_sse_2 routine by Wojciech Mula
-               * http://wm.ite.pl/articles/sse-itoa.html
-               */
-            __asm__ __volatile__ (
-#ifdef __AVX__
-              "vmovd          %1, %%xmm1             \n"
-              "vmovq          %2, %%xmm0             \n"
-              "vmovq          %3, %%xmm3             \n"
-              "vpmuludq       %%xmm1, %%xmm0, %%xmm0 \n"
-              "vpsrlq         $45, %%xmm0, %%xmm0    \n"
-              "vpmuludq       %%xmm3, %%xmm0, %%xmm0 \n"
-              "vpaddd         %%xmm1, %%xmm0, %%xmm0 \n"
-              "vpsllq         $2, %%xmm0, %%xmm0     \n"
-              "vpunpcklwd     %%xmm0, %%xmm0, %%xmm0 \n"
-              "vmovdqa        %4, %%xmm1             \n"
-              "vpshufd        $5, %%xmm0, %%xmm0     \n"
-              "vpmulhuw       %5, %%xmm0, %%xmm0     \n"
-              "vpmulhuw       %6, %%xmm0, %%xmm0     \n"
-              "vpmullw        %%xmm0, %%xmm1, %%xmm1 \n"
-              "vpsllq         $16, %%xmm1, %%xmm1    \n"
-              "vmovdqa        %7, %%xmm3             \n"
-              "vpxor          %%xmm2, %%xmm2, %%xmm2 \n"
-              "vpsubw         %%xmm1, %%xmm0, %%xmm0 \n"
-              "vpackuswb      %%xmm2, %%xmm0, %%xmm0 \n"
-              "vpaddb         %%xmm3, %%xmm0, %%xmm0 \n"
-              "vmovq          %%xmm0, %0             \n"
+            *(uint64_t*)buf = packed;	// can overwrite space reserved for '=', '\001' and '\000'
 #else
-              "movd           %1, %%xmm1             \n"
-              "movq           %2, %%xmm0             \n"
-              "movq           %3, %%xmm3             \n"
-              "pmuludq        %%xmm1, %%xmm0         \n"
-              "psrlq          $45, %%xmm0            \n"
-              "pmuludq        %%xmm3, %%xmm0         \n"
-              "paddd          %%xmm1, %%xmm0         \n"
-              "psllq          $2, %%xmm0             \n"
-              "punpcklwd      %%xmm0, %%xmm0         \n"
-              "movdqa         %4, %%xmm1             \n"
-              "pshufd         $5, %%xmm0, %%xmm0     \n"
-              "pmulhuw        %5, %%xmm0             \n"
-              "pmulhuw        %6, %%xmm0             \n"
-              "pmullw         %%xmm0, %%xmm1         \n"
-              "psllq          $16, %%xmm1            \n"
-              "movdqa         %7, %%xmm3             \n"
-              "pxor           %%xmm2, %%xmm2         \n"
-              "psubw          %%xmm1, %%xmm0         \n"
-              "packuswb       %%xmm2, %%xmm0         \n"
-              "paddb          %%xmm3, %%xmm0         \n"
-              "movq           %%xmm0, %0             \n"
-#endif
-              : "=r"(packed) 
-              : "r" (x), "m"(*s_Bits.div_10000),
-                "m"(*s_Bits.mul_10000), "m"(*s_Bits.mul_10), "m"(*s_Bits.div_const),
-                "m"(*s_Bits.shl_const), "m"(*s_Bits.to_ascii)
-              : "xmm0", "xmm1", "xmm2", "xmm3"
-            );
-	    packed >>= (8 - digits) << 3;
-	    if (digits > 4)
-	      *(uint64_t*)buf = packed;	// can overwrite space reserved for '=', '\001' and '\000'
-	    else
-	      *(uint32_t*)buf = (uint32_t)packed;
-          }
-#else
-          buf += digits - 1;
-          do { 
-	    v = x / 10;
-	    *buf-- = "0123456789" [x - v * 10];
-	  } while( (x = v) );
+          z = _mm_srli_epi64( z, (8 - digits) * 8 );
+          if (LIKELY(digits <= 4))
+            *(uint32_t*)buf = _mm_cvtsi128_si32( z );
+          else
+            _mm_storel_epi64( (__m128i*)buf, z );
 #endif
         }
-
-      public:
-        Convertor(int value) : m_value(value) {}
-
-        void NOTHROW HEAVYUSE append_to(char* buf, int digits) const
-        {
-	  generate(buf, digits);
-        }
-
-        template <typename S> void HEAVYUSE append_to(S& s, int digits) const
-        {
-          char buf[MaxValueSize];
-          generate(buf, digits);
-	  s.append(buf, digits);
-	}
-      };
+#else
+        UInt::generate(buf, x, digits);
+#endif
+      }
 
     public:
 
@@ -1217,14 +1588,23 @@ namespace FIX
         inline std::size_t operator()(int tag) const { return tag; }
       };
 
-      template <typename S> static void generate(S& result, int value, int digits)
+      template <typename S> static void append(S& result, int value, int digits)
       {
-        Convertor(value).append_to(result, digits);
+        char buf[MaxValueSize];
+        generate(buf, (uint32_t)value, digits);
+	result.append(buf, digits);
       }
 
-      static void NOTHROW HEAVYUSE generate(char* result, int value, int digits)
+      template <typename S> static void set(S& result, int value, int digits)
       {
-        Convertor(value).append_to(result, digits);
+        char buf[MaxValueSize];
+        generate(buf, (uint32_t)value, digits);
+	result.assign(buf, digits);
+      }
+
+      static void NOTHROW HEAVYUSE write(char* result, int value, int digits)
+      {
+	generate(result, (uint32_t)value, digits);
       }
 
       static inline const char NOTHROW_PRE * PURE_DECL HEAVYUSE NOTHROW_POST delimit(const char* p, unsigned len)
@@ -1232,8 +1612,8 @@ namespace FIX
 #if defined(__GNUC__) && defined(__x86_64__)
         if ( LIKELY(len > 1) )
         {
-          register uint64_t v = 0x3d3d3d3d3d3d3d3dULL;
-          register uint64_t pos = ~(uintptr_t)p;
+          uint64_t v = 0x3d3d3d3d3d3d3d3dULL;
+          uint64_t pos = ~(uintptr_t)p;
           __asm__ __volatile__ (
 #ifdef __AVX__
                 "vmovq %0, %%xmm0                       \n\t"
@@ -1307,12 +1687,12 @@ namespace FIX
 
       static inline char NOTHROW length(int field)
       {
-        return Util::PositiveInt::numDigits(field) + 1;
+        return Util::UInt::numDigits((unsigned)field) + 1;
       }
 
       static inline short NOTHROW checkSum(int field)
       {
-        return Util::PositiveInt::checkSum(field) + (short)'=';
+        return Util::UInt::checkSum((unsigned)field) + (short)'=';
       }
 
     }; // Tag
@@ -1422,7 +1802,7 @@ namespace FIX
       int _Find_next( int b )
       {
         std::size_t i = b >> word_shift;
-        std::size_t v = detail::bit_scan(m_bits[i], b & (word_size - 1));
+        std::size_t v = detail::bit_scan(m_bits[i], ++b);
         return (word_size != v) ? ((i << word_shift) + v) : _Find_from(++i);
       }
 
@@ -1436,7 +1816,7 @@ namespace FIX
           word_type rem = m_bits[src--] << shift;
           for ( ; src >= 0; dst--, src-- )
           {
-            register word_type w = m_bits[src];
+            word_type w = m_bits[src];
             m_bits[dst] = rem | (w >> (word_size - shift));
             rem = w << shift;
           }
@@ -1462,7 +1842,7 @@ namespace FIX
           word_type rem = m_bits[src++] >> shift;
           for ( ; src < Width; dst++, src++ )
           {
-            register word_type w = m_bits[src];
+            word_type w = m_bits[src];
             m_bits[dst] = rem | (w << (word_size - shift));
             rem = w >> shift;
           }
@@ -1521,7 +1901,7 @@ namespace FIX
 
       int _Find_next( int b )
       {
-        return detail::bit_scan(m_bits, b);
+        return detail::bit_scan(m_bits, ++b);
       }
 
       inline BitSet NOTHROW_PRE & NOTHROW_POST operator <<=(int n) { m_bits <<= n; return *this; }
@@ -1530,6 +1910,251 @@ namespace FIX
 
       std::size_t size() const { return sizeof(word_type) << 3; }
     };
+
+    template <typename Key, typename T, std::size_t N> class PtrCache {
+      BitSet<N> m_mask;
+      Key m_key[N];
+      T* m_p[N];
+
+    public:
+
+      static const std::size_t Alignment = 1;
+
+      PtrCache() : m_mask(true) {}
+
+      static inline std::size_t capacity()
+      { return N; }
+
+      void clear()
+      { m_mask.set(); }
+  
+      T* lookup(const Key& key)
+      {
+        for(std::size_t i = 0; i < N; i++)
+          if (key == m_key[i] && !m_mask[i])
+            return m_p[i];
+        return NULL;
+      }
+      std::size_t insert(const Key& key, T* p)
+      {
+        std::size_t i = m_mask._Find_first();
+        if (i != N)
+        {
+          m_key[i] = key;
+          m_p[i] = p;
+          m_mask.reset(i);
+        }
+        return i;
+      }
+      T* erase(const Key& key)
+      {
+        for (std::size_t i = 0; i < N; i++)
+        {
+          if (key == m_key[i] && !m_mask[i]) 
+          {
+            m_mask.set(i);
+            return m_p[i];
+          }
+        }
+        return false;
+      }
+
+      T* evict(std::size_t pos)
+      { return (pos < N) ? m_mask.set(pos), m_p[pos] : NULL; }
+    };
+
+#if defined(__GNUC__) && defined(__x86_64__)
+
+    namespace detail
+    {
+      template <std::size_t Size> struct int32_key_holder
+      {
+        union
+        {
+          __m128 m_simd[Size >> 2];
+          struct
+          {
+            int32_t m_key[Size + 1];
+            uint32_t m_mask;
+          };
+        } __attribute__((packed));
+        int32_key_holder() : m_mask(((uint32_t)1 << Size) - 1) {}
+
+        template <typename F> F* lookup_pos(uint32_t mask, F* m_p[Size + 1])
+        {
+          F* p = NULL;
+          __asm__ __volatile__ (
+          " bsf %1, %1;               \n\t"
+          " cmovnz (%2,%q1,8), %0;    \n\t"
+          : "+a"(p), "+r" (mask)
+          : "r" (m_p)
+          : "cc"
+          );
+          return p;
+        }
+        template <typename F> std::size_t insert_key(int32_t key, F* p, F* m_p[Size + 1]) {
+          uint32_t i = Size;
+          __asm__ __volatile__ (
+          " bsf %1, %%edx;            \n\t"
+          " cmovnz %%edx, %0;         \n\t"
+          " btr %0, %1;               \n\t"
+          : "+r"(i), "+m"(m_mask)
+          : 
+          : "edx", "cc"
+          );
+          m_key[i] = key;
+          m_p[i] = p;
+          return i;
+        }
+        template <typename F> F* erase_pos(uint32_t mask, F* m_p[Size + 1]) {
+	  int32_t tmp;
+          F* p = NULL;
+          __asm__ __volatile__ (
+          " bsf %0, %0;               \n\t"
+          " cmovnz (%4,%q0,8), %3;    \n\t"
+          " setnz %b1;                \n\t"
+          " movzbl %b1, %1;           \n\t"
+          " shl %b0, %1;              \n\t"
+          " or %1, %2;                \n\t"
+          : "+c"(mask), "=r" (tmp), "+m"(m_mask), "+r" (p)
+          : "r" (m_p)
+          : "cc"
+          );
+          return p;
+        }
+        template <typename F> F* evict_pos(std::size_t pos, F* m_p[Size + 1]) {
+          std::size_t tmp = Size;
+          F* p = NULL;
+          __asm__ __volatile__ (
+          " bts %2, %0                \n\t"
+          " cmovc %4, %2              \n\t"
+          " cmp %2, %4                \n\t"
+          " cmovg (%3,%2,8), %1       \n\t"
+          : "+m"(m_mask), "+r"(p)
+          : "r"(pos), "r"(m_p), "r"(tmp)
+          : "cc"
+          );
+          return p;
+        }
+      };
+
+      template <std::size_t Size> struct int32_keys;
+
+      template <> struct int32_keys<8> : public int32_key_holder<8>
+      {
+        inline uint32_t keymask(int32_t key)
+        {
+          uint32_t mask;
+          __asm__ __volatile__ (
+#ifdef __AVX__
+          " vmovd   %1, %%xmm2;       \n\t"
+          " vshufps $0, %%xmm2, %%xmm2, %%xmm2 \n\t"
+          " vpcmpeqd %2, %%xmm2, %%xmm1; \n\t"
+          " mov %4, %0;               \n\t"
+          " vpcmpeqd %3, %%xmm2, %%xmm2; \n\t"
+          " not %0;                   \n\t"
+          " and $255, %0;             \n\t"
+          " vpackssdw %%xmm2, %%xmm1, %%xmm1;  \n\t"
+          " vpacksswb %%xmm1, %%xmm1, %%xmm1;  \n\t"
+          " vpmovmskb %%xmm1, %1;     \n\t"
+#else
+          " movdqa %2, %%xmm1;        \n\t"
+          " movd   %1, %%xmm2;        \n\t"
+          " shufps $0, %%xmm2, %%xmm2 \n\t"
+          " pcmpeqd %%xmm2, %%xmm1;   \n\t"
+          " pcmpeqd %3, %%xmm2;       \n\t"
+          " mov %4, %0;               \n\t"
+          " not %0;                   \n\t"
+          " and $255, %0;             \n\t"
+          " packssdw %%xmm2, %%xmm1;  \n\t"
+          " packsswb %%xmm1, %%xmm1;  \n\t"
+          " pmovmskb %%xmm1, %1;      \n\t"
+#endif
+          " and %1, %0;               \n\t"
+          : "=r" (mask), "+r" (key)
+          : "m" (m_simd[0]), "m" (m_simd[1]), "m" (m_mask)
+          : "xmm1", "xmm2", "cc"
+          );
+          return mask;
+        }
+      };
+
+      template <> struct int32_keys<16> : public int32_key_holder<16>
+      {
+        inline uint32_t keymask(int32_t key)
+        {
+          uint32_t mask;
+          __asm__ __volatile__ (
+#ifdef __AVX__
+          " vmovd   %1, %%xmm4;       \n\t"
+          " vshufps $0, %%xmm4, %%xmm4, %%xmm4 \n\t"
+          " vpcmpeqd %2, %%xmm4, %%xmm1; \n\t"
+          " vpcmpeqd %3, %%xmm4, %%xmm2; \n\t"
+          " vpcmpeqd %4, %%xmm4, %%xmm3; \n\t"
+          " mov %6, %0;               \n\t"
+          " vpackssdw %%xmm2, %%xmm1, %%xmm1;  \n\t"
+          " vpcmpeqd %5, %%xmm4, %%xmm4; \n\t"
+          " not %0;                   \n\t"
+          " vpackssdw %%xmm4, %%xmm3, %%xmm3;  \n\t"
+          " vpacksswb %%xmm3, %%xmm1, %%xmm1;  \n\t"
+          " vpmovmskb %%xmm1, %1;     \n\t"
+#else
+          " movdqa %2, %%xmm1;        \n\t"
+          " movdqa %3, %%xmm2;        \n\t"
+          " movd   %1, %%xmm4;        \n\t"
+          " shufps $0, %%xmm4, %%xmm4 \n\t"
+          " pcmpeqd %%xmm4, %%xmm1;   \n\t"
+          " movdqa %%xmm4, %%xmm3;    \n\t"
+          " pcmpeqd %%xmm4, %%xmm2;   \n\t"
+          " pcmpeqd %4, %%xmm3;       \n\t"
+          " mov %6, %0;               \n\t"
+          " packssdw %%xmm2, %%xmm1;  \n\t"
+          " pcmpeqd %5, %%xmm4;       \n\t"
+          " not %0;                   \n\t"
+          " packssdw %%xmm4, %%xmm3;  \n\t"
+          " packsswb %%xmm3, %%xmm1;  \n\t"
+          " pmovmskb %%xmm1, %1;      \n\t"
+#endif
+          " and %1, %0;               \n\t"
+          : "=r" (mask), "+r" (key)
+          : "m" (m_simd[0]), "m" (m_simd[1]), "m" (m_simd[2]), "m" (m_simd[3]), "m" (m_mask)
+          : "xmm1", "xmm2", "xmm3", "xmm4", "cc"
+          );
+          return mask;
+        }
+      };
+
+      template <typename F, std::size_t N> class IntPtrCache : private int32_keys<N>
+      {
+        typedef int32_keys<N> Base;
+        F* m_p[N + 1];
+  
+        public:
+
+	static inline std::size_t capacity()
+        { return N; }
+
+	void clear()
+        { this->m_mask = ((uint32_t)1 << N) - 1; }
+  
+        F* lookup(int32_t key)
+        { return this->lookup_pos(Base::keymask(key), m_p); }
+
+        std::size_t insert(int32_t key, F* p)
+        { return this->insert_key(key, p, m_p); }
+
+        F* erase(int32_t key) 
+        { return this->erase_pos(Base::keymask(key), m_p); }
+
+        F* evict(std::size_t pos)
+        { return this->evict_pos((uint32_t)pos, m_p); }
+      };
+    }
+
+    template <typename F> class PtrCache<int32_t, F, 16> : public detail::IntPtrCache<F, 16> {};
+    template <typename F> class PtrCache<int32_t, F, 8> : public detail::IntPtrCache<F, 8> {};
+
+#endif
 
   } // namespace FIX::Util
 
@@ -1590,55 +2215,31 @@ namespace FIX
     // optimize for short strings
     static inline void NOTHROW append(sg_buf_t& buf, const char* s, std::size_t len)
     {
-      register char* p = (char*)IOV_BUF(buf) + IOV_LEN(buf);
+      char* p = (char*)IOV_BUF(buf) + IOV_LEN(buf);
       IOV_LEN(buf) += len;
-#if defined(__GNUC__) && (defined(__x86_64__) || defined(__i386__))
-      while (len > 3)
-      {
-        __asm__ __volatile__ (
-          " movl (%1), %%ecx; \n\t"
-          " subq $4, %2;      \n\t"
-          " addq $4, %1;      \n\t"
-          " movl %%ecx, (%0); \n\t"
-          " addq $4, %0;      \n\t"
-          : "+r"(p), "+r"(s), "+r"(len)
-          :
-          : "ecx", "memory" );
-      }
-      if (len > 0)
-      {
-        __asm__ __volatile__ (
-	  "1:		     \n\t"
-          " movb (%1), %%cl; \n\t"
-          " incq %1;         \n\t"
-          " movb %%cl, (%0); \n\t"
-          " incq %0;         \n\t"
-          " decq %2;         \n\t"
-          " jne 1b;          \n\t"
-          : "+r"(p), "+r"(s), "+r"(len)
-          :
-          : "ecx", "memory" );
-/*
-        __asm__ __volatile__ (
-          " movb (%1), %%cl; \n\t"
-          " incq %1;         \n\t"
-          " movb %%cl, (%0); \n\t"
-          " decq %2;         \n\t"
-          " je 1f;           \n\t"
-          " incq %0;         \n\t"
-          " movb (%1), %%cl; \n\t"
-          " incq %1;         \n\t"
-          " movb %%cl, (%0); \n\t"
-          " decq %2;         \n\t"
-          " je 1f;           \n\t"
-          " movb (%1), %%cl; \n\t"
-          " incq %0;         \n\t"
-          " movb %%cl, (%0); \n\t"
-          "1:                \n\t"
-          : "+r"(p), "+r"(s), "+r"(len)
-          :
-          : "ecx", "memory" );
-*/
+#if defined(_MSC_VER) || (defined(__GNUC__) && (defined(__x86_64__) || defined(__i386__)))
+      if (len == 1) {
+	p[0] = s[0];
+      } else if (LIKELY(len > 0)) {
+	if (len <= 4) {
+		*(uint16_t*)p= *(uint16_t*)s; 
+		*(uint16_t*)(p + len - 2) = *(uint16_t*)(s + len - 2); 
+	} else if (len <= 8) {
+		*(uint32_t*)p= *(uint32_t*)s;
+		*(uint32_t*)(p + len - 4) = *(uint32_t*)(s + len - 4); 
+	} else if (len <= 16) {
+		*(uint64_t*)p= *(uint64_t*)s;
+		*(uint64_t*)(p + len - 8) = *(uint64_t*)(s + len - 8);
+	} else if (LIKELY(len <= 24)) {
+		_mm_storeu_si128((__m128i*)p, _mm_loadu_si128((__m128i*)s));
+		*(uint64_t*)(p + len - 8) = *(uint64_t*)(s + len - 8);
+	} else {
+		std::size_t tmp = ((len + 15) >> 4) - 1;
+		for (std::size_t i = 0; i < tmp; i++) {
+		  _mm_storeu_si128((__m128i*)p + i, _mm_loadu_si128((__m128i*)s + i));
+		}
+		_mm_storeu_si128((__m128i*)(p + len - 16), _mm_loadu_si128((__m128i*)(s + len - 16)));
+	}
       }
 #else
       while(len--) *p++ = *s++;
@@ -1648,7 +2249,7 @@ namespace FIX
     static inline std::size_t NOTHROW send(int socket, sg_buf_ptr bufs, int n)
     {
       struct msghdr m = { NULL, 0, bufs, (std::size_t)n, NULL, 0, 0 };
-      ssize_t sz = ::sendmsg(socket, &m, MSG_NOSIGNAL);
+      ssize_t sz = ::sendmsg(socket, &m, 0);
       return sz >= 0 ? (std::size_t)sz : 0;
     }
 
@@ -1729,6 +2330,10 @@ using std::exit;
 using std::strtod;
 using std::strtol;
 using std::strerror;
+#endif
+
+#ifdef _MSC_VER
+#pragma warning( default : 4706 ) // RE-ENABLE warning C4706: assignment within conditional expression
 #endif
 
 #endif

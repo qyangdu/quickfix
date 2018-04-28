@@ -1,5 +1,5 @@
 /****************************************************************************
-** Copyright (c) quickfixengine.org  All rights reserved.
+** Copyright (c) 2001-2014
 **
 ** This file is part of the QuickFIX FIX Engine
 **
@@ -28,13 +28,7 @@
 #include <fstream>
 #include <memory>
 
-#ifdef HAVE_LIBXML
-#include "LIBXML_DOMDocument.h"
-#elif _MSC_VER
-#include "MSXML_DOMDocument.h"
-#else
-#include "LIBXML_DOMDocument.h"
-#endif
+#include "PUGIXML_DOMDocument.h"
 
 #ifdef _MSC_VER
 #define RESET_AUTO_PTR(OLD, NEW) OLD = NEW;
@@ -44,80 +38,100 @@
 
 namespace FIX
 {
+
+ALIGN_DECL_DEFAULT const DataDictionary::group_key_holder DataDictionary::GroupKey =
+       { DataDictionary::string_type("_header_"),
+         DataDictionary::string_type("_trailer_") };
+
+DataDictionary::FieldToProps DataDictionary::m_noProps;
+DataDictionary::FieldToGroup DataDictionary::m_noGroups;
+DataDictionary::MsgFields    DataDictionary::m_noFields;
+DataDictionary::MsgTypeData DataDictionary::m_noData( DataDictionary::m_noFields,
+                                                      DataDictionary::m_noGroups,
+                                                      DataDictionary::m_noProps );
 DataDictionary::DataDictionary()
 : m_hasVersion( false ), m_checks(AllChecks),
-  m_messageFields(get_allocator<MsgTypeToField>()),
-  m_requiredFields(get_allocator<MsgTypeToField>()),
-  m_messages(get_allocator<MsgTypes>()),
-  m_fields(get_allocator<Fields>()),
-  m_orderedFields(get_allocator<OrderedFields>()),
-  m_headerFields(NonBodyFields::key_compare(), get_allocator<NonBodyFields>()),
-  m_trailerFields(NonBodyFields::key_compare(), get_allocator<NonBodyFields>()),
-  m_fieldTypes(get_allocator<FieldTypes>()),
-  m_fieldValues(get_allocator<FieldToValue>()),
-  m_groups(get_allocator<FieldToGroup>())
-{}
+  m_headerData( false ), m_trailerData( false ),
+  m_headerGroups( get_allocator<FieldToGroup>() ),
+  m_trailerGroups( get_allocator<FieldToGroup>() ),
+  m_messageGroups( MsgTypeGroups::key_compare(), get_allocator<MsgTypeGroups>() ),
+  m_messageFields( MsgTypeFieldProps::key_compare(), get_allocator<MsgTypeFieldProps>() ),
+  m_requiredFields(MsgTypeRequiredFields::key_compare(), get_allocator<MsgTypeRequiredFields>() ),
+  m_messageData( get_allocator<MsgTypeToData>() ),
+  m_orderedFields( get_allocator<OrderedFields>() ),
+  m_fieldTypes( get_allocator<FieldTypes>() ),
+  m_fieldValues(get_allocator<FieldToValue>() )
+{
+  Message::HeaderFieldSet::spec( *this );
+  Message::TrailerFieldSet::spec( *this );
+}
 
 DataDictionary::DataDictionary( std::istream& stream )
 throw( ConfigError )
 : m_hasVersion( false ), m_checks(AllChecks),
-  m_messageFields(get_allocator<MsgTypeToField>()),
-  m_requiredFields(get_allocator<MsgTypeToField>()),
-  m_messages(get_allocator<MsgTypes>()),
-  m_fields(get_allocator<Fields>()),
-  m_orderedFields(get_allocator<OrderedFields>()),
-  m_headerFields(NonBodyFields::key_compare(), get_allocator<NonBodyFields>()),
-  m_trailerFields(NonBodyFields::key_compare(), get_allocator<NonBodyFields>()),
-  m_fieldTypes(get_allocator<FieldTypes>()),
-  m_fieldValues(get_allocator<FieldToValue>()),
-  m_groups(get_allocator<FieldToGroup>())
+  m_headerData( false ), m_trailerData( false ),
+  m_headerGroups( get_allocator<FieldToGroup>() ),
+  m_trailerGroups( get_allocator<FieldToGroup>() ),
+  m_messageGroups( MsgTypeGroups::key_compare(), get_allocator<MsgTypeGroups>() ),
+  m_messageFields( MsgTypeFieldProps::key_compare(), get_allocator<MsgTypeFieldProps>() ),
+  m_requiredFields(MsgTypeRequiredFields::key_compare(), get_allocator<MsgTypeRequiredFields>() ),
+  m_messageData( get_allocator<MsgTypeToData>() ),
+  m_orderedFields( get_allocator<OrderedFields>() ),
+  m_fieldTypes( get_allocator<FieldTypes>() ),
+  m_fieldValues(get_allocator<FieldToValue>() )
 {
+  Message::HeaderFieldSet::spec( *this );
+  Message::TrailerFieldSet::spec( *this );
   readFromStream( stream );
 }
 
 DataDictionary::DataDictionary( const std::string& url )
 throw( ConfigError )
 : m_hasVersion( false ), m_checks(AllChecks),
-  m_messageFields(get_allocator<MsgTypeToField>()),
-  m_requiredFields(get_allocator<MsgTypeToField>()),
-  m_messages(get_allocator<MsgTypes>()),
-  m_fields(get_allocator<Fields>()),
-  m_orderedFields(get_allocator<OrderedFields>()),
-  m_headerFields(NonBodyFields::key_compare(), get_allocator<NonBodyFields>()),
-  m_trailerFields(NonBodyFields::key_compare(), get_allocator<NonBodyFields>()),
-  m_fieldTypes(get_allocator<FieldTypes>()),
-  m_fieldValues(get_allocator<FieldToValue>()),
-  m_groups(get_allocator<FieldToGroup>())
+  m_headerData( false ), m_trailerData( false ),
+  m_headerGroups( get_allocator<FieldToGroup>() ),
+  m_trailerGroups( get_allocator<FieldToGroup>() ),
+  m_messageGroups( MsgTypeGroups::key_compare(), get_allocator<MsgTypeGroups>() ),
+  m_messageFields( MsgTypeFieldProps::key_compare(), get_allocator<MsgTypeFieldProps>() ),
+  m_requiredFields(MsgTypeRequiredFields::key_compare(), get_allocator<MsgTypeRequiredFields>() ),
+  m_messageData( get_allocator<MsgTypeToData>() ),
+  m_orderedFields( get_allocator<OrderedFields>() ),
+  m_fieldTypes( get_allocator<FieldTypes>() ),
+  m_fieldValues(get_allocator<FieldToValue>() )
 {
+  Message::HeaderFieldSet::spec( *this );
+  Message::TrailerFieldSet::spec( *this );
   readFromURL( url );
 }
 
-DataDictionary::DataDictionary( const DataDictionary& src )
-: DataDictionaryBase(src),
+DataDictionary::DataDictionary( const DataDictionary& copy )
+: DataDictionaryBase(copy),
   m_hasVersion( false ), m_checks(AllChecks),
-  m_messageFields(get_allocator<MsgTypeToField>()),
-  m_requiredFields(get_allocator<MsgTypeToField>()),
-  m_messages(get_allocator<MsgTypes>()),
-  m_fields(get_allocator<Fields>()),
-  m_orderedFields(get_allocator<OrderedFields>()),
-  m_headerFields(NonBodyFields::key_compare(), get_allocator<NonBodyFields>()),
-  m_trailerFields(NonBodyFields::key_compare(), get_allocator<NonBodyFields>()),
-  m_fieldTypes(get_allocator<FieldTypes>()),
-  m_fieldValues(get_allocator<FieldToValue>()),
-  m_groups(get_allocator<FieldToGroup>())
+  m_headerData( false ), m_trailerData( false ),
+  m_headerGroups( get_allocator<FieldToGroup>() ),
+  m_trailerGroups( get_allocator<FieldToGroup>() ),
+  m_messageGroups( MsgTypeGroups::key_compare(), get_allocator<MsgTypeGroups>() ),
+  m_messageFields( MsgTypeFieldProps::key_compare(), get_allocator<MsgTypeFieldProps>() ),
+  m_requiredFields(MsgTypeRequiredFields::key_compare(), get_allocator<MsgTypeRequiredFields>() ),
+  m_messageData( get_allocator<MsgTypeToData>() ),
+  m_orderedFields( get_allocator<OrderedFields>() ),
+  m_fieldTypes( get_allocator<FieldTypes>() ),
+  m_fieldValues(get_allocator<FieldToValue>() )
 {
-  *this = src;
+  *this = copy;
 }
 
 DataDictionary::~DataDictionary()
 {
-  for ( FieldToGroup::iterator i = m_groups.begin(); i != m_groups.end(); ++i )
+  for ( FieldToGroup::iterator i = m_headerGroups.begin(); i != m_headerGroups.end(); ++i)
+    delete i->second.second;
+  for ( FieldToGroup::iterator i = m_trailerGroups.begin(); i != m_trailerGroups.end(); ++i)
+    delete i->second.second;
+  for ( MsgTypeGroups::iterator g = m_messageGroups.begin(); g != m_messageGroups.end(); ++g )
   {
-    const FieldPresenceMap& presenceMap = i->second;
-
-    FieldPresenceMap::const_iterator iter = presenceMap.begin();
-    for ( ; iter != presenceMap.end(); ++iter )
-      delete iter->second.second;
+    FieldToGroup& groups = g->second;
+    for ( FieldToGroup::iterator i = groups.begin(); i != groups.end(); ++i )
+      delete i->second.second;
   }
 }
 
@@ -126,24 +140,21 @@ DataDictionary& DataDictionary::operator=( const DataDictionary& rhs )
   m_hasVersion = rhs.m_hasVersion;
   m_checks = rhs.m_checks;
   m_beginString = rhs.m_beginString;
+  m_applVerID = rhs.m_applVerID;
+  m_headerData = rhs.m_headerData;
+  m_trailerData = rhs.m_trailerData;
 
-  for (MsgTypeToField::const_iterator i = rhs.m_messageFields.begin();
-       i != rhs.m_messageFields.end(); ++i)
-  {
-    MsgTypeToField::iterator it = m_messageFields.insert(
-     MsgTypeToField::value_type( i->first,
-      MsgFields(MsgFields::key_compare(), get_allocator<MsgFields>() ) ) ).first;
-    it->second = i->second;
-  }
-
-  for (MsgTypeToField::const_iterator i = rhs.m_requiredFields.begin();
-       i != rhs.m_requiredFields.end(); ++i)
-  {
-    MsgTypeToField::iterator it = m_requiredFields.insert(
-     MsgTypeToField::value_type( i->first,
-      MsgFields( MsgFields::key_compare(), get_allocator<MsgFields>() ) ) ).first;
-    it->second = i->second;
-  }
+  m_fieldProps = rhs.m_fieldProps;
+  m_orderedFields = rhs.m_orderedFields;
+  m_orderedFieldsArray = rhs.m_orderedFieldsArray;
+  m_requiredHeaderFields = rhs.m_requiredHeaderFields;
+  m_requiredTrailerFields = rhs.m_requiredTrailerFields;
+  m_fieldTypes = rhs.m_fieldTypes;
+  m_fieldNames = rhs.m_fieldNames;
+  m_names = rhs.m_names;
+  m_valueNames = rhs.m_valueNames;
+  m_messageFields = rhs.m_messageFields;
+  m_requiredFields = rhs.m_requiredFields;
 
   for (FieldToValue::const_iterator i = rhs.m_fieldValues.begin();
        i != rhs.m_fieldValues.end(); ++i)
@@ -154,38 +165,70 @@ DataDictionary& DataDictionary::operator=( const DataDictionary& rhs )
     it->second = i->second;
   }
 
-  m_fieldTypeGroup = rhs.m_fieldTypeGroup;
-  for (FieldToGroup::const_iterator i = rhs.m_groups.begin();
-       i != rhs.m_groups.end(); ++i )
+  for (FieldToGroup::const_iterator i = rhs.m_headerGroups.begin();
+       i != rhs.m_headerGroups.end(); ++i )
   {
-    const FieldPresenceMap& presenceMap = i->second;
+    FieldToGroup::iterator it = m_headerGroups.insert( std::make_pair(i->first, i->second) ).first;
+    it->second.second = new DataDictionary( *i->second.second );
+  }
 
-    FieldPresenceMap::const_iterator iter = presenceMap.begin();
-    for ( ; iter != presenceMap.end(); ++iter )
+  for (FieldToGroup::const_iterator i = rhs.m_trailerGroups.begin();
+       i != rhs.m_trailerGroups.end(); ++i )
+  {
+    FieldToGroup::iterator it = m_trailerGroups.insert( std::make_pair(i->first, i->second) ).first;
+    it->second.second = new DataDictionary( *i->second.second );
+  }
+
+  for (MsgTypeGroups::const_iterator i = rhs.m_messageGroups.begin();
+       i != rhs.m_messageGroups.end(); ++i )
+  {
+    const FieldToGroup& src = i->second;
+    FieldToGroup& dst = m_messageGroups.insert( std::make_pair( i->first, FieldToGroup() ) ).first->second;
+    for (FieldToGroup::const_iterator j = src.begin(); j != src.end(); ++j)
     {
-      addGroup( iter->first, i->first, iter->second.first, *iter->second.second );
+      FieldToGroup::iterator it = dst.insert( std::make_pair( j->first, j->second ) ).first;
+      it->second.second = new DataDictionary( *j->second.second );
     }
   }
 
-  m_messages = rhs.m_messages;
-  m_fields = rhs.m_fields;
-  m_orderedFields = rhs.m_orderedFields;
-  m_orderedFieldsArray = rhs.m_orderedFieldsArray;
-  m_headerFields = rhs.m_headerFields;
-  m_trailerFields = rhs.m_trailerFields;
-  m_fieldTypes = rhs.m_fieldTypes;
-  m_fieldTypeData = rhs.m_fieldTypeData;
-  m_fieldTypeHeader = rhs.m_fieldTypeHeader;
-  m_fieldTypeTrailer = rhs.m_fieldTypeTrailer;
-  m_fieldNames = rhs.m_fieldNames;
-  m_names = rhs.m_names;
-  m_valueNames = rhs.m_valueNames;
+  for (MsgTypeToData::const_iterator i = rhs.m_messageData.begin();
+       i != rhs.m_messageData.end(); ++i )
+  {
+    MsgTypeGroups::iterator git = m_messageGroups.find( i->first );
+    if ( git != m_messageGroups.end() )
+      m_messageData.insert( std::make_pair( i->first,
+        MsgTypeData( m_requiredFields.find( i->first )->second,
+                   git->second, m_messageFields.find( i->first )->second )) );
+    else
+      m_messageData.insert( std::make_pair( i->first,
+        MsgTypeData( m_requiredFields.find( i->first )->second,
+                   m_messageFields.find( i->first )->second )) );
+  }
 
   return *this;
 }
 
+void DataDictionary::checkHasRequiredInGroups( const FieldToGroup& groupFields, const FieldMap& body ) const
+throw( RequiredTagMissing )
+{
+  FieldMap::g_iterator g, gend = body.g_end();
+  for( g = body.g_begin(); g != gend; ++g )
+  {
+    int delim;
+    const DataDictionary* DD = getGroup( groupFields, g->first, delim);
+    if ( DD )
+    {
+      const MsgFields& nestedFields = DD->getNestedBodyFields();
+      const FieldToGroup* nestedGroups =
+        DD->m_messageGroups.empty() ? NULL : &DD->m_messageGroups.begin()->second;
+      FieldMap::g_item_const_iterator gitem, gitem_end = g->second.end();
+      for( gitem = g->second.begin(); gitem != gitem_end; ++gitem )
+        DD->checkHasRequiredUnordered( nestedFields, nestedGroups, **gitem );
+    }
+  }
+}
 
-void HEAVYUSE DataDictionary::validate( const Message& message, bool bodyOnly ) const
+void LIGHTUSE DataDictionary::validate( const Message& message, bool bodyOnly ) const
 throw( FIX::Exception )
 {
   const Header& header = message.getHeader();
@@ -198,14 +241,14 @@ throw( FIX::Exception )
     {
       if( LIKELY(it->first == FIELD::MsgType) )
       {
-        validate( message, beginString, (const MsgType&) it->second,
-              bodyOnly ? (DataDictionary*)NULL : this, this );
+        MsgInfo msgInfo( this, this, LIKELY(!m_messageData.empty()) ? (const MsgType*) &it->second : NULL );
+        validate( message, beginString, msgInfo, bodyOnly ? (DataDictionary*)NULL : this );
         return;
       }
       if( LIKELY(++it != end && it->first == FIELD::MsgType) )
       {
-        validate( message, beginString, (const MsgType&) it->second,
-              bodyOnly ? (DataDictionary*)NULL : this, this );
+        MsgInfo msgInfo( this, this, LIKELY(!m_messageData.empty()) ? (const MsgType*) &it->second : NULL );
+        validate( message, beginString, msgInfo, bodyOnly ? (DataDictionary*)NULL : this );
         return;
       }
     }
@@ -216,11 +259,11 @@ throw( FIX::Exception )
 
 void HEAVYUSE DataDictionary::validate( const Message& message,
                                const BeginString& beginString,
-                               const MsgType& msgType,
-                               const DataDictionary* const pSessionDD,
-                               const DataDictionary* const pAppDD )
+                               const DataDictionary::MsgInfo& msgInfo,
+                               const DataDictionary* const pSessionDD)
 throw( FIX::Exception )
 {
+  const DataDictionary* pAppDD = msgInfo.applicationDictionary();
   unsigned session_checks, app_checks;
 
   if( LIKELY(pSessionDD != 0) )
@@ -237,13 +280,12 @@ throw( FIX::Exception )
   else
     session_checks = 0;
 
-  app_checks = pAppDD ? pAppDD->m_checks : 0;
+  app_checks = (pAppDD) ? pAppDD->m_checks : 0;
   session_checks |= app_checks;
-
-  const Header& header = message.getHeader();
 
   if( session_checks ) 
   {
+    const Header& header = message.getHeader();
     const char* tag = message.hasInvalidTagFormat();
     int field = 0;
 
@@ -258,28 +300,56 @@ throw( FIX::Exception )
   
     const Trailer& trailer = message.getTrailer();
 
-    if ( pAppDD != 0 && pAppDD->m_hasVersion )
+    if ( pAppDD != 0 )
     {
-      if( isChecked(UnknownMsgType, app_checks) )
-        pAppDD->checkMsgType( msgType );
-      if( isChecked(RequiredFields, app_checks) )
-        pAppDD->checkHasRequired( header, message, trailer, msgType );
+      bool hasVersion = pAppDD->m_hasVersion;
+      bool hasBegin = !pAppDD->m_beginString.empty();
+      const MsgTypeData* msgData = msgInfo.messageData();
+
+      if ( hasVersion )
+      {
+        if( isChecked(UnknownMsgType, app_checks) && !msgData)
+          throw InvalidMessageType();
+        if( isChecked(RequiredFields, app_checks) )
+          pAppDD->checkHasRequired( msgData, header, message, trailer );
+      }
+
+      if ( pSessionDD != 0 ) pSessionDD->iterate( header, trailer,
+                                                  pSessionDD->m_hasVersion,
+                                                 !pSessionDD->m_beginString.empty() );
+      if ( msgData )
+        pAppDD->iterate( message, *msgData, hasVersion, hasBegin );
+      else if ( !hasVersion && !hasBegin )
+        pAppDD->iterate( message );
+      else
+        pAppDD->iterate( message,  DataDictionary::m_noData, hasVersion, hasBegin );
     }
-  
-    if( pSessionDD != 0 )
-    {
-      pSessionDD->iterate( header, msgType );
-      pSessionDD->iterate( trailer, msgType );
-    }
-  
-    if( pAppDD != 0 )
-      pAppDD->iterate( message, msgType );
+    else if ( pSessionDD != 0 )
+      pSessionDD->iterate( header, trailer, pSessionDD->m_hasVersion,
+                                           !pSessionDD->m_beginString.empty() );
   }
 }
 
-void HEAVYUSE DataDictionary::iterate( const FieldMap& map, const MsgType& msgType ) const
+void HEAVYUSE DataDictionary::iterate( const FieldMap& map ) const
 {
-  int hasBegin = m_beginString.length();
+  int lastField = 0;
+
+  FieldMap::iterator i, ibegin = map.begin(), iend = map.end();
+  for ( i = ibegin; i != iend; ++i )
+  {
+    const FieldBase& field = i->second;
+    if( LIKELY((field.getTag() != lastField) || i == ibegin) )
+    {
+      checkHasValue( field );
+      lastField = field.getTag();
+      continue;
+    }
+    throw RepeatedTag( lastField );
+  }
+}
+
+void HEAVYUSE DataDictionary::iterate( const FieldMap& map, bool hasVersion, bool hasBegin ) const
+{
   int lastField = 0;
 
   FieldMap::iterator i, ibegin = map.begin(), iend = map.end();
@@ -290,7 +360,35 @@ void HEAVYUSE DataDictionary::iterate( const FieldMap& map, const MsgType& msgTy
     {
       checkHasValue( field );
   
-      if ( m_hasVersion )
+      if ( hasVersion )
+      {
+        checkValidFormat( field );
+        checkValue( field );
+      }
+  
+      if ( hasBegin && shouldCheckTag(field) )
+        checkValidTagNumber( field );
+
+      lastField = field.getTag();
+      continue;
+    }
+    throw RepeatedTag( lastField );
+  }
+}
+
+void HEAVYUSE DataDictionary::iterate( const FieldMap& map, const MsgTypeData& msgData, bool hasVersion, bool hasBegin ) const
+{
+  int lastField = 0;
+
+  FieldMap::iterator i, ibegin = map.begin(), iend = map.end();
+  for ( i = ibegin; i != iend; ++i )
+  {
+    const FieldBase& field = i->second;
+    if( LIKELY((field.getTag() != lastField) || i == ibegin) )
+    {
+      checkHasValue( field );
+  
+      if ( hasVersion )
       {
         checkValidFormat( field );
         checkValue( field );
@@ -299,12 +397,8 @@ void HEAVYUSE DataDictionary::iterate( const FieldMap& map, const MsgType& msgTy
       if ( hasBegin && shouldCheckTag(field) )
       {
         checkValidTagNumber( field );
-        if ( !Message::isHeaderField( field, this )
-             && !Message::isTrailerField( field, this ) )
-        {
-          checkIsInMessage( field, msgType );
-          checkGroupCount( field, map, msgType );
-        }
+        checkIsInMessage( field, msgData );
+        checkGroupCount( field, map, msgData );
       }
       lastField = field.getTag();
       continue;
@@ -313,16 +407,10 @@ void HEAVYUSE DataDictionary::iterate( const FieldMap& map, const MsgType& msgTy
   }
 }
 
-void DataDictionary::readFromURL( const std::string& url )
+void LIGHTUSE DataDictionary::readFromURL( const std::string& url )
 throw( ConfigError )
 {
-#ifdef HAVE_LIBXML
-  DOMDocumentPtr pDoc = DOMDocumentPtr(new LIBXML_DOMDocument());
-#elif _MSC_VER
-  DOMDocumentPtr pDoc = DOMDocumentPtr(new MSXML_DOMDocument());
-#else
-  DOMDocumentPtr pDoc = DOMDocumentPtr(new LIBXML_DOMDocument());
-#endif
+  DOMDocumentPtr pDoc = DOMDocumentPtr(new PUGIXML_DOMDocument());
 
   if(!pDoc->load(url))
     throw ConfigError(url + ": Could not parse data dictionary file");
@@ -337,16 +425,10 @@ throw( ConfigError )
   }
 }
 
-void DataDictionary::readFromStream( std::istream& stream )
+void LIGHTUSE DataDictionary::readFromStream( std::istream& stream )
 throw( ConfigError )
 {
-#ifdef HAVE_LIBXML
-  DOMDocumentPtr pDoc = DOMDocumentPtr(new LIBXML_DOMDocument());
-#elif _MSC_VER
-  DOMDocumentPtr pDoc = DOMDocumentPtr(new MSXML_DOMDocument());
-#else
-  DOMDocumentPtr pDoc = DOMDocumentPtr(new LIBXML_DOMDocument());
-#endif
+  DOMDocumentPtr pDoc = DOMDocumentPtr(new PUGIXML_DOMDocument());
 
   if(!pDoc->load(stream))
     throw ConfigError("Could not parse data dictionary stream");
@@ -354,7 +436,7 @@ throw( ConfigError )
   readFromDocument( pDoc );
 }
 
-void DataDictionary::readFromDocument( DOMDocumentPtr pDoc )
+void LIGHTUSE DataDictionary::readFromDocument( DOMDocumentPtr pDoc )
 throw( ConfigError )
 {
   // VERSION
@@ -396,7 +478,7 @@ throw( ConfigError )
       std::string number;
       if(!attrs->get("number", number))
         throw ConfigError("<field> " + name + " does not have a number attribute");
-      int num = atol(number.c_str());
+      int num = atoi(number.c_str());
       std::string type;
       if(!attrs->get("type", type))
         throw ConfigError("<field> " + name + " does not have a type attribute");
@@ -452,7 +534,7 @@ throw( ConfigError )
         std::string required;
         attrs->get("required", required);
         bool isRequired = (required == "Y" || required == "y");
-        addXMLGroup(pDoc.get(), pHeaderFieldNode.get(), "_header_", *this, isRequired);
+        addXMLGroup(pDoc.get(), pHeaderFieldNode.get(), String::Copy()( GroupKey.Header ), *this, isRequired);
       }
 
       RESET_AUTO_PTR(pHeaderFieldNode, pHeaderFieldNode->getNextSiblingNode());
@@ -487,7 +569,7 @@ throw( ConfigError )
         std::string required;
         attrs->get("required", required);
         bool isRequired = (required == "Y" || required == "y");
-        addXMLGroup(pDoc.get(), pTrailerFieldNode.get(), "_trailer_", *this, isRequired);
+        addXMLGroup(pDoc.get(), pTrailerFieldNode.get(), String::Copy()( GroupKey.Trailer ), *this, isRequired);
       }
 
       RESET_AUTO_PTR(pTrailerFieldNode, pTrailerFieldNode->getNextSiblingNode());
@@ -566,7 +648,7 @@ message_order const&  DataDictionary::getOrderedFields() const
   if( m_orderedFieldsArray ) return m_orderedFieldsArray;
 
   Util::scoped_array<int>::type ordered( new int[m_orderedFields.size() + 1] );
-  std::copy(m_orderedFields.begin(), m_orderedFields.end(), ordered.get());
+  copy_to_array(m_orderedFields.begin(), m_orderedFields.end(), ordered.get(), m_orderedFields.size() + 1);
   ordered.get()[m_orderedFields.size()] = 0;
 
   return  (m_orderedFieldsArray = message_order(ordered.get()));
@@ -590,7 +672,7 @@ int DataDictionary::lookupXMLFieldNumber
   return i->second;
 }
 
-int DataDictionary::addXMLComponentFields( DOMDocument* pDoc, DOMNode* pNode,
+int LIGHTUSE DataDictionary::addXMLComponentFields( DOMDocument* pDoc, DOMNode* pNode,
                                             const std::string& msgtype,
                                             DataDictionary& DD,
                                             bool componentRequired )
@@ -654,7 +736,7 @@ int DataDictionary::addXMLComponentFields( DOMDocument* pDoc, DOMNode* pNode,
   return firstField;
 }
 
-void DataDictionary::addXMLGroup( DOMDocument* pDoc, DOMNode* pNode,
+void LIGHTUSE DataDictionary::addXMLGroup( DOMDocument* pDoc, DOMNode* pNode,
                                   const std::string& msgtype,
                                   DataDictionary& DD, bool groupRequired  )
 {
@@ -699,9 +781,9 @@ void DataDictionary::addXMLGroup( DOMDocument* pDoc, DOMNode* pNode,
       {
         groupDD.addRequiredField(msgtype, field);
       }
-	    bool isRequired = false;
-	    if( attrs->get("required", required) )
-		  isRequired = (required == "Y" || required == "y");
+      bool isRequired = false;
+      if( attrs->get("required", required) )
+      isRequired = (required == "Y" || required == "y");
       addXMLGroup( pDoc, node.get(), msgtype, groupDD, isRequired );
     }
     if( delim == 0 ) delim = field;
@@ -747,73 +829,93 @@ TYPE::Type DataDictionary::XMLTypeToType( const std::string& type ) const
   return TYPE::Unknown;
 }
 
-void DataDictionary::addField( int field )
+void DataDictionary::setVersion( const std::string& beginString )
 {
-  m_fields.insert( field );
+  std::string applVerID = Message::toApplVerID(beginString);
+  m_applVerID.assign( applVerID.c_str(), applVerID.size() );
+  m_beginString = beginString;
+  m_hasVersion = true;
+}
+
+void LIGHTUSE DataDictionary::addField( int field )
+{
+  m_fieldProps[ field ].defined( true );
   m_orderedFields.push_back( field );
 }
 
-void DataDictionary::addFieldName( int field, const std::string& name )
+void LIGHTUSE DataDictionary::addFieldName( int field, const std::string& name )
 {
   if( m_names.insert( std::make_pair(name, field) ).second == false )
     throw ConfigError( "Field named " + name + " defined multiple times" );
   m_fieldNames[field] = name;
 }
 
-void DataDictionary::addValueName( int field, const std::string& value, const std::string& name )
+void LIGHTUSE DataDictionary::addValueName( int field, const std::string& value, const std::string& name )
 {
   m_valueNames[std::make_pair(field, value)] = name;
 }
 
-void DataDictionary::addMsgType( const std::string& msgType )
+DataDictionary::MsgTypeToData::iterator LIGHTUSE DataDictionary::addMsgType( const std::string& msgType )
 {
-  m_messages.insert( String::value_type( msgType.c_str(), msgType.length() ) );
+  string_type name = string_type( msgType.c_str(), msgType.length());
+  MsgTypeToData::iterator it = m_messageData.find( name );
+  if ( it == m_messageData.end() ) 
+  {
+    it = m_messageData.insert( std::make_pair( name,
+           MsgTypeData( m_requiredFields.insert( std::make_pair(name, MsgFields( ) ) ).first->second,
+                        m_messageFields.insert( std::make_pair(name, FieldToProps( get_allocator<FieldToProps>()) ) ).first->second ) )
+         ).first;
+  }
+  return it;
 }
 
-void DataDictionary::addMsgField( const std::string& msgType, int field )
+void LIGHTUSE DataDictionary::addMsgField( const std::string& msgType, int field )
 {
-  MsgTypeToField::iterator i = m_messageFields.find( msgType );
-  if ( i == m_messageFields.end() )
-    m_messageFields.insert(
-      MsgTypeToField::value_type(
-        String::value_type( msgType.c_str(), msgType.length() ),
-          MsgFields( MsgFields::key_compare(), get_allocator<MsgFields>()) ) );
-  m_messageFields[ msgType ].insert( field );
+  string_type name = string_type( msgType.c_str(), msgType.length());
+  MsgTypeToData::iterator i = m_messageData.find( name );
+  if ( i == m_messageData.end() ) i = addMsgType( msgType );
+
+  std::pair<FieldToProps::iterator, bool> r = i->second.m_defined.insert( std::make_pair( field, m_fieldProps[ field ]) );
+  if ( isDataField( field ) )
+  {
+    m_fieldProps[ field ].hasData(true);
+    r.first->second.hasData(true);
+  }
 }
 
-void DataDictionary::addHeaderField( int field, bool required )
+void LIGHTUSE DataDictionary::addHeaderField( int field, bool required )
 {
-  m_headerFields[ field ] = required;
-  if ( field < HeaderTypeBits )
-      m_fieldTypeHeader.set(field);
+  m_fieldProps[ field ].userLocation( FieldProperties::Header );
+  if ( isDataField( field ) )
+    m_headerData = true;
+  if ( required )
+    m_requiredHeaderFields.insert( field );
 }
 
-void DataDictionary::addTrailerField( int field, bool required )
+void LIGHTUSE DataDictionary::addTrailerField( int field, bool required )
 {
-  m_trailerFields[ field ] = required;
-  if ( field < TrailerTypeBits )
-      m_fieldTypeTrailer.set(field);
+  m_fieldProps[ field ].userLocation( FieldProperties::Trailer );
+  if ( isDataField( field ) )
+    m_trailerData = true;
+  if ( required )
+    m_requiredTrailerFields.insert( field );
 }
 
-void DataDictionary::addFieldType( int field, FIX::TYPE::Type type )
+void LIGHTUSE DataDictionary::addFieldType( int field, FIX::TYPE::Type type )
 {
   m_fieldTypes[ field ] = type;
-  if (field < DataTypeBits && type == TYPE::Data)
-      m_fieldTypeData.set(field);
+  m_fieldProps[ field ].hasData(type == TYPE::Data);
 }
 
-void DataDictionary::addRequiredField( const std::string& msgType, int field )
+void LIGHTUSE DataDictionary::addRequiredField( const std::string& msgType, int field )
 {
-  MsgTypeToField::iterator i = m_requiredFields.find( msgType );
-  if ( i == m_requiredFields.end() )
-    m_requiredFields.insert(
-      MsgTypeToField::value_type(
-        String::value_type( msgType.c_str(), msgType.length() ),
-          MsgFields( MsgFields::key_compare(), get_allocator<MsgFields>()) ) );
-  m_requiredFields[ msgType ].insert( field );
+  string_type name = string_type( msgType.c_str(), msgType.length());
+  MsgTypeToData::iterator i = m_messageData.find( name );
+  if ( i == m_messageData.end() ) i = addMsgType( msgType );
+  i->second.m_required.insert( field );
 }
 
-void DataDictionary::addFieldValue( int field, const String::value_type& value )
+void LIGHTUSE DataDictionary::addFieldValue( int field, const DataDictionary::string_type& value )
 {
   FieldToValue::iterator i = m_fieldValues.find( field );
   if (i == m_fieldValues.end())
@@ -823,19 +925,31 @@ void DataDictionary::addFieldValue( int field, const String::value_type& value )
   m_fieldValues[ field ].insert( value );
 }
 
-void DataDictionary::addGroup( const FieldPresenceMap::key_type& msg, int field, int delim,
+void LIGHTUSE DataDictionary::addGroup( const std::string& msgType, int field, int delim,
                const DataDictionary& dataDictionary )
 {
   DataDictionary * pDD = new DataDictionary( dataDictionary );
   pDD->setVersion( getVersion() );
 
-  if ( field < GroupTypeBits ) m_fieldTypeGroup.set(field);
-  FieldToGroup::iterator it = m_groups.find( field );
-  if ( it == m_groups.end() )
-    m_groups.insert(
-      FieldToGroup::value_type( field,
-        FieldPresenceMap( get_allocator<FieldPresenceMap>()) ) ); 
-  FieldPresenceMap& presenceMap = m_groups[ field ];
-  presenceMap[ String::CopyFunc()(msg) ] = std::make_pair( delim, pDD );
+  m_fieldProps[ field ].hasGroup(true); // at least one message type
+
+  string_type name = string_type( msgType.c_str(), msgType.length());
+
+  if ( name == GroupKey.Header )
+    m_headerGroups[ field ] = std::make_pair( delim, pDD );
+  else if ( name == GroupKey.Trailer )
+    m_trailerGroups[ field ] = std::make_pair( delim, pDD );
+  else
+  {
+    MsgTypeToData::iterator i = m_messageData.find( name );
+    if ( i == m_messageData.end() ) i = addMsgType( msgType );
+
+    if ( i->second.groups() == NULL )
+      i->second.groups( m_messageGroups.insert( std::make_pair( name, FieldToGroup( get_allocator<FieldToGroup>() )) ).first->second );
+    (*i->second.m_groups)[ field ] = std::make_pair( delim, pDD );
+    i->second.m_defined[ field ].hasGroup(true);
+  }
 }
+
 }
+

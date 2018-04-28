@@ -1,5 +1,5 @@
 #****************************************************************************
-# Copyright (c) quickfixengine.org  All rights reserved.
+# Copyright (c) 2001-2014
 #
 # This file is part of the QuickFIX FIX Engine
 #
@@ -16,8 +16,8 @@
 # not clear to you.
 #****************************************************************************
 
-require 'Reflector'
-require 'FixParser'
+require './Reflector'
+require './FixParser'
 require "socket"
 
 class ReflectorClient

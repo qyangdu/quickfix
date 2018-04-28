@@ -1,7 +1,7 @@
 /* -*- C++ -*- */
 
 /****************************************************************************
-** Copyright (c) quickfixengine.org  All rights reserved.
+** Copyright (c) 2001-2014
 **
 ** This file is part of the QuickFIX FIX Engine
 **
@@ -112,6 +112,8 @@ private:
   pthread_t m_threadID;
   int m_count;
 #endif
+
+  friend class CondVar;
 };
 
 /// Locks/Unlocks a mutex using RAII.
@@ -134,6 +136,8 @@ public:
   }
 private:
   Mutex& m_mutex;
+
+  friend class CondVar;
 };
 
 /// Locks/Unlocks a mutex using RAII, can be unlocked.
@@ -161,9 +165,90 @@ public:
   }
 private:
   Mutex* m_mutex;
+
+  friend class CondVar;
 };
 
-#endif // HAVE_BOOST
+#endif // !HAVE_BOOST
+
+class CondVar
+{
+public:
+  CondVar()
+  {
+#if !defined(HAVE_BOOST)
+#ifdef _MSC_VER
+    InitializeConditionVariable(&m_cond);
+#else
+    pthread_cond_init(&m_cond, NULL);
+#endif
+#endif
+  }
+
+  void wait(Locker& lock)
+  {
+#if defined(HAVE_BOOST)
+	m_cond.wait(lock);
+#elif defined(_MSC_VER)
+    SleepConditionVariableCS(&m_cond,&lock.m_mutex.m_mutex, INFINITE);
+#else
+    pthread_cond_wait(&m_cond, &lock.m_mutex.m_mutex);
+#endif
+  }
+
+  bool timed_wait(Locker& lock, unsigned long millis)
+  {
+#if defined(HAVE_BOOST)
+    return m_cond.timed_wait(lock, boost::posix_time::milliseconds(millis));
+#elif defined(_MSC_VER)
+    return SleepConditionVariableCS(&m_cond,&lock.m_mutex.m_mutex, millis) != 0;
+#else
+    struct timespec when;
+    clock_gettime(CLOCK_REALTIME, &when);
+    when.tv_sec += (millis + when.tv_nsec / 1000000) / 1000;
+    when.tv_nsec = (millis + when.tv_nsec / 1000000) % 1000 * 1000000 + when.tv_nsec % 1000000;
+    return 0 == pthread_cond_timedwait(&m_cond, &lock.m_mutex.m_mutex, &when);
+#endif
+  }
+
+  void notify_one()
+  {
+#if defined(HAVE_BOOST)
+    m_cond.notify_one();
+#elif defined(_MSC_VER)
+    WakeConditionVariable(&m_cond);
+#else
+    pthread_cond_signal(&m_cond);
+#endif
+  }
+
+  void notify_all()
+  {
+#if defined(HAVE_BOOST)
+    m_cond.notify_all();
+#elif defined(_MSC_VER)
+    WakeAllConditionVariable(&m_cond);
+#else
+    pthread_cond_broadcast(&m_cond);
+#endif
+  }
+
+  ~CondVar()
+  {
+#if !defined(_MSC_VER) && !defined(HAVE_BOOST)
+    pthread_cond_destroy(&m_cond);
+#endif
+  }
+
+private:
+#if defined(HAVE_BOOST)
+  boost::condition_variable_any m_cond;
+#elif defined(_MSC_VER)
+  CONDITION_VARIABLE m_cond;
+#else
+  pthread_cond_t m_cond;
+#endif
+};
 
 #ifdef HAVE_TBB
 
